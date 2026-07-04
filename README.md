@@ -8,7 +8,8 @@ A comprehensive AI harness framework with Ollama model integration, Obsidian vau
 - **Skill System**: External skill definitions (YAML/JSON) with templating and sandboxing
 - **Obsidian Integration**: Read/write notes from an Obsidian vault
 - **Audio Layer**: Speech-to-Text (Whisper) and Text-to-Speech (HTTP)
-- **Wake Word Detection**: Automatic activation on "Jarvis" keyword (Picovoice Porcupine)
+- **Wake Word Detection**: Lightweight local wake-word setup via OpenWakeWord-style flow
+- **Workspace Automation**: Ask Ollama to create or update files and folders in your configured vault/skills/projects
 - **Interactive Pipeline**: Unified entry point for CLI, audio, and note-driven interactions
 - **Rainbow Banner**: Colorful terminal greeting with configurable name
 - **Sandboxed Skills**: Isolated execution with approval workflow for self-improving skills
@@ -139,6 +140,14 @@ jarvis init
 jarvis run-skill --skill ./skills/sample-note-skill.yml
 # Skill executes with configured models and backends
 ```
+
+### Ask It to Work in Your Folders
+
+```bash
+jarvis work --task "Create a todo note in my vault called planning.md with a checklist"
+```
+
+This sends a request to your configured Ollama model and lets it create or modify files in the folders you selected during setup, such as the vault, skills folder, or any registered project folders.
 
 ### Listen and Speak
 

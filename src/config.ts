@@ -38,6 +38,12 @@ export interface PermissionsConfig {
   requireConfirmation?: boolean;
 }
 
+export interface CloudConfig {
+  provider?: "ollama-cloud";
+  endpoint?: string;
+  model?: string;
+}
+
 export interface StartupConfig {
   autoStart?: boolean;
   platform?: "win32" | "linux" | "darwin";
@@ -52,7 +58,9 @@ export interface ProjectConfig {
 export interface HarnessConfig {
   model: string;
   assistantName?: string;
+  modelProvider?: "ollama" | "cloud";
   ollama: OllamaConfig;
+  cloud?: CloudConfig;
   audio?: AudioConfig;
   vaultPath?: string;
   skillsPath?: string;
@@ -64,9 +72,15 @@ export interface HarnessConfig {
 const defaultConfig: HarnessConfig = {
   model: "llama2",
   assistantName: "Jarvis",
+  modelProvider: "cloud",
   ollama: {
     endpoint: "http://127.0.0.1:11434",
     model: "llama2"
+  },
+  cloud: {
+    provider: "ollama-cloud",
+    endpoint: "https://ollama.example.com",
+    model: "llama3.2"
   },
   audio: {
     stt: {

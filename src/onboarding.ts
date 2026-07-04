@@ -6,6 +6,7 @@ import { readConfig, updateConfig } from "./config/loader";
 import { updateEnv } from "./config/env";
 import { printBanner } from "./ui/banner";
 import { onboardWelcome, onboardAudio } from "./onboarding/sections/welcome";
+import { onboardOllama } from "./onboarding/sections/ollama";
 import { onboardWakeWord } from "./onboarding/sections/wakeWord";
 import { onboardStartup } from "./onboarding/sections/startup";
 import { onboardObsidian } from "./onboarding/sections/obsidian";
@@ -61,13 +62,18 @@ export async function runOnboarding(): Promise<void> {
     config = { ...config, ...welcomeConfig };
     updateConfig(welcomeConfig, configPath);
 
-    // Section 2: Audio Setup
+    // Section 2: Ollama Setup
+    let ollamaConfig = await onboardOllama(config);
+    config = { ...config, ...ollamaConfig };
+    updateConfig(ollamaConfig, configPath);
+
+    // Section 3: Audio Setup
     const enableAudio = config.audio?.stt?.enabled || config.audio?.tts?.enabled;
     let audioConfig = await onboardAudio(config, enableAudio ?? false);
     config = { ...config, ...audioConfig };
     updateConfig(audioConfig, configPath);
 
-    // Section 3: Wake Word Setup
+    // Section 4: Wake Word Setup
     const enableWakeWord = enableAudio || (await inquirer.prompt([
       {
         type: "confirm",
@@ -91,17 +97,17 @@ export async function runOnboarding(): Promise<void> {
       }
     }
 
-    // Section 4: Startup Setup
+    // Section 5: Startup Setup
     let startupConfig = await onboardStartup(config);
     config = { ...config, ...startupConfig };
     updateConfig(startupConfig, configPath);
 
-    // Section 5: Obsidian & Projects
+    // Section 6: Obsidian & Projects
     let obsidianConfig = await onboardObsidian(config);
     config = { ...config, ...obsidianConfig };
     updateConfig(obsidianConfig, configPath);
 
-    // Section 6: Permissions
+    // Section 7: Permissions
     let permissionsConfig = await onboardPermissions(config);
     config = { ...config, ...permissionsConfig };
     updateConfig(permissionsConfig, configPath);

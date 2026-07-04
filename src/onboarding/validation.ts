@@ -36,8 +36,8 @@ export async function validateSetup(config: HarnessConfig): Promise<{ valid: boo
 
   // Validate wake word config
   if (config.audio?.wakeWord?.enabled) {
-    if (!config.audio.wakeWord.accessKey) {
-      errors.push("Picovoice AccessKey not set");
+    if (!config.audio.wakeWord.keyword) {
+      errors.push("Wake word keyword not set");
     }
   }
 

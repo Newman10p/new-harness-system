@@ -1,14 +1,12 @@
 import chalk from "chalk";
 
-const COLORS = [chalk.red, chalk.yellow, chalk.green, chalk.cyan, chalk.blue, chalk.magenta];
-
-export function rainbow(text: string): string {
+function blueGreen(text: string): string {
   return text
     .split("")
-    .map((ch, i) => COLORS[i % COLORS.length](ch))
+    .map((ch, index) => (index % 2 === 0 ? chalk.blue(ch) : chalk.green(ch)))
     .join("");
 }
 
 export function printBanner(name = "Jarvis"): void {
-  console.log(rainbow(`\n>>> ${name} harness ready <<<\n`));
+  console.log(blueGreen(`\n>>> ${name} harness ready <<<\n`));
 }

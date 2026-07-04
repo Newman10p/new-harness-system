@@ -30,13 +30,16 @@ export class OllamaAdapter implements ModelAdapter {
   }
 
   private async generateViaHttp(prompt: string, options: ModelGenerateOptions): Promise<ModelGenerateResult> {
-    const url = new URL("/v1/completions", this.config.endpoint).toString();
+    const endpoint = this.config.endpoint ?? "http://127.0.0.1:11434";
+    const url = new URL("/api/generate", endpoint).toString();
     const body = {
       model: this.config.model,
       prompt,
-      max_tokens: options.maxTokens ?? 512,
-      temperature: options.temperature ?? 0.2,
-      stop: options.stop
+      stream: false,
+      options: {
+        num_predict: options.maxTokens ?? 512,
+        temperature: options.temperature ?? 0.2
+      }
     };
 
     const response = await fetch(url, {
@@ -52,16 +55,12 @@ export class OllamaAdapter implements ModelAdapter {
     }
 
     const data = await response.json();
-    const text = Array.isArray(data?.choices) && data.choices[0]?.text ? data.choices[0].text : data?.output ?? "";
+    const text = typeof data?.response === "string" ? data.response : "";
     return { text: String(text), metadata: { raw: data } };
   }
 
   private async generateViaCli(prompt: string, options: ModelGenerateOptions): Promise<ModelGenerateResult> {
-    const args = ["predict", this.config.model, prompt, "--json", "--temperature", String(options.temperature ?? 0.2)];
-    if (options.maxTokens) {
-      args.push("--max-tokens", String(options.maxTokens));
-    }
-
+    const args = ["run", this.config.model, prompt];
     const { stdout, stderr } = await execFileAsync("ollama", args, {
       cwd: process.cwd(),
       env: process.env
@@ -71,14 +70,6 @@ export class OllamaAdapter implements ModelAdapter {
       console.warn(stderr);
     }
 
-    let data;
-    try {
-      data = JSON.parse(stdout);
-    } catch (error) {
-      return { text: stdout.trim(), metadata: { raw: stdout } };
-    }
-
-    const text = Array.isArray(data?.choices) && data.choices[0]?.text ? data.choices[0].text : data?.output ?? "";
-    return { text: String(text), metadata: { raw: data } };
+    return { text: stdout.trim(), metadata: { raw: stdout } };
   }
 }

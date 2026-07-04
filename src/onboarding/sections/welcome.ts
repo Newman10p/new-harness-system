@@ -28,6 +28,12 @@ export async function onboardWelcome(existing: Partial<HarnessConfig>): Promise<
 
   const config: Partial<HarnessConfig> = {
     assistantName: answers.assistantName,
+    modelProvider: "cloud",
+    cloud: {
+      provider: "ollama-cloud",
+      endpoint: "https://ollama.example.com",
+      model: "llama3.2"
+    },
     audio: {
       stt: { enabled: answers.mode === "text+voice", backend: "whisper" },
       tts: { enabled: answers.mode === "text+voice", backend: "http" }

@@ -4,13 +4,14 @@ import chalk from "chalk";
 
 export async function onboardWakeWord(existing: Partial<HarnessConfig>): Promise<Partial<HarnessConfig>> {
   console.log(chalk.cyan("\n=== Wake Word Setup ===\n"));
+  console.log(chalk.gray("A simple, free, and easy option is OpenWakeWord. It works well for local testing and doesn't require a paid service.\n"));
 
   const enableWakeWord = await inquirer.prompt([
     {
       type: "confirm",
       name: "enable",
-      message: "Enable wake-word detection ('Jarvis' keyword)?",
-      default: true
+      message: "Enable wake-word detection with OpenWakeWord?",
+      default: false
     }
   ]);
 
@@ -18,24 +19,17 @@ export async function onboardWakeWord(existing: Partial<HarnessConfig>): Promise
     return {};
   }
 
-  console.log(chalk.yellow("\nTo set up wake word detection, you need to get a Picovoice AccessKey:\n"));
-  console.log(chalk.gray("1. Visit: https://console.picovoice.ai/"));
-  console.log(chalk.gray("2. Sign up or log in"));
-  console.log(chalk.gray("3. Go to the AccessKey section and copy your key"));
-  console.log(chalk.gray("4. Return to this terminal and paste it below\n"));
-
   const answers = await inquirer.prompt([
     {
-      type: "password",
-      name: "accessKey",
-      message: "Picovoice AccessKey (hidden input):",
-      mask: "*",
-      validate: (input: string) => input.trim().length > 0 || "AccessKey cannot be empty"
+      type: "input",
+      name: "keyword",
+      message: "Wake word keyword:",
+      default: existing.audio?.wakeWord?.keyword ?? "jarvis"
     },
     {
       type: "input",
       name: "modelPath",
-      message: "Path to Porcupine model file (or leave empty for default):",
+      message: "Path to OpenWakeWord model (leave empty for default):",
       default: existing.audio?.wakeWord?.modelPath ?? ""
     }
   ]);
@@ -44,9 +38,8 @@ export async function onboardWakeWord(existing: Partial<HarnessConfig>): Promise
     audio: {
       wakeWord: {
         enabled: true,
-        accessKey: answers.accessKey.trim(),
         modelPath: answers.modelPath.trim() || undefined,
-        keyword: "jarvis"
+        keyword: answers.keyword.trim() || "jarvis"
       }
     }
   };

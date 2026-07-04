@@ -4,14 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { loadConfig } from "./config";
-import { OllamaAdapter } from "./harness/OllamaAdapter";
 import { SkillRunner } from "./harness/SkillRunner";
+import { createModelAdapter } from "./harness/ModelAdapterFactory";
 import { ObsidianConnector } from "./harness/ObsidianConnector";
 import { loadAudioAdapters } from "./audio/audioLoader";
 import { InteractionEngine } from "./core/interaction";
 import { printBanner } from "./ui/banner";
 import { SandboxedSkillRunner } from "./skills/SandboxedSkillRunner";
 import { runOnboarding } from "./onboarding";
+import { WorkspaceAgent } from "./workspace/WorkspaceAgent";
 
 function printUsage(): void {
   console.log(`
@@ -27,11 +28,13 @@ Usage:
   jarvis list-skills
   jarvis run-sandbox --skill <skill-file> [--sandboxRoot <dir>] [--timeout <ms>]
   jarvis promote-skill --skill <skill-file>
+  jarvis work --task <description>                    # Ask Ollama to create or edit files in your configured folders
 
 Examples:
   jarvis init                                         # Setup wizard (or runs automatically)
   jarvis list-skills                                  # List all available skills
   jarvis run-skill --skill ./skills/example.yml       # Run a skill
+  jarvis work --task "Create a todo note in my vault" # Let Ollama edit files in your configured folders
   jarvis speak --text "Hello world" --out output.wav  # Text to speech
   jarvis listen --file input.wav --out output.txt     # Speech to text
 `);
@@ -95,11 +98,12 @@ async function main(): Promise<void> {
   const config = loadConfig(configPath);
   printBanner(config.assistantName ?? "Jarvis");
   const audioAdapters = loadAudioAdapters(config);
-  const ollamaAdapter = new OllamaAdapter(config.ollama);
-  const skillRunner = new SkillRunner(ollamaAdapter, config);
+  const modelAdapter = createModelAdapter(config);
+  const skillRunner = new SkillRunner(modelAdapter, config);
   const obsidianConnector = new ObsidianConnector(config.vaultPath ?? "./vault");
-  const interactionEngine = new InteractionEngine(ollamaAdapter, skillRunner, obsidianConnector);
+  const interactionEngine = new InteractionEngine(modelAdapter, skillRunner, obsidianConnector);
   const sandboxRunner = new SandboxedSkillRunner(config);
+  const workspaceAgent = new WorkspaceAgent(modelAdapter, config);
 
   if (!command) {
     printUsage();
@@ -241,6 +245,17 @@ async function main(): Promise<void> {
         } else {
           console.log(`Promotion cancelled for skill: ${skill}`);
         }
+        break;
+      }
+      case "do":
+      case "work":
+      case "agent": {
+        const task = args.task ?? args.prompt ?? args.text ?? args.message;
+        if (!task) {
+          throw new Error("Missing --task or --prompt for workspace action");
+        }
+        const result = await workspaceAgent.execute(task);
+        console.log(result);
         break;
       }
       default: {
