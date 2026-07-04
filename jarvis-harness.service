@@ -1,0 +1,15 @@
+[Unit]
+Description=Jarvis AI Harness with Wake Word Listener
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/path/to/new-harness-system
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

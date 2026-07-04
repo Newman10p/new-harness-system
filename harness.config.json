@@ -1,0 +1,26 @@
+{
+  "assistantName": "Jarvis",
+  "model": "llama2",
+  "ollama": {
+    "endpoint": "http://127.0.0.1:11434",
+    "model": "llama2"
+  },
+  "audio": {
+    "stt": {
+      "backend": "whisper",
+      "enabled": true,
+      "modelPath": "base"
+    },
+    "tts": {
+      "backend": "http",
+      "enabled": false,
+      "endpoint": "http://localhost:5002/api/tts"
+    }
+  },
+  "vaultPath": "./vault",
+  "skillsPath": "./skills",
+  "permissions": {
+    "allowSandboxedSkills": true,
+    "allowedExternalCommands": []
+  }
+}

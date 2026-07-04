@@ -1,0 +1,11 @@
+name: sample-obsidian-note
+ description: Generate an Obsidian note from a user idea and save it to the vault.
+ noteTitle: "{{idea | titleCase}}"
+ outputNote: "generated-ideas/ai-note.md"
+ prompt: |
+   You are an AI assistant that helps generate a useful Obsidian note.
+   Based on this idea, write a markdown note with a title, summary, and action items.
+
+   Idea: {{idea}}
+ inputs:
+   idea: "A short description of what the note should be about."

@@ -1,0 +1,12 @@
+name: sample-note-skill
+description: Generate a new Obsidian note based on a user idea.
+prompt: |
+  You are an AI assistant that helps create Obsidian notes.
+  Create a concise markdown note for the following idea:
+
+  {{idea}}
+
+  Include a suggested title and an outline.
+inputs:
+  idea: "A new note idea from the user."
+outputNote: "generated-note.md"

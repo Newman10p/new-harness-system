@@ -1,0 +1,54 @@
+{
+  "name": "jarvis-harness",
+  "version": "0.1.0",
+  "description": "An AI harness with Ollama, Obsidian vault integration, audio (STT/TTS), wake-word detection, and sandboxed skills.",
+  "bin": {
+    "jarvis": "./bin/jarvis.js"
+  },
+  "main": "dist/cli.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/startup.js",
+    "cli": "node dist/cli.js",
+    "init": "node dist/cli.js init",
+    "banner": "node dist/ui/bannerCli.js",
+    "dev": "tsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "harness",
+    "ollama",
+    "obsidian",
+    "cli",
+    "skills",
+    "wake-word",
+    "sandbox"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Newman10p/new-harness-system"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "dotenv": "^16.4.7",
+    "inquirer": "^8.2.6",
+    "js-yaml": "^4.1.0",
+    "node-fetch": "^3.3.2",
+    "@picovoice/porcupine-node": "^4.0.2",
+    "@picovoice/pvrecorder-node": "^1.2.9",
+    "@pr0gramm/fluester": "^0.9.15"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/js-yaml": "^4.0.5",
+    "@types/inquirer": "^9.0.7",
+    "typescript": "^5.6.0"
+  }
+}
