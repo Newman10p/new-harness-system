@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+export type ModelProvider = "ollama" | "ollama-cloud" | "openai" | "anthropic";
+
 export interface OllamaConfig {
   endpoint?: string;
   model: string;
@@ -42,6 +44,21 @@ export interface CloudConfig {
   provider?: "ollama-cloud";
   endpoint?: string;
   model?: string;
+  creditBudget?: number;
+}
+
+export interface OpenAiConfig {
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
+  creditBudget?: number;
+}
+
+export interface AnthropicConfig {
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
+  creditBudget?: number;
 }
 
 export interface StartupConfig {
@@ -58,9 +75,12 @@ export interface ProjectConfig {
 export interface HarnessConfig {
   model: string;
   assistantName?: string;
-  modelProvider?: "ollama" | "cloud";
+  modelProvider?: ModelProvider;
+  providerPriority?: ModelProvider[];
   ollama: OllamaConfig;
   cloud?: CloudConfig;
+  openai?: OpenAiConfig;
+  anthropic?: AnthropicConfig;
   audio?: AudioConfig;
   vaultPath?: string;
   skillsPath?: string;
@@ -70,17 +90,29 @@ export interface HarnessConfig {
 }
 
 const defaultConfig: HarnessConfig = {
-  model: "llama2",
+  model: "llama3.2",
   assistantName: "Jarvis",
-  modelProvider: "cloud",
+  modelProvider: "ollama-cloud",
+  providerPriority: ["ollama-cloud", "ollama", "openai", "anthropic"],
   ollama: {
     endpoint: "http://127.0.0.1:11434",
-    model: "llama2"
+    model: "llama3.2"
   },
   cloud: {
     provider: "ollama-cloud",
     endpoint: "https://ollama.example.com",
-    model: "llama3.2"
+    model: "llama3.2",
+    creditBudget: 5
+  },
+  openai: {
+    model: "gpt-4o-mini",
+    baseUrl: "https://api.openai.com/v1",
+    creditBudget: 10
+  },
+  anthropic: {
+    model: "claude-3-haiku-20240307",
+    baseUrl: "https://api.anthropic.com/v1",
+    creditBudget: 10
   },
   audio: {
     stt: {
@@ -117,6 +149,18 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
       ollama: {
         ...defaultConfig.ollama,
         ...(parsed.ollama ?? {})
+      },
+      cloud: {
+        ...defaultConfig.cloud,
+        ...(parsed.cloud ?? {})
+      },
+      openai: {
+        ...defaultConfig.openai,
+        ...(parsed.openai ?? {})
+      },
+      anthropic: {
+        ...defaultConfig.anthropic,
+        ...(parsed.anthropic ?? {})
       },
       audio: {
         ...defaultConfig.audio,

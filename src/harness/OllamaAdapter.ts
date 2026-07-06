@@ -54,7 +54,7 @@ export class OllamaAdapter implements ModelAdapter {
       throw new Error(`Ollama HTTP error ${response.status}: ${await response.text()}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     const text = typeof data?.response === "string" ? data.response : "";
     return { text: String(text), metadata: { raw: data } };
   }

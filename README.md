@@ -11,7 +11,7 @@ A comprehensive AI harness framework with Ollama model integration, Obsidian vau
 - **Wake Word Detection**: Lightweight local wake-word setup via OpenWakeWord-style flow
 - **Workspace Automation**: Ask Ollama to create or update files and folders in your configured vault/skills/projects
 - **Interactive Pipeline**: Unified entry point for CLI, audio, and note-driven interactions
-- **Rainbow Banner**: Colorful terminal greeting with configurable name
+- **Colour Banner**: Colorful terminal greeting with configurable name
 - **Sandboxed Skills**: Isolated execution with approval workflow for self-improving skills
 - **Permissions Model**: Control over external commands and sandboxed operations
 

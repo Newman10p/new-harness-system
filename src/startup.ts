@@ -1,13 +1,22 @@
 import { loadConfig } from "./config";
+import { mergeEnvIntoConfig } from "./config/env";
 import { loadAudioAdapters } from "./audio/audioLoader";
+import { createPrioritizedModelAdapter } from "./harness/ModelAdapterFactory";
 import { startWakeWordListener } from "./audio/wakeWord";
 import { printBanner } from "./ui/banner";
 import { spawn } from "node:child_process";
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  // Merge API keys from .env into config
+  mergeEnvIntoConfig(config);
+
   printBanner(config.assistantName ?? "Jarvis");
   const audio = loadAudioAdapters(config);
+
+  // Initialize the prioritized model adapter chain
+  const modelAdapter = createPrioritizedModelAdapter(config);
+  console.log(`Model provider chain: ${modelAdapter.name}`);
 
   if (config.audio?.stt?.enabled && config.audio?.tts?.enabled) {
     console.log("Audio adapters initialized.");

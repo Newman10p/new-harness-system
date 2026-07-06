@@ -1,5 +1,5 @@
 import inquirer from "inquirer";
-import { HarnessConfig } from "../../config";
+import { HarnessConfig, ModelProvider } from "../../config";
 import chalk from "chalk";
 
 export async function onboardWelcome(existing: Partial<HarnessConfig>): Promise<Partial<HarnessConfig>> {
@@ -23,22 +23,65 @@ export async function onboardWelcome(existing: Partial<HarnessConfig>): Promise<
         { name: "Text + Voice (STT/TTS)", value: "text+voice" }
       ],
       default: existing.audio?.stt?.enabled ? "text+voice" : "text-only"
+    },
+    {
+      type: "list",
+      name: "primaryProvider",
+      message: "Select your primary AI provider:",
+      choices: [
+        { name: "Ollama Cloud (cloud-first, falls back to local)", value: "ollama-cloud" },
+        { name: "Ollama (local only)", value: "ollama" },
+        { name: "OpenAI (requires API key)", value: "openai" },
+        { name: "Anthropic (requires API key)", value: "anthropic" }
+      ],
+      default: existing.modelProvider ?? "ollama-cloud"
     }
   ]);
 
   const config: Partial<HarnessConfig> = {
     assistantName: answers.assistantName,
-    modelProvider: "cloud",
-    cloud: {
-      provider: "ollama-cloud",
-      endpoint: "https://ollama.example.com",
-      model: "llama3.2"
-    },
+    modelProvider: answers.primaryProvider as ModelProvider,
     audio: {
       stt: { enabled: answers.mode === "text+voice", backend: "whisper" },
       tts: { enabled: answers.mode === "text+voice", backend: "http" }
     }
   };
+
+  // Set provider-specific defaults
+  switch (answers.primaryProvider) {
+    case "ollama-cloud":
+      config.cloud = {
+        provider: "ollama-cloud",
+        endpoint: "https://ollama.example.com",
+        model: "llama3.2",
+        creditBudget: 5
+      };
+      config.ollama = {
+        endpoint: "http://127.0.0.1:11434",
+        model: "llama3.2"
+      };
+      break;
+    case "ollama":
+      config.ollama = {
+        endpoint: "http://127.0.0.1:11434",
+        model: "llama3.2"
+      };
+      break;
+    case "openai":
+      config.openai = {
+        model: "gpt-4o-mini",
+        baseUrl: "https://api.openai.com/v1",
+        creditBudget: 10
+      };
+      break;
+    case "anthropic":
+      config.anthropic = {
+        model: "claude-3-haiku-20240307",
+        baseUrl: "https://api.anthropic.com/v1",
+        creditBudget: 10
+      };
+      break;
+  }
 
   return config;
 }

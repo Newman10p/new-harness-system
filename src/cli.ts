@@ -5,7 +5,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { loadConfig } from "./config";
 import { SkillRunner } from "./harness/SkillRunner";
-import { createModelAdapter } from "./harness/ModelAdapterFactory";
+import { createPrioritizedModelAdapter } from "./harness/ModelAdapterFactory";
 import { ObsidianConnector } from "./harness/ObsidianConnector";
 import { loadAudioAdapters } from "./audio/audioLoader";
 import { InteractionEngine } from "./core/interaction";
@@ -13,6 +13,7 @@ import { printBanner } from "./ui/banner";
 import { SandboxedSkillRunner } from "./skills/SandboxedSkillRunner";
 import { runOnboarding } from "./onboarding";
 import { WorkspaceAgent } from "./workspace/WorkspaceAgent";
+import { mergeEnvIntoConfig } from "./config/env";
 
 function printUsage(): void {
   console.log(`
@@ -20,6 +21,7 @@ Jarvis AI Harness CLI
 
 Usage:
   jarvis init                                         # Run onboarding wizard
+  jarvis chat --msg <message>                         # Direct chat with model (auto-routes providers)
   jarvis run-skill --skill <skill-file> [--key value ...]
   jarvis inspect-vault
   jarvis create-note --title <title> --filename <file> [--content <text>]
@@ -28,15 +30,17 @@ Usage:
   jarvis list-skills
   jarvis run-sandbox --skill <skill-file> [--sandboxRoot <dir>] [--timeout <ms>]
   jarvis promote-skill --skill <skill-file>
-  jarvis work --task <description>                    # Ask Ollama to create or edit files in your configured folders
+  jarvis work --task <description>                    # Agentic workspace automation
+  jarvis providers                                    # List configured providers and credit status
 
 Examples:
   jarvis init                                         # Setup wizard (or runs automatically)
+  jarvis chat --msg "What's the weather?"             # Chat with auto-routed provider
   jarvis list-skills                                  # List all available skills
-  jarvis run-skill --skill ./skills/example.yml       # Run a skill
-  jarvis work --task "Create a todo note in my vault" # Let Ollama edit files in your configured folders
+  jarvis work --task "Create a todo note in my vault" # Let AI edit files in your configured folders
   jarvis speak --text "Hello world" --out output.wav  # Text to speech
   jarvis listen --file input.wav --out output.txt     # Speech to text
+  jarvis providers                                    # Show provider status
 `);
 }
 
@@ -61,7 +65,7 @@ function buildPromptFromArgs(args: Record<string, string>): string {
     return args.text;
   }
   return Object.entries(args)
-    .filter(([key]) => key !== "skill" && key !== "config" && key !== "file" && key !== "out" && key !== "sandboxRoot" && key !== "timeout")
+    .filter(([key]) => key !== "skill" && key !== "config" && key !== "file" && key !== "out" && key !== "sandboxRoot" && key !== "timeout" && key !== "msg")
     .map(([key, value]) => `${key}: ${value}`)
     .join(" ");
 }
@@ -95,10 +99,14 @@ async function main(): Promise<void> {
     console.log("\nNow running your command...\n");
   }
 
-  const config = loadConfig(configPath);
+  const rawConfig = loadConfig(configPath);
+  // Inject API keys from .env into config
+  const config = mergeEnvIntoConfig(rawConfig);
   printBanner(config.assistantName ?? "Jarvis");
+
+  // Use the prioritized adapter chain for automatic fallback
+  const modelAdapter = createPrioritizedModelAdapter(config);
   const audioAdapters = loadAudioAdapters(config);
-  const modelAdapter = createModelAdapter(config);
   const skillRunner = new SkillRunner(modelAdapter, config);
   const obsidianConnector = new ObsidianConnector(config.vaultPath ?? "./vault");
   const interactionEngine = new InteractionEngine(modelAdapter, skillRunner, obsidianConnector);
@@ -112,6 +120,23 @@ async function main(): Promise<void> {
 
   try {
     switch (command) {
+      case "chat": {
+        const message = args.msg ?? args.message ?? args.text;
+        if (!message) {
+          throw new Error("Missing --msg for chat command");
+        }
+        console.log(`\n🤖 [${modelAdapter.name}] Generating response...\n`);
+        const result = await modelAdapter.generate({ prompt: message, maxTokens: 1024 });
+        console.log(result.text);
+        if (result.metadata?.servingProvider) {
+          console.log(`\n(served by: ${result.metadata.servingProvider})`);
+        }
+        if (result.metadata?.remainingCredits !== undefined) {
+          console.log(`(credits remaining: ${result.metadata.remainingCredits})`);
+        }
+        break;
+      }
+
       case "run-skill": {
         const skill = args.skill;
         if (!skill) {
@@ -137,7 +162,6 @@ async function main(): Promise<void> {
 
         const result = await skillRunner.runSkill(skill, inputValues);
         console.log(result.text);
-
         if (result.skill.outputNote) {
           const filename = result.skill.outputNote;
           const noteTitle = result.noteTitle ?? result.skill.noteTitle ?? "AI generated note";
@@ -256,6 +280,18 @@ async function main(): Promise<void> {
         }
         const result = await workspaceAgent.execute(task);
         console.log(result);
+        break;
+      }
+      case "providers": {
+        console.log("\n📡 Configured Providers:\n");
+        console.log(`  Priority: ${(config.providerPriority ?? ["ollama-cloud", "ollama", "openai", "anthropic"]).join(" → ")}`);
+        console.log("");
+        console.log(`  🔵 ollama (local):     ${config.ollama?.endpoint ?? "not configured"} / model: ${config.ollama?.model ?? "N/A"}`);
+        console.log(`  ☁️  ollama-cloud:       ${config.cloud?.endpoint ?? "not configured"} / model: ${config.cloud?.model ?? "N/A"} / credit budget: ${config.cloud?.creditBudget ?? "N/A"}`);
+        console.log(`  🟢 openai:             ${config.openai?.apiKey ? "API key set ✓" : "no API key"} / model: ${config.openai?.model ?? "N/A"}`);
+        console.log(`  🟣 anthropic:          ${config.anthropic?.apiKey ? "API key set ✓" : "no API key"} / model: ${config.anthropic?.model ?? "N/A"}`);
+        console.log("");
+        console.log(`  Active adapter: ${modelAdapter.name}`);
         break;
       }
       default: {
