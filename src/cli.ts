@@ -15,6 +15,7 @@ import { runOnboarding } from "./onboarding";
 import { WorkspaceAgent } from "./workspace/WorkspaceAgent";
 import { mergeEnvIntoConfig } from "./config/env";
 import { Orchestrator } from "./core/orchestrator";
+import { AutonomousAgent } from "./core/autonomous";
 import { registerAllActions } from "./actions/index";
 import { AudioRegistry } from "./audio/AudioRegistry";
 
@@ -51,12 +52,18 @@ Usage:
   # Security
   jarvis security status                              # Show security alerts and status
 
+  # Autonomous
+  jarvis auto --goal "your goal here"                 # Full autonomous natural language execution
+  jarvis run "your goal here"                         # Shorthand for auto
+
   # Info
   jarvis providers                                    # Show provider + credit info
   jarvis pc monitor                                   # Show CPU/RAM/disk stats
 
 Examples:
   jarvis init                                         # Setup wizard
+  jarvis auto --goal "check system resources"         # Autonomous: checks CPU/RAM/disk
+  jarvis auto --goal "create a note about AI safety"  # Autonomous: creates vault note
   jarvis tools list                                   # List all registered actions
   jarvis tools run pc.monitor                         # Check system resources
   jarvis provider list                                # Show all providers
@@ -386,6 +393,17 @@ async function main(): Promise<void> {
         } else {
           console.log("Usage: jarvis security status");
         }
+        break;
+      }
+
+      // === AUTONOMOUS ===
+      case "auto":
+      case "run": {
+        const goal = args.goal ?? args.task ?? args.prompt ?? args.text ?? args.message ?? (subcommand ? process.argv.slice(3).join(" ") : "");
+        if (!goal) throw new Error("Missing goal. Usage: jarvis auto --goal 'your goal here'");
+        const agent = new AutonomousAgent(orchestrator, config);
+        const result = await agent.run(goal);
+        console.log(result);
         break;
       }
 

@@ -109,27 +109,27 @@ export interface ProjectConfig {
 
 // ===== Agentic Tools Config =====
 export interface ToolsConfig {
-  enabled: boolean;
-  safetyLevel: "conservative" | "balanced" | "experimental";
-  allowedDirectories: string[];
-  allowedCommands: string[];
-  sim3dEnabled: boolean;
-  deviceAccess: boolean;
-  networkAccess: boolean;
+  enabled?: boolean;
+  safetyLevel?: "conservative" | "balanced" | "experimental";
+  allowedDirectories?: string[];
+  allowedCommands?: string[];
+  sim3dEnabled?: boolean;
+  deviceAccess?: boolean;
+  networkAccess?: boolean;
 }
 
 // ===== Policy Config =====
 export interface PolicyConfig {
-  objectives: string[];
-  rules: string[];
+  objectives?: string[];
+  rules?: string[];
 }
 
 // ===== Security Config =====
 export interface SecurityConfig {
-  monitorEnabled: boolean;
-  alertOnHighResourceUsage: boolean;
-  alertOnFrequentTerminal: boolean;
-  logActions: boolean;
+  monitorEnabled?: boolean;
+  alertOnHighResourceUsage?: boolean;
+  alertOnFrequentTerminal?: boolean;
+  logActions?: boolean;
 }
 
 // ===== Main Config =====

@@ -1,5 +1,20 @@
 import { HarnessConfig, PolicyConfig } from "../config";
 
+const DEFAULT_OBJECTIVES = [
+  "Serve as a personal operator for code, files, tools, and automation.",
+  "Preserve system stability, privacy, and resource health.",
+  "Adapt skills within sandboxed, reviewable workflows.",
+  "Coordinate across devices only when configured and authorized."
+];
+
+const DEFAULT_RULES = [
+  "Do not execute destructive actions without explicit confirmation.",
+  "Respect resource limits and avoid heavy tasks when constrained.",
+  "Log significant actions and tool calls for audit.",
+  "Limit security tools to defensive and authorized analysis.",
+  "Do not assist with unauthorized intrusion, exploitation, or attacks."
+];
+
 /**
  * Policy engine that enforces objectives and rules.
  * Makes policy available to the orchestrator and model as system prompts.
@@ -9,28 +24,17 @@ export class PolicyEngine {
 
   constructor(config: HarnessConfig) {
     this.config = config.policy ?? {
-      objectives: [
-        "Serve as a personal operator for code, files, tools, and automation.",
-        "Preserve system stability, privacy, and resource health.",
-        "Adapt skills within sandboxed, reviewable workflows.",
-        "Coordinate across devices only when configured and authorized."
-      ],
-      rules: [
-        "Do not execute destructive actions without explicit confirmation.",
-        "Respect resource limits and avoid heavy tasks when constrained.",
-        "Log significant actions and tool calls for audit.",
-        "Limit security tools to defensive and authorized analysis.",
-        "Do not assist with unauthorized intrusion, exploitation, or attacks."
-      ]
+      objectives: DEFAULT_OBJECTIVES,
+      rules: DEFAULT_RULES
     };
   }
 
   getObjectives(): string[] {
-    return [...this.config.objectives];
+    return [...(this.config.objectives ?? DEFAULT_OBJECTIVES)];
   }
 
   getRules(): string[] {
-    return [...this.config.rules];
+    return [...(this.config.rules ?? DEFAULT_RULES)];
   }
 
   getPolicy(): PolicyConfig {
@@ -41,14 +45,16 @@ export class PolicyEngine {
    * Returns the policy as a system prompt string for injection into model prompts.
    */
   toSystemPrompt(): string {
+    const objectives = this.config.objectives ?? DEFAULT_OBJECTIVES;
+    const rules = this.config.rules ?? DEFAULT_RULES;
     return [
       "=== Jarvis Harness Policy ===",
       "",
       "Objectives:",
-      ...this.config.objectives.map((o) => `  - ${o}`),
+      ...objectives.map((o) => `  - ${o}`),
       "",
       "Rules:",
-      ...this.config.rules.map((r) => `  - ${r}`),
+      ...rules.map((r) => `  - ${r}`),
       ""
     ].join("\n");
   }
