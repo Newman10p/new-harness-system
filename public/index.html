@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M.A.I. // Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #05080d; --panel: #09131f; --panel-light: #102237; --line: rgba(92,152,206,.22); --cyan: #43c8ff; --blue: #2875d8; --green: #28d39a; --amber: #f3b34c; --red: #f0646c; --text: #e5f3ff; --muted: #7891a8; --shadow: 0 18px 45px rgba(0,0,0,.34); }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--text); font-family: Inter, sans-serif; background: linear-gradient(rgba(67,200,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(67,200,255,.018) 1px, transparent 1px), radial-gradient(circle at 20% 0%, #0b1c31 0, transparent 38%), var(--bg); background-size: 32px 32px, 32px 32px, auto, auto; }
+    body.booting { overflow: hidden; }
+    button, input, select { font: inherit; }
+
+    /* Boot Screen */
+    .boot-screen { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at center, rgba(11,55,86,.25), transparent 34%), #03070c; animation: bootExit .8s 5.1s forwards; }
+    .boot-screen::before { content: ""; position: absolute; inset: 0; opacity: .45; background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(67,200,255,.025) 4px); pointer-events: none; }
+    .boot-screen::after { content: ""; position: absolute; top: -15%; left: 0; width: 100%; height: 2px; background: var(--cyan); box-shadow: 0 0 18px 2px rgba(67,200,255,.55); animation: scan 3.5s linear infinite; opacity: .5; }
+    .boot-content { position: relative; z-index: 1; width: min(510px, calc(100% - 40px)); text-align: center; }
+    .boot-orbit { position: relative; width: 178px; height: 178px; margin: 0 auto 30px; border: 1px solid rgba(67,200,255,.28); border-radius: 50%; animation: orbitIn 1.1s cubic-bezier(.2,.8,.2,1) both; }
+    .boot-orbit::before, .boot-orbit::after { content: ""; position: absolute; inset: 16px; border: 1px solid rgba(67,200,255,.18); border-radius: 50%; }
+    .boot-orbit::after { inset: -12px; border-color: rgba(67,200,255,.08); border-style: dashed; animation: rotate 12s linear infinite; }
+    .boot-core { position: absolute; inset: 50%; width: 45px; height: 45px; transform: translate(-50%,-50%) rotate(45deg); border: 2px solid var(--cyan); box-shadow: 0 0 28px rgba(67,200,255,.42); }
+    .boot-core::after { content: ""; position: absolute; inset: 9px; background: var(--cyan); box-shadow: 0 0 20px var(--cyan); }
+    .boot-line { position: absolute; background: rgba(67,200,255,.4); }
+    .boot-line.horizontal { top: 50%; left: -25px; width: calc(100% + 50px); height: 1px; }
+    .boot-line.vertical { top: -25px; left: 50%; width: 1px; height: calc(100% + 50px); }
+    .boot-kicker { margin-bottom: 10px; color: var(--cyan); font: 600 10px "JetBrains Mono",monospace; letter-spacing: .28em; animation: fadeUp .7s .35s both; }
+    .boot-title { margin: 0; color: #edf9ff; font-size: clamp(50px,12vw,82px); font-weight: 800; letter-spacing: .08em; line-height: .95; text-shadow: 0 0 28px rgba(67,200,255,.35); animation: titleIn 1s .5s both; }
+    .boot-title span { color: var(--cyan); }
+    .boot-subtitle { margin: 14px 0 28px; color: #91b5ca; font: 11px "JetBrains Mono",monospace; letter-spacing: .16em; animation: fadeUp .7s .8s both; }
+    .boot-status { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--line); background: rgba(8,21,34,.78); color: var(--muted); font: 10px "JetBrains Mono",monospace; text-align: left; animation: fadeUp .7s 1.05s both; }
+    .boot-status-text { color: var(--cyan); }
+    .boot-progress { height: 2px; margin-top: 8px; overflow: hidden; background: #173047; animation: fadeUp .7s 1.15s both; }
+    .boot-progress span { display: block; width: 0; height: 100%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: load 3.7s 1.25s cubic-bezier(.5,0,.2,1) forwards; }
+    .boot-skip { position: absolute; right: 25px; bottom: 22px; border: 0; color: #58758d; background: transparent; cursor: pointer; font: 10px "JetBrains Mono",monospace; letter-spacing: .12em; }
+    .boot-skip:hover { color: var(--cyan); }
+    .boot-screen.dismissed { animation: bootExit .45s forwards; pointer-events: none; }
+
+    @keyframes scan { from { transform: translateY(-20vh); } to { transform: translateY(120vh); } }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+    @keyframes orbitIn { from { opacity: 0; transform: scale(.5) rotate(-35deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+    @keyframes titleIn { from { opacity: 0; letter-spacing: .5em; transform: translateY(10px); } to { opacity: 1; letter-spacing: .08em; transform: translateY(0); } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes load { to { width: 100%; } }
+    @keyframes bootExit { to { opacity: 0; visibility: hidden; } }
+
+    /* Console */
+    .shell { width: min(1640px, calc(100% - 36px)); margin: 0 auto; padding: 18px 0 30px; }
+    .topbar, .metric, .panel { border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(145deg, rgba(14,28,43,.94), rgba(6,12,19,.98)); box-shadow: var(--shadow); }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 68px; padding: 0 20px; border-top: 2px solid var(--cyan); background: linear-gradient(115deg, rgba(21,52,80,.72), rgba(7,13,21,.96) 48%); }
+    .brand { display: flex; align-items: center; gap: 13px; }
+    .brand-mark { width: 29px; height: 29px; border: 2px solid var(--cyan); transform: rotate(45deg); box-shadow: 0 0 15px rgba(67,200,255,.26); }
+    .brand-mark::after { content: ""; position: absolute; inset: 6px; background: var(--cyan); }
+    .eyebrow, .label, .panel-code, .msg-type { font-family: "JetBrains Mono",monospace; text-transform: uppercase; letter-spacing: .14em; }
+    .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 700; }
+    .brand h1 { margin: 3px 0 0; font-size: 17px; letter-spacing: -.02em; }
+    .topbar-meta { display: flex; align-items: center; gap: 18px; color: var(--muted); font: 11px "JetBrains Mono",monospace; }
+    .online { display: flex; align-items: center; gap: 8px; color: var(--green); }
+    .online::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .header-strip { display: flex; align-items: center; justify-content: space-between; margin: 22px 2px 12px; }
+    .header-strip h2 { margin: 0; font-size: 21px; letter-spacing: -.04em; }
+    .header-strip p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .badge, .status { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 3px; padding: 5px 8px; color: #b6d9ef; background: rgba(50,127,184,.1); font: 10px "JetBrains Mono",monospace; text-transform: uppercase; letter-spacing: .08em; }
+    .badge.green, .status.running { color: var(--green); border-color: rgba(40,211,154,.4); background: rgba(40,211,154,.08); }
+    .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 12px; }
+    .metric { position: relative; min-height: 92px; padding: 15px 17px; overflow: hidden; }
+    .metric::after { content: ""; position: absolute; right: -28px; bottom: -35px; width: 105px; height: 105px; border: 1px solid rgba(67,200,255,.15); border-radius: 50%; }
+    .label { color: var(--muted); font-size: 9px; font-weight: 700; }
+    .metric-value { margin-top: 10px; color: #f1f8ff; font: 700 22px "JetBrains Mono",monospace; }
+    .metric-value.cyan { color: var(--cyan); }
+    .metric-value.green { color: var(--green); }
+    .metric-value.amber { color: var(--amber); }
+    .dashboard { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(310px,.72fr); gap: 12px; align-items: start; }
+    .workspace { display: grid; grid-template-columns: minmax(0,1.18fr) minmax(285px,.82fr); gap: 12px; }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .panel { overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; min-height: 59px; padding: 13px 15px; border-bottom: 1px solid var(--line); background: rgba(16,35,54,.42); }
+    .panel-title { display: flex; align-items: center; gap: 10px; }
+    .panel-title::before { content: ""; width: 3px; height: 20px; background: var(--cyan); }
+    .panel h3 { margin: 0; font-size: 13px; }
+    .panel-head p { margin: 3px 0 0 13px; color: var(--muted); font-size: 11px; }
+    .panel-code { color: #55738c; font-size: 9px; }
+    .panel-body { padding: 14px; }
+    .conversation { min-height: 617px; display: flex; flex-direction: column; }
+    .conversation .panel-body { display: flex; flex: 1; flex-direction: column; }
+    .messages { display: flex; flex: 1; flex-direction: column; gap: 9px; min-height: 350px; overflow: auto; padding-right: 3px; }
+    .msg { max-width: 88%; padding: 11px 13px; border: 1px solid var(--line); border-left: 2px solid #55718b; border-radius: 3px 7px 7px 3px; color: #c9ddec; background: rgba(12,25,38,.85); font-size: 12px; line-height: 1.55; }
+    .msg.user { align-self: flex-end; border-left: 1px solid var(--line); border-right: 2px solid var(--cyan); background: rgba(27,83,139,.18); text-align: right; }
+    .msg.system { border-left-color: var(--amber); color: #e8c98e; }
+    .msg-type { display: block; margin-bottom: 5px; color: var(--cyan); font-size: 9px; }
+    .msg.system .msg-type { color: var(--amber); }
+    .controls { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line); }
+    .control-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 9px; }
+    select, input { width: 100%; min-height: 39px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 4px; outline: none; color: #c9e1f1; background: #09131f; font-size: 11px; }
+    select:focus, input:focus { border-color: rgba(76,181,239,.48); box-shadow: 0 0 0 2px rgba(67,200,255,.08); }
+    input::placeholder { color: #526d82; }
+    .command-row { display: flex; gap: 8px; }
+    .button { min-height: 39px; padding: 0 16px; border: 1px solid var(--cyan); border-radius: 4px; color: #02111b; background: var(--cyan); cursor: pointer; font: 700 10px "JetBrains Mono",monospace; letter-spacing: .1em; transition: .15s ease; }
+    .button:hover { background: #9be5ff; box-shadow: 0 0 18px rgba(67,200,255,.22); }
+    .button.secondary { color: #b9d7e9; background: rgba(67,200,255,.05); border-color: var(--line); }
+    .button.secondary:hover { border-color: var(--cyan); }
+    .btn-audio { min-height: 39px; width: 39px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: rgba(67,200,255,.05); cursor: pointer; font-size: 16px; transition: .15s ease; flex-shrink: 0; }
+    .btn-audio:hover { border-color: var(--cyan); color: var(--cyan); }
+    .btn-audio.recording { border-color: var(--red); color: var(--red); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+    .item { padding: 11px; border: 1px solid rgba(92,152,206,.16); border-radius: 4px; background: rgba(8,19,30,.82); }
+    .item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .item-title { color: #dceefa; font-size: 12px; font-weight: 600; }
+    .item-sub { margin-top: 4px; color: var(--muted); font: 10px "JetBrains Mono",monospace; }
+    .progress { height: 4px; margin-top: 12px; overflow: hidden; border-radius: 5px; background: #142637; }
+    .progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+    .small { margin-top: 6px; color: var(--muted); font-size: 10px; }
+    .quick-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; }
+    .status-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(92,152,206,.16); border-radius: 4px; color: #cce1ee; font-size: 11px; background: rgba(8,19,30,.82); }
+    .status-row span:first-child { color: var(--muted); }
+    .log-entry { position: relative; padding: 9px 10px 9px 20px; border-bottom: 1px solid rgba(92,152,206,.13); color: #b9cddd; font-size: 11px; line-height: 1.4; }
+    .log-entry::before { content: "›"; position: absolute; left: 5px; color: var(--cyan); font: 600 17px "JetBrains Mono",monospace; }
+    .meter-row { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+    .meter { flex: 1; height: 5px; overflow: hidden; border-radius: 5px; background: #142637; }
+    .meter span { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+    .meter-value { width: 35px; color: var(--muted); text-align: right; font: 10px "JetBrains Mono",monospace; }
+    .hint { padding: 15px; border: 1px solid rgba(67,200,255,.3); border-radius: 8px; background: linear-gradient(135deg, rgba(20,71,108,.35), rgba(6,15,24,.9)); }
+    .hint strong { display: block; margin-bottom: 6px; color: var(--cyan); font: 10px "JetBrains Mono",monospace; letter-spacing: .13em; text-transform: uppercase; }
+    .hint p { margin: 0; color: #9cb7ca; font-size: 11px; line-height: 1.55; }
+
+    @media (max-width: 1180px) { .dashboard, .workspace { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) {
+      .shell { width: min(100% - 22px, 1640px); }
+      .topbar, .header-strip { align-items: flex-start; flex-direction: column; }
+      .topbar { padding: 15px; }
+      .metrics { grid-template-columns: repeat(2,1fr); }
+      .control-grid { grid-template-columns: 1fr; }
+      .command-row { flex-direction: column; }
+    }
+
+    .msg-audio-btn { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 3px; background: rgba(67,200,255,.08); color: var(--cyan); cursor: pointer; font-size: 10px; vertical-align: middle; }
+    .msg-audio-btn:hover { background: rgba(67,200,255,.18); }
+  </style>
+</head>
+<body class="booting">
+  <div class="boot-screen" id="bootScreen">
+    <div class="boot-content">
+      <div class="boot-orbit">
+        <div class="boot-line horizontal"></div>
+        <div class="boot-line vertical"></div>
+        <div class="boot-core"></div>
+      </div>
+      <div class="boot-kicker">Harness Systems // Neural Command Layer</div>
+      <h1 class="boot-title">M<span>.</span>A<span>.</span>I</h1>
+      <div class="boot-subtitle">MULTIPLE ARRAY INTELLIGENCE</div>
+      <div class="boot-status">
+        <span>INITIALIZING CORE SYSTEMS</span>
+        <span class="boot-status-text" id="bootStatus">LOADING</span>
+      </div>
+      <div class="boot-progress"><span></span></div>
+    </div>
+    <button class="boot-skip" id="skipBoot">SKIP INTRO // ENTER CONSOLE</button>
+  </div>
+
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" style="position:relative"></div>
+        <div>
+          <div class="eyebrow">J.A.R.V.I.S. // Command Layer</div>
+          <h1>Operations Console</h1>
+        </div>
+      </div>
+      <div class="topbar-meta">
+        <span id="nodeInfo">NODE H-07</span>
+        <span class="online">ALL SYSTEMS NOMINAL</span>
+        <span id="clock">00:00:00 UTC</span>
+      </div>
+    </header>
+
+    <div class="header-strip">
+      <div>
+        <h2>Mission Control</h2>
+        <p>Workflow orchestration, resource telemetry, and operator controls.</p>
+      </div>
+      <div class="header-status">
+        <span class="badge green">SAFE MODE</span>
+        <span class="badge">SUPERVISED</span>
+      </div>
+    </div>
+
+    <section class="metrics">
+      <article class="metric"><div class="label">CPU Load</div><div class="metric-value green" id="cpuMetric">0%</div></article>
+      <article class="metric"><div class="label">Memory Allocation</div><div class="metric-value cyan" id="memMetric">0%</div></article>
+      <article class="metric"><div class="label">Available Actions</div><div class="metric-value" id="actionMetric">0</div></article>
+      <article class="metric"><div class="label">Provider</div><div class="metric-value amber" id="providerMetric">--</div></article>
+    </section>
+
+    <div class="dashboard">
+      <section class="workspace">
+        <article class="panel conversation">
+          <div class="panel-head">
+            <div><div class="panel-title"><h3>Operator Channel</h3></div><p>Secure command and response stream</p></div>
+            <span class="panel-code">CH-01 / LIVE</span>
+          </div>
+          <div class="panel-body">
+            <div class="messages" id="messages">
+              <div class="msg"><span class="msg-type">SYSTEM / INIT</span>System online. All subsystems nominal. Ready for instructions. <button class="msg-audio-btn" onclick="speakText(this.previousSibling.textContent)">🔊</button></div>
+              <div class="msg user"><span class="msg-type">OPERATOR / INIT</span>Show active workflows and background tasks. <button class="msg-audio-btn" onclick="speakText(this.previousSibling.textContent)">🔊</button></div>
+              <div class="msg"><span class="msg-type">SYSTEM / RESPONSE</span>Retrieving workflow state and resource metrics. <button class="msg-audio-btn" onclick="speakText(this.previousSibling.textContent)">🔊</button></div>
+            </div>
+            <div class="controls">
+              <div class="control-grid">
+                <select id="providerSelect" aria-label="Provider"></select>
+                <select id="voiceSelect" aria-label="Voice">
+                  <option value="builtIn">Built-in Voice</option>
+                  <option value="custom">Custom Voice</option>
+                  <option value="disabled">Disabled</option>
+                </select>
+                <select id="safetySelect" aria-label="Safety mode">
+                  <option value="balanced">Balanced Safety</option>
+                  <option value="conservative">Conservative</option>
+                  <option value="experimental">Experimental</option>
+                </select>
+              </div>
+              <form class="command-row" id="commandForm">
+                <button type="button" class="btn-audio" id="audioInputBtn" title="Voice input">🎤</button>
+                <input id="commandInput" type="text" placeholder="Enter operator command..." autocomplete="off">
+                <button class="button" type="submit">EXECUTE</button>
+              </form>
+            </div>
+          </div>
+        </article>
+
+        <div class="stack">
+          <article class="panel">
+            <div class="panel-head"><div><div class="panel-title"><h3>Active Workflows</h3></div><p>Managed background tasks</p></div><span class="badge" id="wfCount">0 ACTIVE</span></div>
+            <div class="panel-body"><div class="list" id="workflowList"><div class="item"><div class="item-row"><div class="item-title">No active workflows</div></div></div></div></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><div class="panel-title"><h3>Memory Index</h3></div><p>Obsidian vault and agent memory</p></div><span class="panel-code" id="memCount">0 RECORDS</span></div>
+            <div class="panel-body">
+              <form class="command-row" id="memoryForm">
+                <input id="memoryInput" type="text" placeholder="Search vault memory...">
+                <button class="button secondary" type="submit">SCAN</button>
+              </form>
+              <div class="list" style="margin-top:10px" id="memoryResults"><div class="item"><div class="item-title">Vault indexed</div><div class="item-sub">Ready for queries.</div></div></div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><div class="panel-title"><h3>Quick Controls</h3></div><p>Steering and approvals</p></div></div>
+            <div class="panel-body">
+              <div class="quick-grid">
+                <button class="button secondary" onclick="sendCommand('pause all workflows')">PAUSE</button>
+                <button class="button secondary" onclick="sendCommand('resume all workflows')">RESUME</button>
+                <button class="button secondary" onclick="sendCommand('prioritize active workflows')">PRIORITIZE</button>
+                <button class="button secondary" onclick="sendCommand('cancel pending workflows')">CANCEL</button>
+                <button class="button secondary" onclick="sendCommand('approve pending changes')">APPROVE</button>
+                <button class="button secondary" onclick="sendCommand('inspect system state')">INSPECT</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="stack">
+        <article class="panel">
+          <div class="panel-head"><div><div class="panel-title"><h3>Runtime Status</h3></div><p>Current system configuration</p></div><span class="panel-code">RT-07</span></div>
+          <div class="panel-body">
+            <div class="status-list" id="statusList">
+              <div class="status-row"><span>Model</span><strong id="statusModel">loading...</strong></div>
+              <div class="status-row"><span>Provider</span><strong id="statusProvider">loading...</strong></div>
+              <div class="status-row"><span>Actions</span><strong id="statusActions">0</strong></div>
+              <div class="status-row"><span>Audio Mode</span><strong id="statusAudio">--</strong></div>
+              <div class="status-row"><span>Safety</span><strong id="statusSafety">Balanced</strong></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><div class="panel-title"><h3>Agent Log</h3></div><p>Recent background activity</p></div></div>
+          <div class="panel-body">
+            <div class="log-list" id="logList">
+              <div class="log-entry">System initialized.</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><div class="panel-title"><h3>Resource Telemetry</h3></div><p>Live system metrics</p></div></div>
+          <div class="panel-body">
+            <div class="label">CPU</div><div class="meter-row"><div class="meter"><span id="cpuBar" style="width:0%"></span></div><div class="meter-value" id="cpuVal">0%</div></div>
+            <div class="label" style="margin-top:16px">RAM</div><div class="meter-row"><div class="meter"><span id="ramBar" style="width:0%"></span></div><div class="meter-value" id="ramVal">0%</div></div>
+            <div class="label" style="margin-top:16px">DISK</div><div class="meter-row"><div class="meter"><span id="diskBar" style="width:0%"></span></div><div class="meter-value" id="diskVal">0%</div></div>
+          </div>
+        </article>
+
+        <div class="hint"><strong>Operator Guidance</strong><p>Live workflow connections, approvals, memory search, and supervised steering are ready.</p></div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const bootScreen = document.getElementById("bootScreen");
+    const bootStatus = document.getElementById("bootStatus");
+    const clock = document.getElementById("clock");
+    const messages = document.getElementById("messages");
+    const commandForm = document.getElementById("commandForm");
+    const commandInput = document.getElementById("commandInput");
+    const memoryForm = document.getElementById("memoryForm");
+    const memoryInput = document.getElementById("memoryInput");
+    const providerSelect = document.getElementById("providerSelect");
+
+    const API = window.location.origin;
+
+    // ===== Boot Sequence =====
+    const bootMessages = ["LOADING","CALIBRATING","LINKING ARRAYS","VERIFYING MEMORY","SYSTEM READY"];
+    bootMessages.forEach((msg, i) => setTimeout(() => bootStatus.textContent = msg, 700 + i * 850));
+
+    function enterConsole() {
+      document.body.classList.remove("booting");
+      bootScreen.classList.add("dismissed");
+      setTimeout(() => bootScreen.remove(), 850);
+      initConsole();
+    }
+    document.getElementById("skipBoot").addEventListener("click", enterConsole);
+    setTimeout(enterConsole, 5800);
+
+    function updateClock() {
+      clock.textContent = new Date().toISOString().slice(11, 19) + " UTC";
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ===== Console Initialization =====
+    async function initConsole() {
+      await loadProviders();
+      await loadStatus();
+      await refreshMetrics();
+      addLog("System initialized. Console ready.");
+    }
+
+    async function api(path, options = {}) {
+      const resp = await fetch(`${API}${path}`, {
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      return resp.json();
+    }
+
+    // ===== Providers =====
+    async function loadProviders() {
+      try {
+        const data = await api("/api/providers");
+        providerSelect.innerHTML = "";
+        if (data.providers) {
+          data.providers.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.name;
+            opt.textContent = `${p.name} (${p.type})`;
+            if (p.name === data.defaultProvider) opt.selected = true;
+            providerSelect.appendChild(opt);
+          });
+        }
+      } catch (e) { console.warn("Failed to load providers:", e); }
+    }
+
+    providerSelect.addEventListener("change", async () => {
+      try {
+        await api("/api/provider", {
+          method: "POST",
+          body: JSON.stringify({ name: providerSelect.value })
+        });
+        addLog(`Provider switched to ${providerSelect.value}`);
+        await loadStatus();
+      } catch (e) { console.warn("Failed to switch provider:", e); }
+    });
+
+    // ===== Status =====
+    async function loadStatus() {
+      try {
+        const data = await api("/api/status");
+        document.getElementById("statusModel").textContent = data.provider ?? "N/A";
+        document.getElementById("statusProvider").textContent = data.provider ?? "N/A";
+        document.getElementById("statusActions").textContent = data.actions ?? 0;
+        document.getElementById("statusAudio").textContent = data.audio ?? "disabled";
+        document.getElementById("providerMetric").textContent = data.provider ?? "--";
+        document.getElementById("actionMetric").textContent = data.actions ?? 0;
+      } catch (e) { console.warn("Failed to load status:", e); }
+    }
+
+    // ===== Resource Metrics (via pc.monitor API) =====
+    async function refreshMetrics() {
+      try {
+        const data = await api("/api/action", {
+          method: "POST",
+          body: JSON.stringify({ name: "pc.monitor", input: {} })
+        });
+        const r = data.result;
+        if (r) {
+          const cpu = r.cpu?.loadAvg?.[0] ?? 0;
+          const mem = r.memory?.usedPercent ?? 0;
+          const disk = r.disk?.usedPercent ?? 0;
+
+          document.getElementById("cpuMetric").textContent = `${cpu.toFixed(0)}%`;
+          document.getElementById("memMetric").textContent = `${mem.toFixed(0)}%`;
+
+          document.getElementById("cpuBar").style.width = `${Math.min(cpu, 100)}%`;
+          document.getElementById("cpuVal").textContent = `${cpu.toFixed(0)}%`;
+          document.getElementById("ramBar").style.width = `${Math.min(mem, 100)}%`;
+          document.getElementById("ramVal").textContent = `${mem.toFixed(0)}%`;
+          document.getElementById("diskBar").style.width = `${Math.min(disk, 100)}%`;
+          document.getElementById("diskVal").textContent = `${disk.toFixed(0)}%`;
+        }
+      } catch (e) { /* silent */ }
+    }
+    setInterval(refreshMetrics, 15000);
+
+    // ===== Chat =====
+    commandForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const command = commandInput.value.trim();
+      if (!command) return;
+      sendCommand(command);
+    });
+
+    async function sendCommand(text) {
+      addMessage(text, "user");
+      commandInput.value = "";
+
+      try {
+        const data = await api("/api/chat", {
+          method: "POST",
+          body: JSON.stringify({ message: text })
+        });
+        const response = data.response || "No response.";
+        // Show response with audio button
+        const msgDiv = document.createElement("div");
+        msgDiv.className = "msg";
+        const typeSpan = document.createElement("span");
+        typeSpan.className = "msg-type";
+        typeSpan.textContent = "SYSTEM / RESPONSE";
+        const textNode = document.createTextNode(response);
+        const audioBtn = document.createElement("button");
+        audioBtn.className = "msg-audio-btn";
+        audioBtn.textContent = "🔊";
+        audioBtn.onclick = () => speakText(response);
+        msgDiv.appendChild(typeSpan);
+        msgDiv.appendChild(textNode);
+        msgDiv.appendChild(audioBtn);
+        messages.appendChild(msgDiv);
+        messages.scrollTop = messages.scrollHeight;
+        addLog(`Executed: "${text.slice(0, 40)}..."`);
+      } catch (e) {
+        addMessage(`Error: ${e.message}`, "system");
+      }
+    }
+
+    function addMessage(text, className = "") {
+      const msg = document.createElement("div");
+      msg.className = `msg ${className}`;
+      const type = document.createElement("span");
+      type.className = "msg-type";
+      type.textContent = className === "user" ? `OPERATOR / NOW` : `SYSTEM / ${new Date().toLocaleTimeString()}`;
+      const textNode = document.createTextNode(text);
+      const audioBtn = document.createElement("button");
+      audioBtn.className = "msg-audio-btn";
+      audioBtn.textContent = "🔊";
+      audioBtn.onclick = () => speakText(text);
+      msg.appendChild(type);
+      msg.appendChild(textNode);
+      msg.appendChild(audioBtn);
+      messages.appendChild(msg);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // ===== Audio =====
+    const audioInputBtn = document.getElementById("audioInputBtn");
+    let mediaRecorder = null;
+    let audioChunks = [];
+
+    audioInputBtn.addEventListener("click", async () => {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        audioInputBtn.classList.remove("recording");
+        audioInputBtn.textContent = "🎤";
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(audioChunks, { type: "audio/wav" });
+          // Send to STT
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const buffer = reader.result;
+            try {
+              const resp = await fetch(`${API}/api/action`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: "vault.search",
+                  input: { query: "transcribe audio" }
+                })
+              });
+              const data = await resp.json();
+              addLog("Audio captured, processing...");
+            } catch (e) { console.warn(e); }
+          };
+          reader.readAsArrayBuffer(blob);
+          stream.getTracks().forEach(t => t.stop());
+        };
+        mediaRecorder.start();
+        audioInputBtn.classList.add("recording");
+        audioInputBtn.textContent = "⏹";
+      } catch (e) {
+        addMessage("Microphone access denied or unavailable.", "system");
+      }
+    });
+
+    function speakText(text) {
+      if (!window.speechSynthesis) return;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      speechSynthesis.speak(utterance);
+    }
+
+    // ===== Memory Search =====
+    memoryForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const query = memoryInput.value.trim() || "all";
+      memoryInput.value = "";
+      try {
+        const data = await api("/api/memory/search", {
+          method: "POST",
+          body: JSON.stringify({ query })
+        });
+        const results = document.getElementById("memoryResults");
+        results.innerHTML = "";
+        if (data.results && data.results.length > 0) {
+          data.results.slice(0, 5).forEach(note => {
+            const div = document.createElement("div");
+            div.className = "item";
+            div.innerHTML = `<div class="item-title">${note.title}</div><div class="item-sub">${note.path}</div>`;
+            results.appendChild(div);
+          });
+        } else {
+          results.innerHTML = `<div class="item"><div class="item-title">No results</div></div>`;
+        }
+        addLog(`Memory search: "${query}" - ${data.results?.length ?? 0} results`);
+      } catch (e) { console.warn(e); }
+    });
+
+    // ===== Logging =====
+    function addLog(text) {
+      const logList = document.getElementById("logList");
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+      entry.textContent = text;
+      logList.insertBefore(entry, logList.firstChild);
+      if (logList.children > 20) logList.removeChild(logList.lastChild);
+    }
+  </script>
+</body>
+</html>

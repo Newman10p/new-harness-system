@@ -62,6 +62,7 @@ agent/
 
 ### 🤖 Multi-Provider Model Support
 - Ollama Local, Ollama Cloud, OpenAI, NVIDIA NIM, Lightning AI, NeMo Proxy, Anthropic
+- **OpenCode.ai** - Connect to any OpenCode-compatible server
 - Priority chain with credit budgeting and automatic fallback
 
 ### 🎤 Audio (STT/TTS)
