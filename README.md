@@ -1,68 +1,86 @@
 # Jarvis AI Harness
 
-A comprehensive, modular AI operator framework with multi-provider model support, agentic tool calling, autonomous natural language execution, Obsidian vault integration, audio (STT/TTS), wake-word detection, sandboxed skill execution, security monitoring, and policy enforcement.
+A living, agentic AI operator framework with event-driven workflows, multi-provider model support, agentic tool calling, autonomous natural language execution, Obsidian vault memory, audio (STT/TTS), wake-word detection, sandboxed skill execution, security monitoring, and policy enforcement.
 
 ## Features
 
-### 🤖 Multi-Provider Model Support
-- **Ollama Local** - Run models locally via `http://localhost:11434`
-- **Ollama Cloud** - Remote Ollama-compatible endpoints with credit budgeting
-- **OpenAI-Compatible** - OpenAI, NVIDIA NIM, Lightning AI, NeMo Proxy
-- **Anthropic** - Claude models via official API
-- **Mock Provider** - Canned responses for testing
-- **Priority Chain** - Automatic fallback when credits exhausted or providers fail
-
-### 🧠 Autonomous Natural Language Engine
+### � Autonomous Natural Language Engine
 - **`jarvis auto --goal "..."`** - Express goals in plain English
 - Model decomposes goals into actionable steps using available tools
-- Executes steps through the orchestrator with full policy/security awareness
 - Step-by-step execution with error handling and graceful fallback
 
-### 🛠️ Agentic Tool System (16+ Actions)
+### 🔄 Event-Driven Agent Loop
+- **EventBus** - Global event system for user input, file changes, resource state, device events, scheduled tasks, workflow updates
+- **AgentState** - Tracks workflows, goals, devices, resource history, preferences
+- **WorkflowEngine** - Sequential and parallel step execution with pause/resume/cancel steering
+- **Natural Language Steering** - "pause summarizer", "resume monitor", "cancel workflow"
+
+### 👁️ Background Watchers
+| Watcher | Interval | Events Emitted |
+|---------|----------|----------------|
+| **FileWatcher** | Realtime (fs.watch) | `file_changed` when vault/skills files change |
+| **ResourceWatcher** | Every 30s | `resource_state` with CPU/RAM metrics, auto-throttle |
+| **DeviceWatcher** | Every 60s | `device_event` when new USB devices detected |
+
+### 🛠️ Agentic Tool System (19 Actions)
 | Category | Actions |
 |----------|---------|
-| **Code** | `code.generate` - Generate code via model |
+| **Code** | `code.generate` |
 | **File System** | `fs.create`, `fs.write`, `fs.append`, `fs.read`, `fs.list`, `fs.delete` |
-| **Terminal** | `terminal.exec` - Safe command execution with destructive pattern blocking |
-| **PC Monitor** | `pc.monitor` - CPU/RAM/disk, `pc.control` - throttle/pause/resume |
+| **Terminal** | `terminal.exec` - Safe execution with destructive pattern blocking |
+| **PC Monitor** | `pc.monitor`, `pc.control` |
 | **USB/Device** | `device.usb.list`, `device.usb.info`, `device.remote.call` |
-| **3D Simulation** | `sim3d.run` - Conditional on external simulators (blender, godot, webots) |
-| **Network** | `net.fetch` - HTTP with domain allowlist |
+| **3D Simulation** | `sim3d.run` |
+| **Network** | `net.fetch` |
 | **Security** | `code.securityAudit`, `security.diagnostics` |
+| **Vault/Memory** | `vault.search`, `vault.read`, `vault.write` |
 
-### 🔒 Security & Policy
-- **SecurityMonitor** - Detects abnormal patterns (frequent terminal, high resource usage)
-- **PolicyEngine** - Objectives + Rules system, injectable as model system prompts
-- **Action logging** - All tool calls logged with timestamps
-- **Safety levels** - Conservative / Balanced / Experimental
-- **Destructive command blocking** - `rm -rf /`, `mkfs`, `dd` blocked by default
+### � Filesystem-First MD Spec (`agent/`)
+```
+agent/
+  instructions.md          # Core identity and role
+  policy.md                # Objectives and rules
+  models.md                # Model provider options
+  voice.md                 # STT/TTS configuration
+  memory.md                # Obsidian memory integration
+  tools/list.md            # Catalog all actions with safety tags
+  workflows/background.md  # Background watcher descriptions
+  skills/                  # Skill diaries (auto-generated)
+```
+
+### 🧩 Self-Adapting Skills
+- **SkillFeedbackStore** - Logs skill runs with outcomes, corrections, ratings
+- **SkillAdaptationEngine** - Analyzes feedback, generates conversational proposals
+- Agent says: *"I've noticed my code skill often needs manual fixes. Shall I update it?"*
+- Sandboxed changes with approval workflow
+
+### 📓 Mini Obsidian Memory
+- **MiniObsidianMemory** - Full vault indexing, search, read/write
+- **Memory Folder** - `AgentMemory/` subfolder for session summaries, decisions, plans
+- **Vault Actions** - `vault.search`, `vault.read`, `vault.write` registered in action registry
+- Agent uses memory for context before planning
+
+### 🤖 Multi-Provider Model Support
+- Ollama Local, Ollama Cloud, OpenAI, NVIDIA NIM, Lightning AI, NeMo Proxy, Anthropic
+- Priority chain with credit budgeting and automatic fallback
 
 ### 🎤 Audio (STT/TTS)
-- **Built-in** - Whisper STT, HTTP TTS
-- **Custom** - Configurable STT/TTS HTTP endpoints
-- **Modes** - `builtIn`, `custom`, `disabled`
-- **Wake Word** - Picovoice Porcupine integration
+- Built-in (Whisper + HTTP) or custom endpoints
+- Modes: `builtIn`, `custom`, `disabled`
 
-### 📓 Obsidian Vault Integration
-- Read/write notes with YAML frontmatter
-- List vault contents
-- Create notes with metadata
+### 🔒 Security & Policy
+- SecurityMonitor detects abnormal patterns
+- PolicyEngine with objectives + rules, injectable as system prompts
+- Destructive command blocking
 
 ### 📦 Skill System
-- YAML/JSON skill definitions with `{{variable}}` templating
-- Sandboxed execution with approval workflow
-- Self-improving skills (sandboxed, requires user approval to promote)
-
-### 🖥️ Workspace Automation
-- `jarvis work --task "..."` - Let AI create/edit files in configured folders
-- Path-safety: only operates within allowlisted directories
-- Supports: create, read, edit, append, search, list, run commands
+- YAML/JSON skill definitions with sandboxed execution
+- Self-improving skills with approval workflow
 
 ## Installation
 
 ### Prerequisites
-- Node.js >= 18
-- npm
+- Node.js >= 18, npm
 
 ### Quick Start
 ```bash
@@ -77,7 +95,6 @@ npm run cli -- init  # Run setup wizard
 ```bash
 npm install -g .
 jarvis init
-jarvis --help
 ```
 
 ## CLI Commands
@@ -89,93 +106,72 @@ jarvis init              # Run onboarding wizard
 
 ### Chat & Autonomous
 ```bash
-jarvis chat --msg "Hello"                    # Direct chat with model
-jarvis auto --goal "check system resources"  # Autonomous: plans & executes steps
-jarvis run "create a note about AI safety"   # Shorthand for auto
+jarvis chat --msg "Hello"                           # Direct chat
+jarvis auto --goal "check system resources"         # Autonomous execution
+jarvis run "create a note about AI safety"          # Shorthand for auto
+jarvis work --task "Create a todo list in my vault" # Workspace agent
+```
+
+### Workflow Steering (Natural Language)
+```bash
+jarvis auto --goal "pause the background monitor"   # Pause workflow
+jarvis auto --goal "resume summarizer"              # Resume workflow
+jarvis auto --goal "cancel all workflows"           # Cancel workflows
 ```
 
 ### Skills
 ```bash
-jarvis list-skills                           # List all skills
-jarvis run-skill --skill path/to/skill.yml   # Execute a skill
-jarvis run-sandbox --skill path/to/skill.yml # Run in sandbox
-jarvis promote-skill --skill path/to/skill.yml  # Promote sandboxed changes
+jarvis list-skills
+jarvis run-skill --skill path/to/skill.yml
+jarvis run-sandbox --skill path/to/skill.yml
+jarvis promote-skill --skill path/to/skill.yml
 ```
 
 ### Tools / Actions
 ```bash
-jarvis tools list                            # List all registered actions
-jarvis tools run pc.monitor                  # Run a specific action
-jarvis tools run code.generate --json '{"language":"python","brief":"hello world"}'
+jarvis tools list                                   # List all 19 actions
+jarvis tools run pc.monitor                         # Run an action
+jarvis tools run vault.search --json '{"query":"AI"}'
 ```
 
 ### Providers
 ```bash
-jarvis provider list                         # List configured providers
-jarvis provider use ollama_local             # Switch default provider
-jarvis providers                             # Show provider info
+jarvis provider list                                # List providers
+jarvis provider use ollama_local                    # Switch provider
+jarvis providers                                    # Show provider info
 ```
 
 ### Audio
 ```bash
-jarvis audio mode                            # Show current audio mode
-jarvis listen --file input.wav               # Speech-to-text
-jarvis speak --text "Hello" --out out.wav    # Text-to-speech
+jarvis audio mode                                   # Show mode
+jarvis listen --file input.wav                      # STT
+jarvis speak --text "Hello" --out out.wav           # TTS
 ```
 
-### Vault
+### Vault / Memory
 ```bash
-jarvis inspect-vault                         # List vault notes
-jarvis create-note --title "My Note" --filename note.md --content "..."
-```
-
-### Workspace
-```bash
-jarvis work --task "Create a todo list in my vault"
+jarvis inspect-vault                                # List notes
+jarvis create-note --title "Note" --filename note.md
 ```
 
 ### System
 ```bash
-jarvis pc monitor                            # CPU/RAM/disk stats
-jarvis security status                       # Security alerts and status
+jarvis pc monitor                                   # CPU/RAM/disk
+jarvis security status                              # Alerts
 ```
 
 ## Configuration
 
-Configuration is stored in `harness.config.json`. Secrets (API keys) go in `.env`.
-
-### Model Providers
+### Model Providers (`harness.config.json`)
 ```json
 {
   "modelSection": {
     "defaultProvider": "ollama_local",
     "providers": {
-      "ollama_local": {
-        "type": "ollamaLocal",
-        "baseUrl": "http://localhost:11434",
-        "model": "llama3.2",
-        "enabled": true
-      },
-      "openai_compatible": {
-        "type": "openaiStyle",
-        "source": "openai",
-        "baseUrl": "https://api.openai.com/v1",
-        "model": "gpt-4o-mini",
-        "apiKeyEnv": "OPENAI_API_KEY",
-        "enabled": false
-      },
-      "nvidia_nim": {
-        "type": "openaiStyle",
-        "source": "nvidia_nim",
-        "baseUrl": "https://integrate.api.nvidia.com/v1",
-        "model": "meta/llama3-70b-instruct",
-        "apiKeyEnv": "NVIDIA_NIM_API_KEY"
-      },
-      "anthropic": {
-        "type": "anthropic",
-        "model": "claude-3-haiku-20240307",
-        "apiKeyEnv": "ANTHROPIC_API_KEY"
-      }
+      "ollama_local": { "type": "ollamaLocal", "baseUrl": "http://localhost:11434", "model": "llama3.2" },
+      "openai_compatible": { "type": "openaiStyle", "source": "openai", "baseUrl": "https://api.openai.com/v1", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" },
+      "nvidia_nim": { "type": "openaiStyle", "source": "nvidia_nim", "baseUrl": "https://integrate.api.nvidia.com/v1", "model": "meta/llama3-70b-instruct", "apiKeyEnv": "NVIDIA_NIM_API_KEY" },
+      "anthropic": { "type": "anthropic", "model": "claude-3-haiku-20240307", "apiKeyEnv": "ANTHROPIC_API_KEY" }
     }
   }
 }
@@ -184,31 +180,7 @@ Configuration is stored in `harness.config.json`. Secrets (API keys) go in `.env
 ### Audio
 ```json
 {
-  "audio": {
-    "mode": "builtIn",
-    "stt": { "backend": "whisper", "enabled": true },
-    "tts": { "backend": "http", "enabled": false, "endpoint": "http://localhost:5002/api/tts" },
-    "custom": { "sttEndpoint": "", "ttsEndpoint": "" }
-  }
-}
-```
-
-### Tools & Safety
-```json
-{
-  "tools": {
-    "enabled": true,
-    "safetyLevel": "balanced",
-    "allowedDirectories": ["./vault", "./skills", "./sandbox"],
-    "sim3dEnabled": false,
-    "deviceAccess": false,
-    "networkAccess": false
-  },
-  "permissions": {
-    "allowSandboxedSkills": true,
-    "requireConfirmation": true,
-    "safetyLevel": "balanced"
-  }
+  "audio": { "mode": "builtIn", "stt": { "backend": "whisper", "enabled": true }, "tts": { "backend": "http", "enabled": false, "endpoint": "http://localhost:5002/api/tts" } }
 }
 ```
 
@@ -216,32 +188,13 @@ Configuration is stored in `harness.config.json`. Secrets (API keys) go in `.env
 ```json
 {
   "policy": {
-    "objectives": [
-      "Serve as a personal operator for code, files, tools, and automation.",
-      "Preserve system stability, privacy, and resource health."
-    ],
-    "rules": [
-      "Do not execute destructive actions without explicit confirmation.",
-      "Respect resource limits and avoid heavy tasks when constrained.",
-      "Do not assist with unauthorized intrusion, exploitation, or attacks."
-    ]
+    "objectives": ["Serve as a personal operator for code, files, tools, and automation.", "Preserve system stability, privacy, and resource health."],
+    "rules": ["Do not execute destructive actions without explicit confirmation.", "Do not assist with unauthorized intrusion, exploitation, or attacks."]
   }
 }
 ```
 
-### Security
-```json
-{
-  "security": {
-    "monitorEnabled": true,
-    "alertOnHighResourceUsage": true,
-    "alertOnFrequentTerminal": true,
-    "logActions": true
-  }
-}
-```
-
-### Environment Variables (.env)
+### Environment Variables (`.env`)
 ```
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
@@ -259,21 +212,30 @@ src/
   config.ts                  # Configuration types + loader
 
   core/
-    interaction.ts           # Unified interaction pipeline
-    orchestrator.ts          # Central orchestrator (actions + policy + security + providers)
+    eventBus.ts              # Global event system
+    agentState.ts            # Workflow/goal/device/resource tracking
+    workflowEngine.ts        # Sequential/parallel workflows with steering
+    agentLoop.ts             # Event-driven agent loop
     autonomous.ts            # Autonomous natural language engine
+    orchestrator.ts          # Central orchestrator (actions + policy + security)
+    interaction.ts           # Unified interaction pipeline
 
   actions/
-    types.ts                 # HarnessAction interface
-    index.ts                 # Action registration hub
-    code.generate.ts         # Code generation action
+    types.ts, index.ts       # Action interfaces + registration hub
+    code.generate.ts         # Code generation
     fs.ts                    # File operations (6 actions)
     terminal.ts              # Safe terminal execution
-    pc.ts                    # PC resource monitor + control
-    device.ts                # USB enumeration + remote call
-    sim3d.ts                 # 3D simulation hook
-    network.ts               # HTTP fetch with allowlist
+    pc.ts                    # PC monitor + control
+    device.ts                # USB + remote calls
+    sim3d.ts                 # 3D simulation
+    network.ts               # HTTP fetch
     security.ts              # Code audit + diagnostics
+    vault.ts                 # Vault search/read/write
+
+  watchers/
+    fileWatcher.ts           # Real-time file monitoring
+    resourceWatcher.ts       # Periodic CPU/RAM checks
+    deviceWatcher.ts         # USB device scanning
 
   registry/
     actionsRegistry.ts       # Central action registry
@@ -285,60 +247,63 @@ src/
   policy/
     PolicyEngine.ts          # Objectives + rules engine
 
+  memory/
+    MiniObsidianMemory.ts    # Obsidian-based memory layer
+
   harness/
     ModelAdapter.ts          # Model interface
     OllamaAdapter.ts         # Local Ollama
-    CloudModelAdapter.ts     # Remote Ollama with credit tracking
+    CloudModelAdapter.ts     # Remote Ollama with credits
     OpenAiAdapter.ts         # OpenAI-compatible
     AnthropicAdapter.ts      # Anthropic Claude
     ModelAdapterFactory.ts   # Factory + priority chain
-    SkillRunner.ts           # Skill execution engine
-    ObsidianConnector.ts     # Obsidian vault I/O
+    SkillRunner.ts           # Skill execution
+    ObsidianConnector.ts     # Vault I/O
 
   audio/
     AudioAdapter.ts          # STT/TTS interfaces
     AudioRegistry.ts         # Audio adapter registry
     WhisperSttAdapter.ts     # Whisper STT
     HttpTtsAdapter.ts        # HTTP TTS
-    audioLoader.ts           # Legacy adapter factory
     wakeWord.ts              # Wake-word detection
 
   skills/
-    SandboxedSkillRunner.ts  # Sandbox execution engine
+    SandboxedSkillRunner.ts  # Sandbox execution
+    skillFeedback.ts         # Skill run logging
+    skillAdaptationEngine.ts # Self-adaptation analysis
 
   ui/
-    banner.ts                # Rainbow banner printer
-    bannerCli.ts             # Standalone banner command
+    banner.ts                # Rainbow banner
+    workspace/
+      WorkspaceAgent.ts      # Workspace automation
 
-  workspace/
-    WorkspaceAgent.ts        # Workspace automation agent
+agent/
+  instructions.md            # Core identity
+  policy.md                  # Objectives + rules
+  models.md                  # Provider docs
+  voice.md                   # Audio docs
+  memory.md                  # Memory docs
+  tools/list.md              # Tool catalog
+  workflows/background.md    # Background watchers
 
-  onboarding/
-    onboarding.ts            # Wizard orchestrator
-    validation.ts            # Smoke tests
-    sections/                # Onboarding sections
-
-skills/                      # User-defined skills directory
-vault/                       # Obsidian vault directory
-harness.config.json          # Configuration file
+skills/                      # User skill definitions
+vault/                       # Obsidian vault
+harness.config.json          # Configuration
 ```
 
-## Extending the System
+## Architecture Overview
 
-### Add a New Action
-1. Create `src/actions/your-action.ts` implementing `HarnessAction`
-2. Register it in `src/actions/index.ts`
-3. It's immediately available via `jarvis tools run` and the autonomous engine
-
-### Add a New Model Provider
-1. Create `src/harness/YourProvider.ts` implementing `ModelAdapter`
-2. Add config type in `src/config.ts`
-3. Add to `ProviderRegistry` in `src/registry/providersRegistry.ts`
-
-### Add Custom Skills
-1. Create a YAML/JSON file in `skills/` directory
-2. Define prompt, inputs, and optional outputs
-3. Run with: `jarvis run-skill --skill skills/your-skill.yml`
+```
+User Input → CLI → Orchestrator → ActionRegistry → Execute Actions
+                ↓                     ↓
+           EventBus ←────────── Watchers (File, Resource, Device)
+                ↓
+           AgentLoop → WorkflowEngine → AgentState
+                ↓
+           AutonomousAgent → ModelAdapter → Plan & Execute
+                ↓
+           SkillAdaptationEngine → FeedbackStore → Sandboxed Proposals
+```
 
 ## Development
 

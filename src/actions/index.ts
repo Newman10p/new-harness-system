@@ -9,6 +9,7 @@ import { registerDeviceActions } from "./device";
 import { registerSim3dActions } from "./sim3d";
 import { registerNetworkActions } from "./network";
 import { registerSecurityActions } from "./security";
+import { registerVaultActions } from "./vault";
 
 /**
  * Register all built-in actions with the global ActionRegistry.
@@ -21,5 +22,6 @@ export function registerAllActions(): void {
   registerSim3dActions();
   registerNetworkActions();
   registerSecurityActions();
+  registerVaultActions();
   console.log(`[Actions] All actions registered`);
 }

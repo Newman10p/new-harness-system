@@ -16,6 +16,13 @@ import { WorkspaceAgent } from "./workspace/WorkspaceAgent";
 import { mergeEnvIntoConfig } from "./config/env";
 import { Orchestrator } from "./core/orchestrator";
 import { AutonomousAgent } from "./core/autonomous";
+import { AgentState } from "./core/agentState";
+import { WorkflowEngine, Workflow } from "./core/workflowEngine";
+import { globalEventBus, EventBus } from "./core/eventBus";
+import { startAgentLoop } from "./core/agentLoop";
+import { FileWatcher, ResourceWatcher, DeviceWatcher } from "./watchers/index";
+import { MiniObsidianMemory } from "./memory/MiniObsidianMemory";
+import { setMemoryInstance } from "./actions/vault";
 import { registerAllActions } from "./actions/index";
 import { AudioRegistry } from "./audio/AudioRegistry";
 
@@ -141,6 +148,29 @@ async function main(): Promise<void> {
   const interactionEngine = new InteractionEngine(modelAdapter, skillRunner, obsidianConnector);
   const sandboxRunner = new SandboxedSkillRunner(config);
   const workspaceAgent = new WorkspaceAgent(modelAdapter, config);
+
+  // Agentic systems
+  const agentState = new AgentState(config);
+  const workflowEngine = new WorkflowEngine(orchestrator, globalEventBus, agentState);
+  const memory = new MiniObsidianMemory(config.vaultPath ?? "./vault", "AgentMemory");
+  setMemoryInstance(memory);
+
+  // Start event-driven agent loop
+  startAgentLoop(orchestrator, agentState, workflowEngine, globalEventBus).catch((err) =>
+    console.warn("[AgentLoop] Error:", err)
+  );
+
+  // Start watchers
+  const fileWatcher = new FileWatcher([config.vaultPath ?? "./vault", config.skillsPath ?? "./skills"], globalEventBus);
+  const resourceWatcher = new ResourceWatcher(agentState, globalEventBus);
+  const deviceWatcher = new DeviceWatcher(agentState, globalEventBus);
+
+  // Only start watchers for interactive commands
+  if (command === "work" || command === "do" || command === "auto" || command === "run" || command === "agent") {
+    fileWatcher.start();
+    resourceWatcher.start();
+    deviceWatcher.start();
+  }
 
   if (!command) {
     printUsage();
