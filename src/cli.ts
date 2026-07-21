@@ -25,6 +25,7 @@ import { MiniObsidianMemory } from "./memory/MiniObsidianMemory";
 import { setMemoryInstance } from "./actions/vault";
 import { registerAllActions } from "./actions/index";
 import { AudioRegistry } from "./audio/AudioRegistry";
+import { UIGateway } from "./ui/gateway";
 
 function printUsage(): void {
   console.log(`
@@ -46,6 +47,7 @@ Usage:
   # Providers
   jarvis provider list                                # List configured providers
   jarvis provider use <name>                          # Set default provider
+  jarvis provider setup                               # Configure API keys for providers
 
   # Audio
   jarvis audio mode [builtIn|custom|disabled]         # Show/set audio mode
@@ -63,18 +65,26 @@ Usage:
   jarvis auto --goal "your goal here"                 # Full autonomous natural language execution
   jarvis run "your goal here"                         # Shorthand for auto
 
+  # Gateway
+  jarvis gateway start                                # Start UI Gateway (web console)
+  jarvis gateway status                               # Show gateway status
+  jarvis gateway setup                                # Configure gateway settings
+
   # Info
   jarvis providers                                    # Show provider + credit info
   jarvis pc monitor                                   # Show CPU/RAM/disk stats
 
 Examples:
   jarvis init                                         # Setup wizard
+  jarvis provider setup                               # Configure API keys
+  jarvis gateway setup                                # Configure gateway
   jarvis auto --goal "check system resources"         # Autonomous: checks CPU/RAM/disk
   jarvis auto --goal "create a note about AI safety"  # Autonomous: creates vault note
   jarvis tools list                                   # List all registered actions
   jarvis tools run pc.monitor                         # Check system resources
   jarvis provider list                                # Show all providers
   jarvis provider use ollama_local                    # Switch provider
+  jarvis gateway start                                # Start web console
 `);
 }
 
@@ -370,8 +380,13 @@ async function main(): Promise<void> {
           if (!name) throw new Error("Missing provider name. Usage: jarvis provider use <name>");
           orchestrator.setProvider(name);
           console.log(`Default provider set to: ${name}`);
+        } else if (subcommand === "setup") {
+          console.log("\n🔑 Provider API Key Setup\n");
+          console.log("Running interactive setup for API keys...\n");
+          await runOnboarding();
+          break;
         } else {
-          console.log("Usage: jarvis provider list | jarvis provider use <name>");
+          console.log("Usage: jarvis provider list | jarvis provider use <name> | jarvis provider setup");
         }
         break;
       }
@@ -382,6 +397,35 @@ async function main(): Promise<void> {
         for (const p of providers) {
           const isDefault = p.name === orchestrator.providers.defaultProviderName ? " ← default" : "";
           console.log(`  ${p.name} (${p.type}) - model: ${p.model}${isDefault}`);
+        }
+        break;
+      }
+
+      // === GATEWAY ===
+      case "gateway": {
+        if (subcommand === "start") {
+          const gateway = new UIGateway(config, orchestrator);
+          const port = config.gateway?.port ?? 3096;
+          console.log(`\n🌐 Starting UI Gateway...`);
+          await gateway.start({ port });
+          console.log(`   Console available at: http://localhost:${port}`);
+          console.log("   Press Ctrl+C to stop\n");
+          // Keep process alive
+          await new Promise(() => {});
+        } else if (subcommand === "status") {
+          const enabled = config.gateway?.enabled !== false;
+          const port = config.gateway?.port ?? 3096;
+          console.log(`\n🌐 Gateway Status:`);
+          console.log(`  Enabled: ${enabled ? "Yes" : "No"}`);
+          console.log(`  Port: ${port}`);
+          console.log(`  URL: http://localhost:${port}\n`);
+        } else if (subcommand === "setup") {
+          console.log("\n🌐 Gateway Configuration\n");
+          console.log("Running interactive setup for gateway settings...\n");
+          await runOnboarding();
+          break;
+        } else {
+          console.log("Usage: jarvis gateway start | jarvis gateway status | jarvis gateway setup");
         }
         break;
       }

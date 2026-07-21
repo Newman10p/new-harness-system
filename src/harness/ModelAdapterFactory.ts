@@ -105,7 +105,8 @@ function createAdapterForProvider(provider: ModelProvider, config: HarnessConfig
 
     case "openai": {
       if (!config.openai?.apiKey) {
-        throw new Error("OpenAI API key not configured (set OPENAI_API_KEY in .env)");
+        console.warn("[OpenAI] API key not configured (set OPENAI_API_KEY in .env or during onboarding). Skipping OpenAI provider.");
+        throw new Error("OpenAI API key not configured");
       }
       return new OpenAiAdapter({
         apiKey: config.openai.apiKey,
@@ -116,7 +117,8 @@ function createAdapterForProvider(provider: ModelProvider, config: HarnessConfig
 
     case "anthropic": {
       if (!config.anthropic?.apiKey) {
-        throw new Error("Anthropic API key not configured (set ANTHROPIC_API_KEY in .env)");
+        console.warn("[Anthropic] API key not configured (set ANTHROPIC_API_KEY in .env or during onboarding). Skipping Anthropic provider.");
+        throw new Error("Anthropic API key not configured");
       }
       return new AnthropicAdapter({
         apiKey: config.anthropic.apiKey,

@@ -100,6 +100,12 @@ export interface StartupConfig {
   platform?: "win32" | "linux" | "darwin";
 }
 
+// ===== Gateway =====
+export interface GatewayConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
 // ===== Projects =====
 export interface ProjectConfig {
   name: string;
@@ -148,6 +154,7 @@ export interface HarnessConfig {
   skillsPath?: string;
   permissions?: PermissionsConfig;
   startup?: StartupConfig;
+  gateway?: GatewayConfig;
   projects?: ProjectConfig[];
   tools?: ToolsConfig;
   policy?: PolicyConfig;
@@ -273,6 +280,10 @@ const defaultConfig: HarnessConfig = {
     alertOnHighResourceUsage: true,
     alertOnFrequentTerminal: true,
     logActions: true
+  },
+  gateway: {
+    enabled: true,
+    port: 3096
   }
 };
 
@@ -331,6 +342,10 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
       security: {
         ...defaultConfig.security,
         ...(parsed.security ?? {})
+      },
+      gateway: {
+        ...defaultConfig.gateway,
+        ...(parsed.gateway ?? {})
       }
     };
   } catch (error) {

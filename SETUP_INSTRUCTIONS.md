@@ -47,6 +47,21 @@ This asks you about:
 - Auto-start on boot (Windows/Linux/macOS)
 - Obsidian vault connection
 - Sandbox settings
+- **Gateway configuration** - Enable web console and set port
+- **Provider API keys** - Configure OpenAI, Anthropic, Ollama Cloud
+
+### Quick Configuration Commands
+
+```bash
+# Configure API keys for cloud providers (OpenAI, Anthropic)
+jarvis provider setup
+
+# Configure gateway settings (web console)
+jarvis gateway setup
+
+# Re-run full setup wizard
+jarvis init
+```
 
 ### Basic Commands
 
@@ -79,6 +94,45 @@ jarvis run-sandbox --skill ./skills/example.yml --timeout 5000
 jarvis --help
 ```
 
+### Gateway Commands
+
+```bash
+# Start the web console
+jarvis gateway start
+
+# Check gateway status
+jarvis gateway status
+
+# Configure gateway settings
+jarvis gateway setup
+```
+
+The UI Gateway provides:
+- Chat interface with your assistant
+- Provider switching (Ollama, OpenAI, Anthropic)
+- System status monitoring
+- Action execution interface
+- Memory search
+
+### Provider Commands
+
+```bash
+# List configured providers
+jarvis provider list
+
+# Switch default provider
+jarvis provider use ollama_local
+
+# Configure API keys interactively
+jarvis provider setup
+```
+
+Supported providers:
+- **Ollama Local** - Runs locally on your machine
+- **Ollama Cloud** - Cloud-hosted Ollama instances
+- **OpenAI** - GPT-4, GPT-3.5-turbo (requires API key)
+- **Anthropic** - Claude models (requires API key)
+
 ---
 
 ## 🎯 Example Workflows
@@ -94,6 +148,8 @@ jarvis init
 # → Choose name: "Jarvis" (or custom)
 # → Choose mode: "text+voice"
 # → Configure audio backends (or skip)
+# → Configure gateway (enable web console)
+# → Configure API keys for providers (optional)
 # → (other setup questions)
 
 # Step 3: Verify installation
@@ -103,7 +159,29 @@ jarvis list-skills
 jarvis run-skill --skill ./skills/sample-note-skill.yml
 ```
 
-### Workflow 2: Use From Any Directory
+### Workflow 2: Add API Keys Later
+
+```bash
+# Want to use OpenAI or Anthropic?
+jarvis provider setup
+
+# Follow prompts to enter API keys
+# Keys are saved securely to .env file
+```
+
+### Workflow 3: Enable Web Console
+
+```bash
+# Configure and enable the gateway
+jarvis gateway setup
+
+# Start the gateway
+jarvis gateway start
+
+# Access at http://localhost:3096
+```
+
+### Workflow 4: Use From Any Directory
 
 ```bash
 # After global install, you can do this from ANYWHERE:
@@ -118,7 +196,7 @@ cd /tmp
 jarvis speak --text "I work from anywhere!"
 ```
 
-### Workflow 3: Reconfigure Anytime
+### Workflow 5: Reconfigure Anytime
 
 ```bash
 # Want to change settings? Just run init again:
@@ -127,6 +205,8 @@ jarvis init
 # You'll be prompted to:
 # - Continue with existing config
 # - Reset config
+# - Configure API keys only
+# - Configure gateway only
 # - Skip setup
 ```
 
@@ -149,10 +229,24 @@ After running `jarvis init`, in your working directory you'll have:
   "name": "Jarvis",
   "mode": "text+voice",
   "ollama": { "baseUrl": "http://localhost:11434" },
+  "openai": { 
+    "apiKey": "sk-...",
+    "model": "gpt-4o-mini",
+    "baseUrl": "https://api.openai.com/v1"
+  },
+  "anthropic": {
+    "apiKey": "sk-ant-...",
+    "model": "claude-3-haiku-20240307",
+    "baseUrl": "https://api.anthropic.com/v1"
+  },
   "audio": {
     "stt": { "backend": "whisper", "endpoint": "http://localhost:8000" },
     "tts": { "backend": "http", "endpoint": "http://localhost:5500" },
     "wakeWord": { "enabled": true, "keyword": "jarvis" }
+  },
+  "gateway": {
+    "enabled": true,
+    "port": 3096
   },
   "vaultPath": "/Users/you/Obsidian/MyVault",
   "permissions": { "sandboxByDefault": true }
@@ -162,6 +256,8 @@ After running `jarvis init`, in your working directory you'll have:
 ### Example `.env`
 
 ```
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
 PICOVOICE_ACCESS_KEY=your_key_here
 ```
 
@@ -242,7 +338,21 @@ npm run build
 jarvis init
 ```
 
-### Need to reconfigure?
+### Need to reconfigure API keys?
+
+```bash
+# Configure API keys only
+jarvis provider setup
+```
+
+### Need to reconfigure gateway?
+
+```bash
+# Configure gateway only
+jarvis gateway setup
+```
+
+### Need to reset everything?
 
 ```bash
 # Delete config and start over
@@ -280,6 +390,9 @@ npm install -g jarvis-harness
 ✓ **Development Mode** - `npm link` for live editing  
 ✓ **Multiple Installation Methods** - Global, local, and linked  
 ✓ **Complete Documentation** - INSTALLATION.md, DEVELOPMENT.md, QUICK_START.md  
+✓ **API Key Management** - `jarvis provider setup` for easy configuration  
+✓ **Gateway Configuration** - `jarvis gateway setup` for web console  
+✓ **Reflexive Model Routing** - Automatic fallback between providers  
 
 ---
 
@@ -295,13 +408,24 @@ npm install -g jarvis-harness
    jarvis init
    ```
 
-3. **Start using:**
+3. **Configure API keys (optional):**
+   ```bash
+   jarvis provider setup
+   ```
+
+4. **Enable web console (optional):**
+   ```bash
+   jarvis gateway setup
+   jarvis gateway start
+   ```
+
+5. **Start using:**
    ```bash
    jarvis list-skills
    jarvis run-skill --skill ./skills/example.yml
    ```
 
-4. **Explore:**
+6. **Explore:**
    - Read [INSTALLATION.md](INSTALLATION.md) for detailed options
    - Read [DEVELOPMENT.md](DEVELOPMENT.md) if you want to customize
 
@@ -314,6 +438,8 @@ npm install -g jarvis-harness
 - **Update anytime:** Run `jarvis init` to reconfigure
 - **Use from anywhere:** After global install, use `jarvis` in any folder
 - **Live editing:** Use `npm link` + `npm run dev` during development
+- **Quick API key setup:** Use `jarvis provider setup` instead of full init
+- **Web console access:** Start gateway with `jarvis gateway start` and visit http://localhost:3096
 
 ---
 
