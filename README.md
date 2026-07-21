@@ -103,6 +103,8 @@ jarvis init
 ### Setup
 ```bash
 jarvis init              # Run onboarding wizard
+jarvis provider setup    # Configure API keys for providers (OpenAI, Anthropic)
+jarvis gateway setup     # Configure gateway settings
 ```
 
 ### Chat & Autonomous
@@ -139,7 +141,15 @@ jarvis tools run vault.search --json '{"query":"AI"}'
 ```bash
 jarvis provider list                                # List providers
 jarvis provider use ollama_local                    # Switch provider
+jarvis provider setup                               # Configure API keys interactively
 jarvis providers                                    # Show provider info
+```
+
+### Gateway
+```bash
+jarvis gateway start                                # Start web console
+jarvis gateway status                               # Check gateway status
+jarvis gateway setup                                # Configure gateway settings
 ```
 
 ### Audio

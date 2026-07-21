@@ -1,6 +1,7 @@
 import inquirer from "inquirer";
 import { HarnessConfig, ModelProvider } from "../../config";
 import chalk from "chalk";
+import { updateEnv } from "../../config/env";
 
 export async function onboardWelcome(existing: Partial<HarnessConfig>): Promise<Partial<HarnessConfig>> {
   console.log(chalk.cyan("\n=== Welcome to Jarvis Harness ===\n"));
@@ -47,7 +48,7 @@ export async function onboardWelcome(existing: Partial<HarnessConfig>): Promise<
     }
   };
 
-  // Set provider-specific defaults
+  // Set provider-specific defaults and collect API keys
   switch (answers.primaryProvider) {
     case "ollama-cloud":
       config.cloud = {
@@ -67,20 +68,76 @@ export async function onboardWelcome(existing: Partial<HarnessConfig>): Promise<
         model: "llama3.2"
       };
       break;
-    case "openai":
-      config.openai = {
-        model: "gpt-4o-mini",
-        baseUrl: "https://api.openai.com/v1",
-        creditBudget: 10
-      };
+    case "openai": {
+      console.log(chalk.yellow("\nNote: You can also configure your API key later using: jarvis init → Configure API keys\n"));
+      const openAiKey = await inquirer.prompt([
+        {
+          type: "password",
+          name: "apiKey",
+          message: "Enter your OpenAI API key (or press Enter to skip):",
+          mask: "*",
+          validate: (input: string) => {
+            if (input.trim().length > 0 && input.trim().length < 10) return "API key must be at least 10 characters";
+            return true;
+          }
+        }
+      ]);
+      
+      if (openAiKey.apiKey && openAiKey.apiKey.trim().length > 0) {
+        config.openai = {
+          apiKey: openAiKey.apiKey,
+          model: "gpt-4o-mini",
+          baseUrl: "https://api.openai.com/v1",
+          creditBudget: 10
+        };
+        // Save to .env file
+        updateEnv({ OPENAI_API_KEY: openAiKey.apiKey }, ".env");
+        console.log(chalk.green("✓ OpenAI API key saved to .env\n"));
+      } else {
+        console.log(chalk.yellow("⚠ OpenAI selected but no API key provided. You can add it later with: jarvis init\n"));
+        config.openai = {
+          model: "gpt-4o-mini",
+          baseUrl: "https://api.openai.com/v1",
+          creditBudget: 10
+        };
+      }
       break;
-    case "anthropic":
-      config.anthropic = {
-        model: "claude-3-haiku-20240307",
-        baseUrl: "https://api.anthropic.com/v1",
-        creditBudget: 10
-      };
+    }
+    case "anthropic": {
+      console.log(chalk.yellow("\nNote: You can also configure your API key later using: jarvis init → Configure API keys\n"));
+      const anthropicKey = await inquirer.prompt([
+        {
+          type: "password",
+          name: "apiKey",
+          message: "Enter your Anthropic API key (or press Enter to skip):",
+          mask: "*",
+          validate: (input: string) => {
+            if (input.trim().length > 0 && input.trim().length < 10) return "API key must be at least 10 characters";
+            return true;
+          }
+        }
+      ]);
+      
+      if (anthropicKey.apiKey && anthropicKey.apiKey.trim().length > 0) {
+        config.anthropic = {
+          apiKey: anthropicKey.apiKey,
+          model: "claude-3-haiku-20240307",
+          baseUrl: "https://api.anthropic.com/v1",
+          creditBudget: 10
+        };
+        // Save to .env file
+        updateEnv({ ANTHROPIC_API_KEY: anthropicKey.apiKey }, ".env");
+        console.log(chalk.green("✓ Anthropic API key saved to .env\n"));
+      } else {
+        console.log(chalk.yellow("⚠ Anthropic selected but no API key provided. You can add it later with: jarvis init\n"));
+        config.anthropic = {
+          model: "claude-3-haiku-20240307",
+          baseUrl: "https://api.anthropic.com/v1",
+          creditBudget: 10
+        };
+      }
       break;
+    }
   }
 
   return config;

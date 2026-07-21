@@ -1,7 +1,46 @@
+```
+# Dependencies
 node_modules/
+
+# Build artifacts
 dist/
+build/
+target/
+
+# Environment
 .env
-.DS_Store
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# IDE
 .vscode/
 .idea/
-*.log
+*.swp
+*.swo
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# System
+.DS_Store
+Thumbs.db
+```

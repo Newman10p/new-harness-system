@@ -5,6 +5,8 @@ import { createPrioritizedModelAdapter } from "./harness/ModelAdapterFactory";
 import { startWakeWordListener } from "./audio/wakeWord";
 import { printBanner } from "./ui/banner";
 import { spawn } from "node:child_process";
+import { Orchestrator } from "./core/orchestrator";
+import { UIGateway } from "./ui/gateway";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -20,6 +22,18 @@ async function main(): Promise<void> {
 
   if (config.audio?.stt?.enabled && config.audio?.tts?.enabled) {
     console.log("Audio adapters initialized.");
+  }
+
+  // Initialize orchestrator for gateway
+  const orchestrator = new Orchestrator(config);
+
+  // Start UI Gateway if enabled
+  if (config.gateway?.enabled !== false) {
+    const gateway = new UIGateway(config, orchestrator);
+    const port = config.gateway?.port ?? 3096;
+    await gateway.start({ port });
+    console.log(`\n🌐 UI Gateway available at: http://localhost:${port}`);
+    console.log("   Access the web console to chat, switch providers, and monitor status.\n");
   }
 
   try {
