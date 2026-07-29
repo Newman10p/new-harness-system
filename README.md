@@ -1,329 +1,307 @@
-# Jarvis AI Harness
+# M.A.I. — Multiple Array Intelligence
 
-A living, agentic AI operator framework with event-driven workflows, multi-provider model support, agentic tool calling, autonomous natural language execution, Obsidian vault memory, audio (STT/TTS), wake-word detection, sandboxed skill execution, security monitoring, and policy enforcement.
+**Markdown-First / Model-as-an-Engine** agentic AI harness. The system reads markdown files for identity, policy, and tools, calls an OpenAI-compatible LLM, parses fenced ` ```action ` JSON blocks from responses, validates them against a YAML policy firewall, executes 12 primitives, and streams results to a WebSocket-connected Iron Man-style HUD frontend.
 
-## Features
+## Architecture
 
-### � Autonomous Natural Language Engine
-- **`jarvis auto --goal "..."`** - Express goals in plain English
-- Model decomposes goals into actionable steps using available tools
-- Step-by-step execution with error handling and graceful fallback
+```
+User Input (CLI or WebSocket)
+    │
+    ▼
+┌───────────────────────────────────────────┐
+│              Agent Loop                   │
+│  (7-Phase: Assemble → Infer → Parse →    │
+│   Enforce → Execute → Stream → Loop)     │
+│                                           │
+│  ┌─────────┐  ┌──────────┐  ┌────────┐  │
+│  │ Context  │  │ Response │  │ Policy │  │
+│  │Assembler │  │ Parser   │  │ Engine │  │
+│  └────┬─────┘  └──────────┘  └───┬────┘  │
+│       │                           │        │
+│  ┌────▼───────────────────────────▼────┐  │
+│  │         Action Registry             │  │
+│  │  (12 primitives, 60s timeout)       │  │
+│  └─────────────────────────────────────┘  │
+└───────────────────┬───────────────────────┘
+                    │
+        ┌───────────┼───────────┐
+        ▼                       ▼
+   CLI Output          WebSocket (HUD)
+   (terminal)         ws://localhost:8080
+                            │
+                            ▼
+                     Frontend HUD
+                  http://localhost:3000
+```
 
-### 🔄 Event-Driven Agent Loop
-- **EventBus** - Global event system for user input, file changes, resource state, device events, scheduled tasks, workflow updates
-- **AgentState** - Tracks workflows, goals, devices, resource history, preferences
-- **WorkflowEngine** - Sequential and parallel step execution with pause/resume/cancel steering
-- **Natural Language Steering** - "pause summarizer", "resume monitor", "cancel workflow"
+### Key Design Decisions
 
-### 👁️ Background Watchers
-| Watcher | Interval | Events Emitted |
-|---------|----------|----------------|
-| **FileWatcher** | Realtime (fs.watch) | `file_changed` when vault/skills files change |
-| **ResourceWatcher** | Every 30s | `resource_state` with CPU/RAM metrics, auto-throttle |
-| **DeviceWatcher** | Every 60s | `device_event` when new USB devices detected |
+| Decision | Rationale |
+|----------|-----------|
+| **Markdown-First** | All business logic (identity, policy, tools) lives in `.md` files, not code. Edit behavior without recompiling. |
+| **Action Protocol** | LLM communicates via ````action` fenced JSON blocks. Simple, debuggable, language-agnostic. |
+| **Policy as Firewall** | YAML frontmatter in `policy.md` defines deny/allow/approval rules. Enforced before any execution. |
+| **OpenAI SDK** | Compatible with OpenAI, Ollama, NVIDIA NIM, and any OpenAI-compatible endpoint. Single SDK, multiple providers. |
+| **gray-matter** | Parses YAML frontmatter from markdown. Separates machine-readable config from human-readable prose. |
+| **60s Hard Timeout** | Every action is race'd against a 60s timeout. The agent never hangs. |
+| **Never-Throw Registry** | ActionRegistry.execute() always returns an ActionResult. No unhandled promise rejections. |
 
-### 🛠️ Agentic Tool System (19 Actions)
-| Category | Actions |
-|----------|---------|
-| **Code** | `code.generate` |
-| **File System** | `fs.create`, `fs.write`, `fs.append`, `fs.read`, `fs.list`, `fs.delete` |
-| **Terminal** | `terminal.exec` - Safe execution with destructive pattern blocking |
-| **PC Monitor** | `pc.monitor`, `pc.control` |
-| **USB/Device** | `device.usb.list`, `device.usb.info`, `device.remote.call` |
-| **3D Simulation** | `sim3d.run` |
-| **Network** | `net.fetch` |
-| **Security** | `code.securityAudit`, `security.diagnostics` |
-| **Vault/Memory** | `vault.search`, `vault.read`, `vault.write` |
+## Brain Files (Markdown-First Architecture)
 
-### � Filesystem-First MD Spec (`agent/`)
 ```
 agent/
-  instructions.md          # Core identity and role
-  policy.md                # Objectives and rules
-  models.md                # Model provider options
-  voice.md                 # STT/TTS configuration
-  memory.md                # Obsidian memory integration
-  tools/list.md            # Catalog all actions with safety tags
-  workflows/background.md  # Background watcher descriptions
-  skills/                  # Skill diaries (auto-generated)
+  identity.md           # Who M.A.I. is, how to communicate
+  policy.md             # YAML frontmatter: deny_commands, allow_network, require_approval
+  tools/
+    catalog.md          # Human-readable docs for all 12 actions
+
+memory/
+  context.md            # Accumulated long-term memory
+
+state/
+  inbox.md              # Event log (file watches, notifications)
 ```
 
-### 🧩 Self-Adapting Skills
-- **SkillFeedbackStore** - Logs skill runs with outcomes, corrections, ratings
-- **SkillAdaptationEngine** - Analyzes feedback, generates conversational proposals
-- Agent says: *"I've noticed my code skill often needs manual fixes. Shall I update it?"*
-- Sandboxed changes with approval workflow
+### policy.md Example
 
-### 📓 Mini Obsidian Memory
-- **MiniObsidianMemory** - Full vault indexing, search, read/write
-- **Memory Folder** - `AgentMemory/` subfolder for session summaries, decisions, plans
-- **Vault Actions** - `vault.search`, `vault.read`, `vault.write` registered in action registry
-- Agent uses memory for context before planning
+```yaml
+---
+deny_commands:
+  - "rm -rf"
+  - "mkfs"
+  - "shutdown"
+  - "reboot"
+allow_network:
+  - "github.com"
+  - "api.github.com"
+  - "localhost"
+  - "127.0.0.1"
+require_approval:
+  - "execute-terminal"
+  - "write-file"
+  - "http-request"
+---
+```
 
-### 🤖 Multi-Provider Model Support
-- Ollama Local, Ollama Cloud, OpenAI, NVIDIA NIM, Lightning AI, NeMo Proxy, Anthropic
-- **OpenCode.ai** - Connect to any OpenCode-compatible server
-- Priority chain with credit budgeting and automatic fallback
+## 12 Action Primitives
 
-### 🎤 Audio (STT/TTS)
-- Built-in (Whisper + HTTP) or custom endpoints
-- Modes: `builtIn`, `custom`, `disabled`
+| Action | Safety | Description |
+|--------|--------|-------------|
+| `read-file` | Auto | Read file contents |
+| `list-directory` | Auto | List directory contents |
+| `get-system-info` | Auto | Hostname, CPU, memory |
+| `get-process-list` | Auto | Top 30 processes by memory |
+| `append-file` | Auto | Append to a file |
+| `watch-directory` | Auto | Monitor directory changes |
+| `open-url` | Auto | Open URL in browser |
+| `emit-hud-update` | Auto | Send data to HUD |
+| `compact-memory` | Auto | LLM-assisted file summarization |
+| `execute-terminal` | Approval | Run shell commands |
+| `write-file` | Approval | Create/overwrite files |
+| `http-request` | Approval | Make HTTP requests |
 
-### 🔒 Security & Policy
-- SecurityMonitor detects abnormal patterns
-- PolicyEngine with objectives + rules, injectable as system prompts
-- Destructive command blocking
+## HUD WebSocket Protocol
 
-### 📦 Skill System
-- YAML/JSON skill definitions with sandboxed execution
-- Self-improving skills with approval workflow
+### Outbound Channels (Agent → HUD)
 
-## Installation
+| Channel | Payload | Description |
+|---------|---------|-------------|
+| `jarvis_speech` | `{ text: string }` | Conversational output |
+| `activity_log` | `{ message: string, level: "info"\|"warn"\|"error" }` | Activity feed |
+| `system_metrics` | `{ cpu: number, memory: number, disk: number }` | System stats |
+| `threat_level` | `{ level: "green"\|"yellow"\|"orange"\|"red", detail?: string }` | Security status |
+| `reactor_pulse` | `{ power: number, status: string }` | Agent heartbeat |
+
+### Inbound Messages (HUD → Agent)
+
+```json
+{ "type": "user_input", "text": "Hello M.A.I." }
+{ "type": "approval_response", "approved": true }
+```
+
+## Quick Start
 
 ### Prerequisites
-- Node.js >= 18, npm
 
-### Quick Start
+- **Node.js** >= 18
+- **npm** (comes with Node.js)
+- **An LLM endpoint** — [Ollama](https://ollama.ai/) (local), OpenAI, or any OpenAI-compatible API
+
+### 1. Clone & Install
+
 ```bash
 git clone https://github.com/Newman10p/new-harness-system
 cd new-harness-system
 npm install
-npm run build
-npm run cli -- init  # Run setup wizard
 ```
 
-### Global CLI
+### 2. Configure LLM
+
+Copy the example env file and edit it:
+
 ```bash
-npm install -g .
-jarvis init
+cp .env.example .env
 ```
 
-## CLI Commands
+Edit `.env` with your LLM settings:
 
-### Setup
+**Local Ollama:**
+```
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=ollama
+LLM_MODEL=llama3.2
+LLM_PROVIDER=ollama
+```
+
+**OpenAI:**
+```
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=sk-your-key-here
+LLM_MODEL=gpt-4o-mini
+LLM_PROVIDER=openai
+```
+
+**NVIDIA NIM:**
+```
+LLM_BASE_URL=https://integrate.api.nvidia.com/v1
+LLM_API_KEY=nvapi-your-key-here
+LLM_MODEL=meta/llama3-70b-instruct
+LLM_PROVIDER=nvidia
+```
+
+### 3a. CLI Mode
+
 ```bash
-jarvis init              # Run onboarding wizard
-jarvis provider setup    # Configure API keys for providers (OpenAI, Anthropic)
-jarvis gateway setup     # Configure gateway settings
+npx tsx src/index.ts
+# or after build:
+npm run build && npm run cli
 ```
 
-### Chat & Autonomous
+Type messages to chat. Use `/help` for commands.
+
+### 3b. Server Mode (HUD + WebSocket)
+
 ```bash
-jarvis chat --msg "Hello"                           # Direct chat
-jarvis auto --goal "check system resources"         # Autonomous execution
-jarvis run "create a note about AI safety"          # Shorthand for auto
-jarvis work --task "Create a todo list in my vault" # Workspace agent
+npx tsx src/server.ts
+# or after build:
+npm run build && npm start
 ```
 
-### Workflow Steering (Natural Language)
-```bash
-jarvis auto --goal "pause the background monitor"   # Pause workflow
-jarvis auto --goal "resume summarizer"              # Resume workflow
-jarvis auto --goal "cancel all workflows"           # Cancel workflows
-```
+Then open:
+- **HUD Frontend**: http://localhost:3000
+- **WebSocket**: ws://localhost:8080
 
-### Skills
-```bash
-jarvis list-skills
-jarvis run-skill --skill path/to/skill.yml
-jarvis run-sandbox --skill path/to/skill.yml
-jarvis promote-skill --skill path/to/skill.yml
-```
+## Scripts
 
-### Tools / Actions
-```bash
-jarvis tools list                                   # List all 19 actions
-jarvis tools run pc.monitor                         # Run an action
-jarvis tools run vault.search --json '{"query":"AI"}'
-```
+| Command | Description |
+|---------|-------------|
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm start` | Start server mode (HTTP + WS) |
+| `npm run cli` | Start CLI REPL mode |
+| `npm run dev` | Watch mode (auto-recompile) |
 
-### Providers
-```bash
-jarvis provider list                                # List providers
-jarvis provider use ollama_local                    # Switch provider
-jarvis provider setup                               # Configure API keys interactively
-jarvis providers                                    # Show provider info
-```
+## Customizing M.A.I.
 
-### Gateway
-```bash
-jarvis gateway start                                # Start web console
-jarvis gateway status                               # Check gateway status
-jarvis gateway setup                                # Configure gateway settings
-```
+### Change the Agent's Personality
 
-### Audio
-```bash
-jarvis audio mode                                   # Show mode
-jarvis listen --file input.wav                      # STT
-jarvis speak --text "Hello" --out out.wav           # TTS
-```
+Edit `agent/identity.md`. The system prompt is assembled from this file at runtime.
 
-### Vault / Memory
-```bash
-jarvis inspect-vault                                # List notes
-jarvis create-note --title "Note" --filename note.md
-```
+### Adjust Security Policy
 
-### System
-```bash
-jarvis pc monitor                                   # CPU/RAM/disk
-jarvis security status                              # Alerts
-```
+Edit `agent/policy.md`. The YAML frontmatter controls:
+- `deny_commands` — substring patterns blocked in terminal commands
+- `allow_network` — hostname allowlist for HTTP requests (supports subdomains)
+- `require_approval` — actions that need user confirmation
 
-## Configuration
+### Add Custom Actions
 
-### Model Providers (`harness.config.json`)
-```json
-{
-  "modelSection": {
-    "defaultProvider": "ollama_local",
-    "providers": {
-      "ollama_local": { "type": "ollamaLocal", "baseUrl": "http://localhost:11434", "model": "llama3.2" },
-      "openai_compatible": { "type": "openaiStyle", "source": "openai", "baseUrl": "https://api.openai.com/v1", "model": "gpt-4o-mini", "apiKeyEnv": "OPENAI_API_KEY" },
-      "nvidia_nim": { "type": "openaiStyle", "source": "nvidia_nim", "baseUrl": "https://integrate.api.nvidia.com/v1", "model": "meta/llama3-70b-instruct", "apiKeyEnv": "NVIDIA_NIM_API_KEY" },
-      "anthropic": { "type": "anthropic", "model": "claude-3-haiku-20240307", "apiKeyEnv": "ANTHROPIC_API_KEY" }
-    }
-  }
-}
-```
-
-### Audio
-```json
-{
-  "audio": { "mode": "builtIn", "stt": { "backend": "whisper", "enabled": true }, "tts": { "backend": "http", "enabled": false, "endpoint": "http://localhost:5002/api/tts" } }
-}
-```
-
-### Policy
-```json
-{
-  "policy": {
-    "objectives": ["Serve as a personal operator for code, files, tools, and automation.", "Preserve system stability, privacy, and resource health."],
-    "rules": ["Do not execute destructive actions without explicit confirmation.", "Do not assist with unauthorized intrusion, exploitation, or attacks."]
-  }
-}
-```
-
-### Environment Variables (`.env`)
-```
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-NVIDIA_NIM_API_KEY=nvapi-...
-PICOVOICE_ACCESS_KEY=...
-OLLAMA_CLOUD_API_KEY=...
-```
+1. Create `src/actions/primitives/my-action.ts` with the signature:
+   ```typescript
+   export async function myAction(action: Action, ctx: ActionContext): Promise<ActionResult>
+   ```
+2. Register it in `src/actions/index.ts`:
+   ```typescript
+   this.register("my-action", myAction);
+   ```
+3. Add the type to `ActionName` in `src/types/index.ts`
+4. Document it in `agent/tools/catalog.md`
 
 ## Project Structure
 
 ```
 src/
-  cli.ts                     # Main CLI entrypoint
-  startup.ts                 # Wake-word startup wrapper
-  config.ts                  # Configuration types + loader
-
+  types/
+    index.ts               # Single source of truth for all interfaces
   core/
-    eventBus.ts              # Global event system
-    agentState.ts            # Workflow/goal/device/resource tracking
-    workflowEngine.ts        # Sequential/parallel workflows with steering
-    agentLoop.ts             # Event-driven agent loop
-    autonomous.ts            # Autonomous natural language engine
-    orchestrator.ts          # Central orchestrator (actions + policy + security)
-    interaction.ts           # Unified interaction pipeline
-
+    constants.ts            # Path constants & safety limits
+    ContextAssembler.ts     # Reads MD brain files, builds system prompt
+    ResponseParser.ts       # Extracts ```action blocks from LLM output
+    AgentLoop.ts           # 7-phase loop (nervous system)
   actions/
-    types.ts, index.ts       # Action interfaces + registration hub
-    code.generate.ts         # Code generation
-    fs.ts                    # File operations (6 actions)
-    terminal.ts              # Safe terminal execution
-    pc.ts                    # PC monitor + control
-    device.ts                # USB + remote calls
-    sim3d.ts                 # 3D simulation
-    network.ts               # HTTP fetch
-    security.ts              # Code audit + diagnostics
-    vault.ts                 # Vault search/read/write
-
-  watchers/
-    fileWatcher.ts           # Real-time file monitoring
-    resourceWatcher.ts       # Periodic CPU/RAM checks
-    deviceWatcher.ts         # USB device scanning
-
-  registry/
-    actionsRegistry.ts       # Central action registry
-    providersRegistry.ts     # Model provider registry
-
+    index.ts               # ActionRegistry (Map-based, 12 primitives)
+    primitives/
+      execute-terminal.ts  # Shell command execution
+      read-file.ts         # File reading
+      write-file.ts        # File writing
+      append-file.ts       # File appending
+      list-directory.ts    # Directory listing
+      watch-directory.ts   # Filesystem monitoring
+      get-system-info.ts   # System info (os module)
+      get-process-list.ts  # Process listing (ps aux)
+      open-url.ts          # Browser URL opening
+      http-request.ts      # HTTP requests (fetch)
+      emit-hud-update.ts    # HUD broadcasting
+      compact-memory.ts    # LLM-assisted memory compression
   security/
-    SecurityMonitor.ts       # Security monitoring + alerts
-
-  policy/
-    PolicyEngine.ts          # Objectives + rules engine
-
-  memory/
-    MiniObsidianMemory.ts    # Obsidian-based memory layer
-
-  harness/
-    ModelAdapter.ts          # Model interface
-    OllamaAdapter.ts         # Local Ollama
-    CloudModelAdapter.ts     # Remote Ollama with credits
-    OpenAiAdapter.ts         # OpenAI-compatible
-    AnthropicAdapter.ts      # Anthropic Claude
-    ModelAdapterFactory.ts   # Factory + priority chain
-    SkillRunner.ts           # Skill execution
-    ObsidianConnector.ts     # Vault I/O
-
-  audio/
-    AudioAdapter.ts          # STT/TTS interfaces
-    AudioRegistry.ts         # Audio adapter registry
-    WhisperSttAdapter.ts     # Whisper STT
-    HttpTtsAdapter.ts        # HTTP TTS
-    wakeWord.ts              # Wake-word detection
-
-  skills/
-    SandboxedSkillRunner.ts  # Sandbox execution
-    skillFeedback.ts         # Skill run logging
-    skillAdaptationEngine.ts # Self-adaptation analysis
-
+    PolicyEngine.ts        # YAML policy firewall (6 rules)
   ui/
-    banner.ts                # Rainbow banner
-    workspace/
-      WorkspaceAgent.ts      # Workspace automation
+    HudServer.ts           # WebSocket server (5 channels, approval flow)
+  server.ts                # Server entry (HTTP + WS + AgentLoop)
+  index.ts                 # CLI entry (REPL with slash commands)
 
 agent/
-  instructions.md            # Core identity
-  policy.md                  # Objectives + rules
-  models.md                  # Provider docs
-  voice.md                   # Audio docs
-  memory.md                  # Memory docs
-  tools/list.md              # Tool catalog
-  workflows/background.md    # Background watchers
+  identity.md              # Agent identity & personality
+  policy.md                # Security policy (YAML + markdown)
+  tools/
+    catalog.md             # Action documentation
 
-skills/                      # User skill definitions
-vault/                       # Obsidian vault
-harness.config.json          # Configuration
+memory/
+  context.md               # Long-term accumulated memory
+
+state/
+  inbox.md                 # Event log
+
+public/
+  index.html               # HUD frontend (Iron Man console)
+
+.env.example               # Configuration template
+.gitignore
+tsconfig.json
+package.json
 ```
 
-## Architecture Overview
+## The 7-Phase Agent Loop
 
 ```
-User Input → CLI → Orchestrator → ActionRegistry → Execute Actions
-                ↓                     ↓
-           EventBus ←────────── Watchers (File, Resource, Device)
-                ↓
-           AgentLoop → WorkflowEngine → AgentState
-                ↓
-           AutonomousAgent → ModelAdapter → Plan & Execute
-                ↓
-           SkillAdaptationEngine → FeedbackStore → Sandboxed Proposals
+ASSEMBLE → Build system prompt from identity.md + policy.md + catalog.md
+INFER    → Send messages to LLM via OpenAI SDK
+PARSE    → Extract ```action JSON blocks from response
+ENFORCE  → Validate each action against PolicyEngine (6 rules)
+EXECUTE  → Run approved actions via ActionRegistry (60s timeout)
+STREAM   → Send results to HUD via WebSocket channels
+LOOP     → Inject results back as context, repeat if actions were found
+
+Safety: Max 20 iterations. Pending approval pauses loop.
 ```
 
-## Development
+## Policy Firewall (6 Rules)
 
-```bash
-npm run build    # Compile TypeScript
-npm run dev      # Watch mode
-npm run cli      # Run CLI
-npm start        # Start with wake-word listener
-```
+1. **Read-only always allowed** — read-file, list-directory, get-system-info, get-process-list
+2. **Deny commands** — substring match against terminal command field
+3. **Allow network** — hostname allowlist with subdomain support
+4. **Require approval** — gates that pause the loop for WebSocket confirmation
+5. **Known actions** — if registry recognizes it, allow
+6. **Unknown blocked** — deny everything else
 
 ## License
 

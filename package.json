@@ -1,54 +1,57 @@
 {
-  "name": "jarvis-harness",
-  "version": "0.1.0",
-  "description": "An AI harness with Ollama, Obsidian vault integration, audio (STT/TTS), wake-word detection, and sandboxed skills.",
+  "name": "mai-harness",
+  "version": "2.0.0",
+  "description": "M.A.I. (Multiple Array Intelligence) — Markdown-First agentic AI harness with OpenAI-compatible LLM, YAML policy firewall, 12 primitives, and Iron Man-style WebSocket HUD.",
   "bin": {
-    "jarvis": "./bin/jarvis.js"
+    "mai": "./bin/mai.js"
   },
-  "main": "dist/cli.js",
+  "main": "dist/server.js",
   "type": "commonjs",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/startup.js",
-    "cli": "node dist/cli.js",
-    "init": "node dist/cli.js init",
-    "banner": "node dist/ui/bannerCli.js",
+    "start": "node dist/server.js",
+    "cli": "node dist/index.js",
     "dev": "tsc -w",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
     "ai",
+    "agent",
     "harness",
+    "llm",
+    "openai",
     "ollama",
-    "obsidian",
+    "markdown-first",
+    "policy-firewall",
+    "websocket",
+    "hud",
+    "agentic",
     "cli",
-    "skills",
-    "wake-word",
-    "sandbox"
+    "maı"
   ],
-  "author": "",
+  "author": "Newman10p",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Newman10p/new-harness-system"
   },
   "dependencies": {
-    "@picovoice/porcupine-node": "^4.0.2",
-    "@picovoice/pvrecorder-node": "^1.2.9",
-    "@pr0gramm/fluester": "^0.9.15",
     "chalk": "^5.6.2",
     "dotenv": "^16.4.7",
-    "inquirer": "^8.2.6",
+    "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.0",
-    "node-fetch": "^3.3.2"
+    "open": "^10.1.0",
+    "openai": "^4.73.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/inquirer": "^9.0.7",
-    "@types/js-yaml": "^4.0.5",
     "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.13",
+    "@types/js-yaml": "^4.0.5",
     "typescript": "^5.9.3"
   }
 }
