@@ -2,9 +2,6 @@
 // Reads a markdown file, sends it to the LLM for summarization,
 // and overwrites the file with the compressed version.
 // Uses a low temperature (0.3) for factual summarization.
-//
-// The LLM instance is injected via ctx.llm (type-erased to unknown
-// to keep primitives decoupled from the OpenAI SDK).
 
 import fs from "node:fs/promises";
 import type { Action, ActionContext, ActionResult, OpenAI } from "../../types/index.js";
@@ -24,9 +21,9 @@ export async function compactMemory(
   }
 
   const llm = ctx.llm as OpenAI;
+  const model = String(ctx.model ?? "gpt-4o-mini");
 
   try {
-    // Read the file to compact
     const content = await fs.readFile(filePath, "utf-8");
 
     if (!content.trim()) {
@@ -43,7 +40,7 @@ export async function compactMemory(
     ].join(" ");
 
     const response = await llm.chat.completions.create({
-      model: (llm as unknown as { _options?: { model?: string } })._options?.model ?? "gpt-4o-mini",
+      model,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 4096,
@@ -51,8 +48,14 @@ export async function compactMemory(
 
     const compacted = response.choices[0]?.message?.content ?? "";
 
-    // Overwrite the file with the compacted version
     await fs.writeFile(filePath, compacted.trim(), "utf-8");
+
+    await ctx.audit({
+      type: "action_executed",
+      action: "compact-memory",
+      detail: `Compacted ${filePath} (${content.length} → ${compacted.length} chars)`,
+      ok: true,
+    });
 
     return {
       ok: true,

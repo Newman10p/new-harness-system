@@ -19,7 +19,9 @@ export type ActionName =
   | "open-url"
   | "http-request"
   | "emit-hud-update"
-  | "compact-memory";
+  | "compact-memory"
+  | "run-skill"
+  | "schedule-task";
 
 export interface Action {
   action: ActionName;
@@ -75,6 +77,15 @@ export interface LLMConfig {
   provider: string;
 }
 
+// ─── Multi-Provider Fallback ────────────────────────────────────────────────
+export interface ProviderEntry {
+  name: string;
+  baseURL: string;
+  apiKey: string;
+  model: string;
+  priority: number; // lower = tried first
+}
+
 // ─── Parser ────────────────────────────────────────────────────────────────
 export interface ParsedResponse {
   text: string;
@@ -116,11 +127,57 @@ export interface InboxEvent {
   timestamp: string;
 }
 
+// ─── Audit Log ─────────────────────────────────────────────────────────────
+export type AuditEventType = "action_executed" | "action_blocked" | "action_approved" | "action_denied" | "action_timeout" | "llm_call" | "llm_error" | "policy_loaded";
+
+export interface AuditEntry {
+  timestamp?: string;
+  type: AuditEventType;
+  action?: string;
+  detail: string;
+  durationMs?: number;
+  ok?: boolean;
+}
+
+export interface AuditLogger {
+  (entry: AuditEntry): Promise<void>;
+}
+
+// ─── Skill Runner ──────────────────────────────────────────────────────────
+export interface SkillDefinition {
+  name: string;
+  description?: string;
+  model?: string; // override model for this skill
+  template: string; // prompt template with {{variables}}
+  inputs: SkillInput[];
+  actions?: Action[]; // optional pre-defined actions to execute
+}
+
+export interface SkillInput {
+  name: string;
+  prompt: string; // prompt shown to user to collect the value
+  default?: string;
+}
+
+// ─── Scheduled Tasks ──────────────────────────────────────────────────────
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  command: string; // user input to send to agent loop
+  intervalMs: number; // recurring interval
+  enabled: boolean;
+  lastRun?: string;
+  nextRun: string;
+  runCount: number;
+}
+
 // ─── Action Context (passed into every primitive) ──────────────────────────
 export interface ActionContext {
   emitHud: HudEmitter;
   appendInbox: (event: InboxEvent) => Promise<void>;
-  llm?: unknown; // OpenAI instance — injected for compact-memory only
+  audit: AuditLogger;
+  llm?: unknown; // OpenAI instance — injected for compact-memory and run-skill
+  model?: string; // configured model name — for compact-memory
   state?: AgentState;
 }
 

@@ -11,9 +11,13 @@ export const TOOLS_CATALOG_PATH = path.join(AGENT_DIR, "tools", "catalog.md");
 export const CONTEXT_PATH = path.join(PROJECT_ROOT, "memory", "context.md");
 export const INBOX_PATH = path.join(PROJECT_ROOT, "state", "inbox.md");
 export const WORKFLOWS_DIR = path.join(PROJECT_ROOT, "workflows");
+export const SKILLS_DIR = path.join(PROJECT_ROOT, "skills");
+export const AUDIT_LOG_PATH = path.join(PROJECT_ROOT, "state", "audit.log.md");
 
 // Safety limits
 export const MAX_LOOP_ITERATIONS = 20;
 export const ACTION_TIMEOUT_MS = 60_000;
 export const LLM_MAX_TOKENS = 4096;
 export const HTTP_TIMEOUT_MS = 30_000;
+export const MIN_TASK_INTERVAL_MS = 60_000; // 1 minute minimum for scheduled tasks
+export const MAX_SCHEDULED_TASKS = 20;
