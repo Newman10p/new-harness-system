@@ -8,10 +8,21 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "moduleResolution": "node10",
-    "ignoreDeprecations": "5.0",
+    "moduleResolution": "node",
     "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2020"]
+    "lib": ["ES2020"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/types/**/*",
+    "src/core/**/*",
+    "src/actions/**/*",
+    "src/security/**/*",
+    "src/ui/**/*",
+    "src/server.ts",
+    "src/index.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
 }
