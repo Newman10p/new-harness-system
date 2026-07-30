@@ -23,6 +23,13 @@ require_approval:
   - "execute-terminal"
   - "write-file"
   - "http-request"
+  - "manage-processes"
+  - "screenshot-capture"
+  - "clipboard-write"
+  - "self-modify"
+  - "self-repair"
+  - "rollback"
+  - "adaptive-config"
 ---
 
 # M.A.I. Security Policy
@@ -58,3 +65,34 @@ require_approval:
 | http-request | Approval | Network access |
 | emit-hud-update | Auto | Display only |
 | compact-memory | Auto | LLM-assisted |
+| screenshot-capture | Approval | Can capture screen content |
+| clipboard-read | Auto | Read-only |
+| clipboard-write | Approval | Can modify clipboard |
+| open-application | Auto | User-facing |
+| search-files | Auto | Read-only |
+| get-gpu-info | Auto | Read-only |
+| get-network-info | Auto | Read-only |
+| manage-processes | Approval | Can kill/restart processes |
+| voice-call | Auto | HUD interaction only |
+| list-files-detailed | Auto | Read-only |
+| semantic-recall | Auto | Read-only memory search |
+| self-modify | Approval | Can modify system files |
+| self-evaluate | Auto | Read-only analysis |
+| self-diagnose | Auto | Read-only diagnostics |
+| self-repair | Approval | Can modify system state |
+| adaptive-config | Approval | Can change runtime config |
+| remember | Auto | Writes to memory only |
+| recall | Auto | Read-only memory search |
+| forget | Auto | Modifies memory only |
+| profile-update | Auto | Updates learned profile |
+| learn-pattern | Auto | Writes to patterns file |
+| create-skill | Auto | Creates new skill file |
+| optimize-skill | Auto | Modifies existing skill |
+| rollback | Approval | Can revert system state |
+
+## Self-Modification Safety
+
+- **NEVER** modify deny_commands or security-critical policy rules
+- **ALWAYS** create backups before self-modification
+- **ALWAYS** require approval for rollback operations
+- **ALWAYS** log every self-modification to the audit trail

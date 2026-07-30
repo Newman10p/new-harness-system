@@ -21,6 +21,8 @@
     "src/actions/**/*",
     "src/security/**/*",
     "src/ui/**/*",
+    "src/auth/**/*",
+    "src/gateway/**/*",
     "src/server.ts",
     "src/index.ts"
   ],

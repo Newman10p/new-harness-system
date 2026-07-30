@@ -1,0 +1,27 @@
+{
+  "name": "M.A.I. Chat",
+  "short_name": "MAI",
+  "description": "Multiple Array Intelligence - Mobile Chat Companion",
+  "start_url": "/chat/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0a0f1a",
+  "background_color": "#0a0f1a",
+  "icons": [
+    {
+      "src": "/chat/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/chat/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

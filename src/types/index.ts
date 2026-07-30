@@ -21,7 +21,40 @@ export type ActionName =
   | "emit-hud-update"
   | "compact-memory"
   | "run-skill"
-  | "schedule-task";
+  | "schedule-task"
+  | "screenshot-capture"
+  | "clipboard-read"
+  | "clipboard-write"
+  | "open-application"
+  | "search-files"
+  | "get-gpu-info"
+  | "get-network-info"
+  | "manage-processes"
+  | "voice-call"
+  | "list-files-detailed"
+  | "semantic-recall"
+  | "self-modify"
+  | "self-evaluate"
+  | "self-diagnose"
+  | "self-repair"
+  | "adaptive-config"
+  | "remember"
+  | "recall"
+  | "forget"
+  | "profile-update"
+  | "learn-pattern"
+  | "create-skill"
+  | "optimize-skill"
+  | "rollback"
+  | "control-window"
+  | "input-inject"
+  | "system-setting"
+  | "media-control"
+  | "screen-arrange"
+  | "notification-send"
+  | "dry-run"
+  | "run-macro"
+  | "search-conversations";
 
 export interface Action {
   action: ActionName;
@@ -99,7 +132,22 @@ export type HudChannel =
   | "activity_log"
   | "system_metrics"
   | "threat_level"
-  | "reactor_pulse";
+  | "reactor_pulse"
+  | "file_list"
+  | "voice_call_state"
+  | "network_stats"
+  | "gpu_stats"
+  | "live_token"
+  | "proactive_alert"
+  | "user_profile_update"
+  | "health_report"
+  | "device_connected"
+  | "device_disconnected"
+  | "gateway_message"
+  | "notification_incoming"
+  | "ambient_listening"
+  | "tunnel_status"
+  | "analytics_snapshot";
 
 export interface HudPayloads {
   jarvis_speech: { text: string };
@@ -107,6 +155,21 @@ export interface HudPayloads {
   system_metrics: { cpu: number; memory: number; disk: number };
   threat_level: { level: "green" | "yellow" | "orange" | "red"; detail?: string };
   reactor_pulse: { power: number; status: string };
+  file_list: { files: Array<{ name: string; path: string; size: number; modified: string; type: "file" | "dir"; extension: string }> };
+  voice_call_state: { active: boolean; transcript: string };
+  network_stats: { upload_bps: number; download_bps: number };
+  gpu_stats: { temperature: number; utilization: number; memory_used: number; memory_total: number };
+  live_token: { token: string };
+  proactive_alert: { rule: string; action: string; detail: string };
+  user_profile_update: { field: string; value: string };
+  health_report: { subsystems: Array<{ name: string; status: "ok" | "degraded" | "failed"; detail: string }>; overall: "healthy" | "degraded" | "critical" };
+  device_connected: { deviceId: string; channel: string; deviceName: string };
+  device_disconnected: { deviceId: string; channel: string };
+  gateway_message: { channel: string; source: string; text: string; timestamp: number };
+  notification_incoming: { id: string; source: string; title: string; body: string; priority: string };
+  ambient_listening: { active: boolean; wakeWord: string; audioLevel: number };
+  tunnel_status: { active: boolean; method: string; publicUrl: string | null };
+  analytics_snapshot: { totalInteractions: number; messagesSent: number; actionsExecuted: number; errorRate: number; uptimeSeconds: number };
 }
 
 export type HudMessage<C extends HudChannel> = {
@@ -179,6 +242,16 @@ export interface ActionContext {
   llm?: unknown; // OpenAI instance — injected for compact-memory and run-skill
   model?: string; // configured model name — for compact-memory
   state?: AgentState;
+}
+
+// ─── File Entry (used by file_list HUD channel and list-files-detailed) ─────
+export interface FileEntry {
+  name: string;
+  path: string;
+  size: number;
+  modified: string;
+  type: "file" | "dir";
+  extension: string;
 }
 
 // ─── Re-export the OpenAI type for compact-memory ───────────────────────────

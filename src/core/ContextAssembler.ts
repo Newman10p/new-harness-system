@@ -9,6 +9,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
+import { createRequire } from "node:module";
 import {
   IDENTITY_PATH,
   POLICY_PATH,
@@ -17,6 +18,14 @@ import {
   INBOX_PATH,
 } from "./constants.js";
 import type { PolicyConfig } from "../types/index.js";
+
+// Lazy-load UserModel (file may not exist yet)
+const _require = createRequire(import.meta.url);
+let _UserModel: { new (): { getProfileSummary: () => Promise<string | null> } } | null = null;
+try {
+  const mod = _require("./UserModel.js");
+  _UserModel = mod.UserModel ?? mod.default ?? null;
+} catch { /* not yet created */ }
 
 export class ContextAssembler {
   /**
@@ -92,6 +101,17 @@ export class ContextAssembler {
           "## Active Policy Constraints\n\n" + reminders.join("\n")
         );
       }
+    }
+
+    // 5. User profile (learned preferences from UserModel)
+    if (_UserModel) {
+      try {
+        const userProfile = new _UserModel();
+        const profileSummary = await userProfile.getProfileSummary();
+        if (profileSummary) {
+          sections.push("## User Profile (Learned)\n\n" + profileSummary);
+        }
+      } catch { /* non-fatal */ }
     }
 
     return sections.join("\n\n---\n\n");

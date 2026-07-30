@@ -22,12 +22,51 @@ import type {
   InboxEvent,
   AuditEntry,
 } from "../types/index.js";
+import { createRequire } from "node:module";
 import { ContextAssembler } from "./ContextAssembler.js";
 import { ResponseParser } from "./ResponseParser.js";
 import { PolicyEngine } from "../security/PolicyEngine.js";
 import { ActionRegistry } from "../actions/index.js";
 import { MAX_LOOP_ITERATIONS } from "./constants.js";
 import { loadProviders, createClients, callWithFallback, type LLMInstance } from "./MultiProvider.js";
+
+// Lazy-load intelligence engines (files may not exist yet)
+const _require = createRequire(import.meta.url);
+
+function tryLoadEngine<T>(modPath: string, className: string): T | null {
+  try {
+    const mod = _require(modPath);
+    return mod[className] ?? mod.default ?? null;
+  } catch { /* engine not yet created */ }
+  return null;
+}
+
+const IntentClassifier = tryLoadEngine<{ classify: (text: string) => { type: string; urgency: string; suggestedSystemBehavior: string } }>(
+  "./IntentClassifier.js", "IntentClassifier"
+);
+const ToneAdapter = tryLoadEngine<{
+  adaptTone: (opts: Record<string, unknown>) => Record<string, unknown>;
+  getSystemPromptAddon: (tone: Record<string, unknown>) => string;
+}>("./ToneAdapter.js", "ToneAdapter");
+const SelfImprovementEngine = tryLoadEngine<{ new (): { reflect: (n: number) => Promise<void> } }>(
+  "./SelfImprovementEngine.js", "SelfImprovementEngine"
+);
+const UserModel = tryLoadEngine<{
+  new (): {
+    updateFromInteraction: (input: string, loopCount: number) => Promise<void>;
+    getProfileSummary: () => Promise<string | null>;
+  };
+}>("./UserModel.js", "UserModel");
+
+// Module-level helper for tone adaptation
+function getTimeOfDay(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) return "night";
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  if (hour < 21) return "evening";
+  return "night";
+}
 
 // ─── Callbacks Interface ────────────────────────────────────────────────────
 export interface AgentLoopCallbacks {
@@ -54,6 +93,11 @@ export class AgentLoop {
   private inboxAppender: (event: InboxEvent) => Promise<void> = async () => {};
   private audit: (entry: AuditEntry) => Promise<void> = async () => {};
   private useFallback: boolean;
+  private interactionCount = 0;
+  private sessionStart = Date.now();
+  private recentErrors = 0;
+  private selfEngine: { reflect: (n: number) => Promise<void> } | null = null;
+  private userModel: { updateFromInteraction: (input: string, loopCount: number) => Promise<void> } | null = null;
 
   constructor(
     llmConfig: LLMConfig,
@@ -73,6 +117,14 @@ export class AgentLoop {
         model: llmConfig.model,
         priority: -1, // highest priority
       });
+    }
+
+    // Initialize intelligence engines (if available)
+    if (SelfImprovementEngine) {
+      try { this.selfEngine = new SelfImprovementEngine(); } catch { /* non-fatal */ }
+    }
+    if (UserModel) {
+      try { this.userModel = new UserModel(); } catch { /* non-fatal */ }
     }
 
     this.clients = createClients(providers);
@@ -109,10 +161,41 @@ export class AgentLoop {
       // Non-fatal — proceed without context
     }
 
-    // Build the full user message with context
-    const userContent = contextPayload
-      ? `## User Input\n\n${input}\n\n---\n\n## Current Context\n\n${contextPayload}`
-      : input;
+    // Classify intent and adapt tone (if engines available)
+    let intent: { type: string; urgency: string; suggestedSystemBehavior: string } | null = null;
+    let toneAddon = "";
+    if (IntentClassifier) {
+      try {
+        intent = IntentClassifier.classify(input);
+      } catch { /* non-fatal */ }
+    }
+    if (ToneAdapter && intent) {
+      try {
+        const tone = ToneAdapter.adaptTone({
+          urgency: intent.urgency,
+          userMood: "neutral",
+          timeOfDay: getTimeOfDay(),
+          errorCount: this.recentErrors,
+          sessionAge: Date.now() - this.sessionStart,
+          taskComplexity: intent.type === "complex_task" ? 0.8 : 0.3,
+        });
+        toneAddon = ToneAdapter.getSystemPromptAddon(tone);
+      } catch { /* non-fatal */ }
+    }
+
+    // Build the full user message with intent analysis and context
+    const userContent = intent && contextPayload
+      ? `## User Input\n\n${input}\n\n## Intent Analysis\n\nType: ${intent.type}\nUrgency: ${intent.urgency}\nBehavior: ${intent.suggestedSystemBehavior}\n\n## Current Context\n\n${contextPayload}`
+      : contextPayload
+        ? `## User Input\n\n${input}\n\n---\n\n## Current Context\n\n${contextPayload}`
+        : input;
+
+    // If tone adaptation produced an addon, inject it as a system message
+    if (toneAddon) {
+      // Remove any existing system message to re-inject with tone
+      this.state.messages = this.state.messages.filter(m => m.role !== "system");
+      this.state.messages.push({ role: "system", content: toneAddon });
+    }
 
     this.state.messages.push({ role: "user", content: userContent });
 
@@ -282,6 +365,19 @@ export class AgentLoop {
       }
     } finally {
       this.state.isRunning = false;
+      this.interactionCount++;
+
+      // Trigger self-improvement every 10 interactions
+      if (this.selfEngine && this.interactionCount % 10 === 0) {
+        this.triggerSelfReflection();
+      }
+
+      // Update user model after every interaction
+      if (this.userModel) {
+        try {
+          await this.userModel.updateFromInteraction(input, this.state.loopCount);
+        } catch { /* non-fatal */ }
+      }
     }
   }
 
@@ -380,6 +476,17 @@ export class AgentLoop {
     const chunks = text.match(/\S.{0,40}\S|\S+/g) ?? [text];
     for (const chunk of chunks) {
       this.callbacks.onToken?.(chunk + " ");
+    }
+  }
+
+  /**
+   * Trigger self-improvement reflection (non-blocking, non-fatal).
+   */
+  private async triggerSelfReflection(): Promise<void> {
+    try {
+      await this.selfEngine!.reflect(5);
+    } catch {
+      // Self-improvement should never crash the system
     }
   }
 
