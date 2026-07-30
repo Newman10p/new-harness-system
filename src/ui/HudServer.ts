@@ -16,7 +16,6 @@
 // Messages are JSON: { channel, payload, timestamp }.
 
 import { WebSocketServer, WebSocket } from "ws";
-import type { Server } from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type {
@@ -89,10 +88,10 @@ export class HudServer {
     httpServer: Server | undefined,
     private port: number = 8080
   ) {
-    this.wss = new WebSocketServer({
-      port: httpServer ? undefined : port,
-      server: httpServer,
-    });
+    // Always create a standalone WebSocket server on its own port.
+    // Sharing the HTTP server port causes the WS to end up on HTTP_PORT
+    // instead of WS_PORT, breaking the HUD frontend connection.
+    this.wss = new WebSocketServer({ port });
 
     this.wss.on("connection", (ws) => {
       this.handleConnection(ws);
