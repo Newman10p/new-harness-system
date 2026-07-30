@@ -2,17 +2,16 @@
 // The 7-Phase Agent Loop (the "Nervous System"):
 //
 //   1. ASSEMBLE  — Build system prompt + context from MD brain files
-//   2. INFER     — Send messages to LLM via OpenAI SDK
+//   2. INFER     — Send messages to LLM via OpenAI SDK (with fallback)
 //   3. PARSE     — Extract ```action blocks from response
 //   4. ENFORCE   — Validate actions against PolicyEngine firewall
 //   5. EXECUTE   — Run approved actions via ActionRegistry
-//   6. STREAM    — Send results to HUD via WebSocket
+//   6. STREAM    — Send results to HUD via WebSocket (including live tokens)
 //   7. LOOP      — If actions were executed, inject results and loop back
 //
 // Safety: maxLoops=20 hard limit. Pending approval pauses the loop
 // until a WebSocket approval_response resolves the Promise.
 
-import OpenAI from "openai";
 import type {
   ChatMessage,
   Action,
@@ -21,19 +20,58 @@ import type {
   LLMConfig,
   HudEmitter,
   InboxEvent,
-  HudChannel,
+  AuditEntry,
 } from "../types/index.js";
+import { createRequire } from "node:module";
 import { ContextAssembler } from "./ContextAssembler.js";
 import { ResponseParser } from "./ResponseParser.js";
 import { PolicyEngine } from "../security/PolicyEngine.js";
 import { ActionRegistry } from "../actions/index.js";
-import { INBOX_PATH } from "./constants.js";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { MAX_LOOP_ITERATIONS } from "./constants.js";
+import { loadProviders, createClients, callWithFallback, type LLMInstance } from "./MultiProvider.js";
+
+// Lazy-load intelligence engines (files may not exist yet)
+const _require = createRequire(import.meta.url);
+
+function tryLoadEngine<T>(modPath: string, className: string): T | null {
+  try {
+    const mod = _require(modPath);
+    return mod[className] ?? mod.default ?? null;
+  } catch { /* engine not yet created */ }
+  return null;
+}
+
+const IntentClassifier = tryLoadEngine<{ classify: (text: string) => { type: string; urgency: string; suggestedSystemBehavior: string } }>(
+  "./IntentClassifier.js", "IntentClassifier"
+);
+const ToneAdapter = tryLoadEngine<{
+  adaptTone: (opts: Record<string, unknown>) => Record<string, unknown>;
+  getSystemPromptAddon: (tone: Record<string, unknown>) => string;
+}>("./ToneAdapter.js", "ToneAdapter");
+const SelfImprovementEngine = tryLoadEngine<{ new (): { reflect: (n: number) => Promise<void> } }>(
+  "./SelfImprovementEngine.js", "SelfImprovementEngine"
+);
+const UserModel = tryLoadEngine<{
+  new (): {
+    updateFromInteraction: (input: string, loopCount: number) => Promise<void>;
+    getProfileSummary: () => Promise<string | null>;
+  };
+}>("./UserModel.js", "UserModel");
+
+// Module-level helper for tone adaptation
+function getTimeOfDay(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) return "night";
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  if (hour < 21) return "evening";
+  return "night";
+}
 
 // ─── Callbacks Interface ────────────────────────────────────────────────────
 export interface AgentLoopCallbacks {
   onText?: (text: string) => void;
+  onToken?: (token: string) => void;      // live streaming token
   onActionStart?: (action: Action) => void;
   onActionResult?: (action: Action, result: ActionResult) => void;
   onPolicyViolation?: (action: Action, reason: string) => void;
@@ -45,14 +83,21 @@ export interface AgentLoopCallbacks {
 
 // ─── Agent Loop ─────────────────────────────────────────────────────────────
 export class AgentLoop {
-  private llm: OpenAI;
-  private model: string;
+  private clients: LLMInstance[];
+  private primaryModel: string;
   private policyEngine: PolicyEngine;
   private registry: ActionRegistry;
   private state: AgentState;
   private callbacks: AgentLoopCallbacks;
   private hudEmitter: HudEmitter = () => {};
   private inboxAppender: (event: InboxEvent) => Promise<void> = async () => {};
+  private audit: (entry: AuditEntry) => Promise<void> = async () => {};
+  private useFallback: boolean;
+  private interactionCount = 0;
+  private sessionStart = Date.now();
+  private recentErrors = 0;
+  private selfEngine: { reflect: (n: number) => Promise<void> } | null = null;
+  private userModel: { updateFromInteraction: (input: string, loopCount: number) => Promise<void> } | null = null;
 
   constructor(
     llmConfig: LLMConfig,
@@ -60,14 +105,36 @@ export class AgentLoop {
     registry: ActionRegistry,
     callbacks: AgentLoopCallbacks = {}
   ) {
-    this.llm = new OpenAI({
-      baseURL: llmConfig.baseURL,
-      apiKey: llmConfig.apiKey,
-    });
-    this.model = llmConfig.model;
+    // Build provider chain
+    const providers = loadProviders();
+
+    // Always include the primary config as first provider if not already present
+    if (providers.length === 0 || providers[0].baseURL !== llmConfig.baseURL) {
+      providers.unshift({
+        name: llmConfig.provider,
+        baseURL: llmConfig.baseURL,
+        apiKey: llmConfig.apiKey,
+        model: llmConfig.model,
+        priority: -1, // highest priority
+      });
+    }
+
+    // Initialize intelligence engines (if available)
+    if (SelfImprovementEngine) {
+      try { this.selfEngine = new SelfImprovementEngine(); } catch { /* non-fatal */ }
+    }
+    if (UserModel) {
+      try { this.userModel = new UserModel(); } catch { /* non-fatal */ }
+    }
+
+    this.clients = createClients(providers);
+    this.primaryModel = llmConfig.model;
     this.policyEngine = policyEngine;
     this.registry = registry;
     this.callbacks = callbacks;
+
+    // Enable fallback if there are multiple providers
+    this.useFallback = this.clients.length > 1;
 
     this.state = {
       messages: [],
@@ -94,10 +161,41 @@ export class AgentLoop {
       // Non-fatal — proceed without context
     }
 
-    // Build the full user message with context
-    const userContent = contextPayload
-      ? `## User Input\n\n${input}\n\n---\n\n## Current Context\n\n${contextPayload}`
-      : input;
+    // Classify intent and adapt tone (if engines available)
+    let intent: { type: string; urgency: string; suggestedSystemBehavior: string } | null = null;
+    let toneAddon = "";
+    if (IntentClassifier) {
+      try {
+        intent = IntentClassifier.classify(input);
+      } catch { /* non-fatal */ }
+    }
+    if (ToneAdapter && intent) {
+      try {
+        const tone = ToneAdapter.adaptTone({
+          urgency: intent.urgency,
+          userMood: "neutral",
+          timeOfDay: getTimeOfDay(),
+          errorCount: this.recentErrors,
+          sessionAge: Date.now() - this.sessionStart,
+          taskComplexity: intent.type === "complex_task" ? 0.8 : 0.3,
+        });
+        toneAddon = ToneAdapter.getSystemPromptAddon(tone);
+      } catch { /* non-fatal */ }
+    }
+
+    // Build the full user message with intent analysis and context
+    const userContent = intent && contextPayload
+      ? `## User Input\n\n${input}\n\n## Intent Analysis\n\nType: ${intent.type}\nUrgency: ${intent.urgency}\nBehavior: ${intent.suggestedSystemBehavior}\n\n## Current Context\n\n${contextPayload}`
+      : contextPayload
+        ? `## User Input\n\n${input}\n\n---\n\n## Current Context\n\n${contextPayload}`
+        : input;
+
+    // If tone adaptation produced an addon, inject it as a system message
+    if (toneAddon) {
+      // Remove any existing system message to re-inject with tone
+      this.state.messages = this.state.messages.filter(m => m.role !== "system");
+      this.state.messages.push({ role: "system", content: toneAddon });
+    }
 
     this.state.messages.push({ role: "user", content: userContent });
 
@@ -107,50 +205,53 @@ export class AgentLoop {
 
   /**
    * Inject an approval response from the WebSocket HUD.
-   * Resolves the pending Promise that's blocking the loop.
    */
   resolveApproval(approved: boolean): void {
     if (this.state.pendingApproval) {
-      const { resolve } = this.state.pendingApproval;
+      const { action, resolve } = this.state.pendingApproval;
       this.state.pendingApproval = null;
+      this.audit({
+        type: approved ? "action_approved" : "action_denied",
+        action: action.action,
+        detail: `User ${approved ? "approved" : "denied"}: ${action.action}`,
+        ok: approved,
+      });
       resolve(approved);
     }
   }
 
-  /**
-   * Wire the HUD emitter into the loop.
-   * Called by the server to connect the WebSocket broadcast.
-   */
   setHudEmitter(fn: HudEmitter): void {
     this.hudEmitter = fn;
   }
 
-  /**
-   * Wire the inbox appender into the loop.
-   */
   setInboxAppender(fn: (event: InboxEvent) => Promise<void>): void {
     this.inboxAppender = fn;
   }
 
-  /**
-   * Clear conversation history.
-   */
+  setAudit(fn: (entry: AuditEntry) => Promise<void>): void {
+    this.audit = fn;
+  }
+
   clearHistory(): void {
     this.state.messages = [];
     this.state.loopCount = 0;
   }
 
-  /**
-   * Get current state (for diagnostics).
-   */
   getState(): Readonly<AgentState> {
     return this.state;
+  }
+
+  getProviderInfo(): { count: number; names: string[] } {
+    return {
+      count: this.clients.length,
+      names: this.clients.map((c) => c.name),
+    };
   }
 
   // ─── Private: Main Loop ─────────────────────────────────────────────────
   private async runLoop(): Promise<void> {
     this.state.isRunning = true;
-    const maxLoops = 20;
+    const maxLoops = MAX_LOOP_ITERATIONS;
 
     try {
       while (this.state.loopCount < maxLoops && this.state.isRunning) {
@@ -160,7 +261,6 @@ export class AgentLoop {
         this.callbacks.onLoopStart?.(iteration);
 
         // ─── Phase 1: ASSEMBLE ──
-        // Add system prompt to front of messages if not already present
         if (this.state.messages.length === 0 || this.state.messages[0].role !== "system") {
           const systemPrompt = await ContextAssembler.assembleSystemPrompt(
             this.policyEngine.getConfig()
@@ -168,13 +268,18 @@ export class AgentLoop {
           this.state.messages.unshift({ role: "system", content: systemPrompt });
         }
 
-        // ─── Phase 2: INFER ──
+        // ─── Phase 2: INFER (with streaming + fallback) ──
         let rawResponse: string;
         try {
-          rawResponse = await this.callLLM(this.state.messages);
+          rawResponse = await this.callLLMStreaming(this.state.messages);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           this.callbacks.onError?.(`LLM call failed: ${message}`);
+          this.audit({
+            type: "llm_error",
+            detail: message,
+            ok: false,
+          });
           this.callbacks.onLoopEnd?.(iteration, `LLM error: ${message}`);
           break;
         }
@@ -186,8 +291,6 @@ export class AgentLoop {
         if (parsed.text) {
           this.callbacks.onText?.(parsed.text);
           this.hudEmitter("jarvis_speech", { text: parsed.text });
-
-          // Add assistant text to conversation
           this.state.messages.push({ role: "assistant", content: parsed.text });
         }
 
@@ -197,7 +300,6 @@ export class AgentLoop {
           );
         }
 
-        // No actions to execute — loop is done
         if (parsed.actions.length === 0) {
           this.callbacks.onLoopEnd?.(iteration, "no actions to execute");
           break;
@@ -213,7 +315,6 @@ export class AgentLoop {
           );
 
           if (!decision.allowed) {
-            // Policy violation
             this.callbacks.onPolicyViolation?.(action, decision.reason);
             this.hudEmitter("threat_level", {
               level: "orange",
@@ -225,15 +326,12 @@ export class AgentLoop {
             continue;
           }
 
-          // Check if approval is required
           if (this.policyEngine.requiresApproval(action.action)) {
             this.callbacks.onApprovalRequired?.(action);
             this.hudEmitter("activity_log", {
               message: `Approval required for: ${action.action}`,
               level: "warn",
             });
-
-            // Wait for WebSocket approval response
             const approved = await this.waitForApproval(action);
             if (!approved) {
               results.push(`[${action.action}] DENIED by user (approval rejected)`);
@@ -241,23 +339,22 @@ export class AgentLoop {
             }
           }
 
-          // Execute the action
           this.callbacks.onActionStart?.(action);
 
           const result = await this.registry.execute(action, {
             emitHud: this.hudEmitter,
             appendInbox: this.inboxAppender,
-            llm: this.llm,
+            audit: this.audit,
+            llm: this.clients[0]?.client, // pass primary LLM client
+            model: this.primaryModel,
             state: this.state,
           });
 
-          // Stream result
           this.callbacks.onActionResult?.(action, result);
           results.push(ResponseParser.formatActionResult(action, result));
         }
 
         // ─── Phase 7: LOOP ──
-        // Inject action results as an assistant message and loop back
         const resultSummary = results.join("\n\n");
         this.state.messages.push({
           role: "assistant",
@@ -268,67 +365,134 @@ export class AgentLoop {
       }
     } finally {
       this.state.isRunning = false;
+      this.interactionCount++;
+
+      // Trigger self-improvement every 10 interactions
+      if (this.selfEngine && this.interactionCount % 10 === 0) {
+        this.triggerSelfReflection();
+      }
+
+      // Update user model after every interaction
+      if (this.userModel) {
+        try {
+          await this.userModel.updateFromInteraction(input, this.state.loopCount);
+        } catch { /* non-fatal */ }
+      }
     }
   }
 
   /**
-   * Process a single action (for standalone execution from WebSocket/API).
+   * Call LLM with live token streaming to the HUD.
+   * Falls back to next provider on failure.
    */
-  private async processAction(action: Action): Promise<ActionResult> {
-    // Validate against policy
-    const decision = this.policyEngine.validateAction(
-      action,
-      this.registry.listActions()
-    );
+  private async callLLMStreaming(messages: ChatMessage[]): Promise<string> {
+    const start = Date.now();
 
-    if (!decision.allowed) {
-      return {
-        ok: false,
-        error: `Policy violation: ${decision.reason}`,
-      };
-    }
+    // If we have fallback providers, use the fallback chain
+    if (this.useFallback) {
+      try {
+        const result = await callWithFallback(
+          this.clients,
+          messages.map((m) => ({ role: m.role, content: m.content }))
+        );
 
-    // Check approval
-    if (this.policyEngine.requiresApproval(action.action)) {
-      const approved = await this.waitForApproval(action);
-      if (!approved) {
-        return { ok: false, error: "Action denied by user (approval rejected)" };
+        const duration = Date.now() - start;
+        this.audit({
+          type: "llm_call",
+          detail: `Fallback chain used, served by: ${result.providerName}`,
+          durationMs: duration,
+          ok: true,
+        });
+
+        // Stream the full text as tokens (for HUD display)
+        this.streamAsTokens(result.content);
+
+        return result.content;
+      } catch (err) {
+        const duration = Date.now() - start;
+        this.audit({
+          type: "llm_error",
+          detail: err instanceof Error ? err.message : String(err),
+          durationMs: duration,
+          ok: false,
+        });
+        throw err;
       }
     }
 
-    // Execute
-    return this.registry.execute(action, {
-      emitHud: this.hudEmitter,
-      appendInbox: this.inboxAppender,
-      llm: this.llm,
-      state: this.state,
-    });
-  }
+    // Single provider — use streaming directly
+    const client = this.clients[0];
+    if (!client) throw new Error("No LLM provider configured");
 
-  /**
-   * Wait for user approval via WebSocket.
-   * Returns a Promise that resolves when `resolveApproval()` is called.
-   */
-  private waitForApproval(action: Action): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      this.state.pendingApproval = { action, resolve };
-    });
-  }
-
-  /**
-   * Call the LLM via OpenAI SDK.
-   */
-  private async callLLM(messages: ChatMessage[]): Promise<string> {
-    const response = await this.llm.chat.completions.create({
-      model: this.model,
+    const stream = await client.client.chat.completions.create({
+      model: client.model,
       messages: messages.map((m) => ({
         role: m.role,
         content: m.content,
       })),
       temperature: 0.7,
       max_tokens: 4096,
+      stream: true,
     });
 
-    return response.choices[0]?.message?.content ?? "";
+    let fullText = "";
+    let buffer = "";
+
+    for await (const chunk of stream as AsyncIterable<{ choices?: Array<{ delta?: { content?: string } }> }>) {
+      const token = chunk.choices?.[0]?.delta?.content;
+      if (token) {
+        buffer += token;
+        fullText += token;
+
+        // Stream tokens in ~50-char chunks for smoother display
+        if (buffer.length >= 50) {
+          this.callbacks.onToken?.(buffer);
+          buffer = "";
+        }
+      }
+    }
+
+    // Flush remaining buffer
+    if (buffer) {
+      this.callbacks.onToken?.(buffer);
+    }
+
+    const duration = Date.now() - start;
+    this.audit({
+      type: "llm_call",
+      detail: `Provider: ${client.name}, Model: ${client.model}, Tokens: ~${fullText.length}`,
+      durationMs: duration,
+      ok: true,
+    });
+
+    return fullText;
+  }
+
+  /**
+   * Stream pre-fetched text as simulated tokens to the HUD.
+   */
+  private streamAsTokens(text: string): void {
+    // Split into word-like chunks for display
+    const chunks = text.match(/\S.{0,40}\S|\S+/g) ?? [text];
+    for (const chunk of chunks) {
+      this.callbacks.onToken?.(chunk + " ");
+    }
+  }
+
+  /**
+   * Trigger self-improvement reflection (non-blocking, non-fatal).
+   */
+  private async triggerSelfReflection(): Promise<void> {
+    try {
+      await this.selfEngine!.reflect(5);
+    } catch {
+      // Self-improvement should never crash the system
+    }
+  }
+
+  private waitForApproval(action: Action): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      this.state.pendingApproval = { action, resolve };
+    });
   }
 }

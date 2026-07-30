@@ -125,7 +125,7 @@ require_approval:
 
 - **Node.js** >= 18
 - **npm** (comes with Node.js)
-- **An LLM endpoint** — [Ollama](https://ollama.ai/) (local), OpenAI, or any OpenAI-compatible API
+- **An LLM endpoint** — [Ollama](https://ollama.ai/) (local or cloud), OpenAI, NVIDIA NIM, Anthropic, or any OpenAI-compatible API
 
 ### 1. Clone & Install
 
@@ -151,6 +151,14 @@ LLM_BASE_URL=http://localhost:11434/v1
 LLM_API_KEY=ollama
 LLM_MODEL=llama3.2
 LLM_PROVIDER=ollama
+```
+
+**Ollama Cloud** ([cloud.ollama.com](https://cloud.ollama.com)):
+```
+LLM_BASE_URL=https://api.ollama.ai/v1
+LLM_API_KEY=oll-cloud-xxxxxxxxxxxxxxxx
+LLM_MODEL=llama3.2
+LLM_PROVIDER=ollama-cloud
 ```
 
 **OpenAI:**

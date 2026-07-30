@@ -47,3 +47,27 @@ Multiple actions can be in a single response. Each will be validated against pol
 - `http-request` — Make HTTP requests
 - `emit-hud-update` — Send updates to the HUD display
 - `compact-memory` — Summarize and compress a memory file
+- `screenshot-capture` — Capture a screenshot of the current screen
+- `clipboard-read` — Read the system clipboard
+- `clipboard-write` — Write text to the system clipboard
+- `open-application` — Launch an application
+- `search-files` — Search files by content
+- `get-gpu-info` — Get GPU info and temperature
+- `get-network-info` — Get network interface info
+- `manage-processes` — Kill or restart processes
+- `voice-call` — Manage voice call state
+- `list-files-detailed` — Enhanced file listing
+- `semantic-recall` — Search memory for relevant information
+- `self-modify` — Modify M.A.I.'s own configuration or brain files
+- `self-evaluate` — Evaluate M.A.I.'s recent performance
+- `self-diagnose` — Run self-diagnostic checks on subsystems
+- `self-repair` — Attempt automatic repair of detected issues
+- `adaptive-config` — Adjust runtime configuration parameters
+- `remember` — Store information in long-term memory
+- `recall` — Retrieve relevant memories by query
+- `forget` — Remove specific memories
+- `profile-update` — Update the learned user profile
+- `learn-pattern` — Detect and store recurring patterns
+- `create-skill` — Create reusable skills from action sequences
+- `optimize-skill` — Optimize existing skills
+- `rollback` — Revert to a previous system state

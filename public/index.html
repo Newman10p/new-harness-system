@@ -3,567 +3,1882 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>M.A.I. // Operations Console</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>F.R.I.D.A.Y. — M.A.I. Interface v3.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    :root { --bg: #05080d; --panel: #09131f; --panel-light: #102237; --line: rgba(92,152,206,.22); --cyan: #43c8ff; --blue: #2875d8; --green: #28d39a; --amber: #f3b34c; --red: #f0646c; --text: #e5f3ff; --muted: #7891a8; --shadow: 0 18px 45px rgba(0,0,0,.34); }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; color: var(--text); font-family: Inter, sans-serif; background: linear-gradient(rgba(67,200,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(67,200,255,.018) 1px, transparent 1px), radial-gradient(circle at 20% 0%, #0b1c31 0, transparent 38%), var(--bg); background-size: 32px 32px, 32px 32px, auto, auto; }
-    body.booting { overflow: hidden; }
-    button, input, select { font: inherit; }
-
-    /* Boot Screen */
-    .boot-screen { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at center, rgba(11,55,86,.25), transparent 34%), #03070c; animation: bootExit .8s 5.1s forwards; }
-    .boot-screen::before { content: ""; position: absolute; inset: 0; opacity: .45; background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(67,200,255,.025) 4px); pointer-events: none; }
-    .boot-screen::after { content: ""; position: absolute; top: -15%; left: 0; width: 100%; height: 2px; background: var(--cyan); box-shadow: 0 0 18px 2px rgba(67,200,255,.55); animation: scan 3.5s linear infinite; opacity: .5; }
-    .boot-content { position: relative; z-index: 1; width: min(510px, calc(100% - 40px)); text-align: center; }
-    .boot-orbit { position: relative; width: 178px; height: 178px; margin: 0 auto 30px; border: 1px solid rgba(67,200,255,.28); border-radius: 50%; animation: orbitIn 1.1s cubic-bezier(.2,.8,.2,1) both; }
-    .boot-orbit::before, .boot-orbit::after { content: ""; position: absolute; inset: 16px; border: 1px solid rgba(67,200,255,.18); border-radius: 50%; }
-    .boot-orbit::after { inset: -12px; border-color: rgba(67,200,255,.08); border-style: dashed; animation: rotate 12s linear infinite; }
-    .boot-core { position: absolute; inset: 50%; width: 45px; height: 45px; transform: translate(-50%,-50%) rotate(45deg); border: 2px solid var(--cyan); box-shadow: 0 0 28px rgba(67,200,255,.42); }
-    .boot-core::after { content: ""; position: absolute; inset: 9px; background: var(--cyan); box-shadow: 0 0 20px var(--cyan); }
-    .boot-line { position: absolute; background: rgba(67,200,255,.4); }
-    .boot-line.horizontal { top: 50%; left: -25px; width: calc(100% + 50px); height: 1px; }
-    .boot-line.vertical { top: -25px; left: 50%; width: 1px; height: calc(100% + 50px); }
-    .boot-kicker { margin-bottom: 10px; color: var(--cyan); font: 600 10px "JetBrains Mono",monospace; letter-spacing: .28em; animation: fadeUp .7s .35s both; }
-    .boot-title { margin: 0; color: #edf9ff; font-size: clamp(50px,12vw,82px); font-weight: 800; letter-spacing: .08em; line-height: .95; text-shadow: 0 0 28px rgba(67,200,255,.35); animation: titleIn 1s .5s both; }
-    .boot-title span { color: var(--cyan); }
-    .boot-subtitle { margin: 14px 0 28px; color: #91b5ca; font: 11px "JetBrains Mono",monospace; letter-spacing: .16em; animation: fadeUp .7s .8s both; }
-    .boot-status { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--line); background: rgba(8,21,34,.78); color: var(--muted); font: 10px "JetBrains Mono",monospace; text-align: left; animation: fadeUp .7s 1.05s both; }
-    .boot-status-text { color: var(--cyan); }
-    .boot-progress { height: 2px; margin-top: 8px; overflow: hidden; background: #173047; animation: fadeUp .7s 1.15s both; }
-    .boot-progress span { display: block; width: 0; height: 100%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: load 3.7s 1.25s cubic-bezier(.5,0,.2,1) forwards; }
-    .boot-skip { position: absolute; right: 25px; bottom: 22px; border: 0; color: #58758d; background: transparent; cursor: pointer; font: 10px "JetBrains Mono",monospace; letter-spacing: .12em; }
-    .boot-skip:hover { color: var(--cyan); }
-    .boot-screen.dismissed { animation: bootExit .45s forwards; pointer-events: none; }
-
-    @keyframes scan { from { transform: translateY(-20vh); } to { transform: translateY(120vh); } }
-    @keyframes rotate { to { transform: rotate(360deg); } }
-    @keyframes orbitIn { from { opacity: 0; transform: scale(.5) rotate(-35deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
-    @keyframes titleIn { from { opacity: 0; letter-spacing: .5em; transform: translateY(10px); } to { opacity: 1; letter-spacing: .08em; transform: translateY(0); } }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes load { to { width: 100%; } }
-    @keyframes bootExit { to { opacity: 0; visibility: hidden; } }
-
-    /* Console */
-    .shell { width: min(1640px, calc(100% - 36px)); margin: 0 auto; padding: 18px 0 30px; }
-    .topbar, .metric, .panel { border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(145deg, rgba(14,28,43,.94), rgba(6,12,19,.98)); box-shadow: var(--shadow); }
-    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 68px; padding: 0 20px; border-top: 2px solid var(--cyan); background: linear-gradient(115deg, rgba(21,52,80,.72), rgba(7,13,21,.96) 48%); }
-    .brand { display: flex; align-items: center; gap: 13px; }
-    .brand-mark { width: 29px; height: 29px; border: 2px solid var(--cyan); transform: rotate(45deg); box-shadow: 0 0 15px rgba(67,200,255,.26); }
-    .brand-mark::after { content: ""; position: absolute; inset: 6px; background: var(--cyan); }
-    .eyebrow, .label, .panel-code, .msg-type { font-family: "JetBrains Mono",monospace; text-transform: uppercase; letter-spacing: .14em; }
-    .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 700; }
-    .brand h1 { margin: 3px 0 0; font-size: 17px; letter-spacing: -.02em; }
-    .topbar-meta { display: flex; align-items: center; gap: 18px; color: var(--muted); font: 11px "JetBrains Mono",monospace; }
-    .online { display: flex; align-items: center; gap: 8px; color: var(--green); }
-    .online::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
-    .header-strip { display: flex; align-items: center; justify-content: space-between; margin: 22px 2px 12px; }
-    .header-strip h2 { margin: 0; font-size: 21px; letter-spacing: -.04em; }
-    .header-strip p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
-    .badge, .status { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 3px; padding: 5px 8px; color: #b6d9ef; background: rgba(50,127,184,.1); font: 10px "JetBrains Mono",monospace; text-transform: uppercase; letter-spacing: .08em; }
-    .badge.green, .status.running { color: var(--green); border-color: rgba(40,211,154,.4); background: rgba(40,211,154,.08); }
-    .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 12px; }
-    .metric { position: relative; min-height: 92px; padding: 15px 17px; overflow: hidden; }
-    .metric::after { content: ""; position: absolute; right: -28px; bottom: -35px; width: 105px; height: 105px; border: 1px solid rgba(67,200,255,.15); border-radius: 50%; }
-    .label { color: var(--muted); font-size: 9px; font-weight: 700; }
-    .metric-value { margin-top: 10px; color: #f1f8ff; font: 700 22px "JetBrains Mono",monospace; }
-    .metric-value.cyan { color: var(--cyan); }
-    .metric-value.green { color: var(--green); }
-    .metric-value.amber { color: var(--amber); }
-    .dashboard { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(310px,.72fr); gap: 12px; align-items: start; }
-    .workspace { display: grid; grid-template-columns: minmax(0,1.18fr) minmax(285px,.82fr); gap: 12px; }
-    .stack { display: flex; flex-direction: column; gap: 12px; }
-    .panel { overflow: hidden; }
-    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; min-height: 59px; padding: 13px 15px; border-bottom: 1px solid var(--line); background: rgba(16,35,54,.42); }
-    .panel-title { display: flex; align-items: center; gap: 10px; }
-    .panel-title::before { content: ""; width: 3px; height: 20px; background: var(--cyan); }
-    .panel h3 { margin: 0; font-size: 13px; }
-    .panel-head p { margin: 3px 0 0 13px; color: var(--muted); font-size: 11px; }
-    .panel-code { color: #55738c; font-size: 9px; }
-    .panel-body { padding: 14px; }
-    .conversation { min-height: 617px; display: flex; flex-direction: column; }
-    .conversation .panel-body { display: flex; flex: 1; flex-direction: column; }
-    .messages { display: flex; flex: 1; flex-direction: column; gap: 9px; min-height: 350px; overflow: auto; padding-right: 3px; }
-    .msg { max-width: 88%; padding: 11px 13px; border: 1px solid var(--line); border-left: 2px solid #55718b; border-radius: 3px 7px 7px 3px; color: #c9ddec; background: rgba(12,25,38,.85); font-size: 12px; line-height: 1.55; }
-    .msg.user { align-self: flex-end; border-left: 1px solid var(--line); border-right: 2px solid var(--cyan); background: rgba(27,83,139,.18); text-align: right; }
-    .msg.system { border-left-color: var(--amber); color: #e8c98e; }
-    .msg-type { display: block; margin-bottom: 5px; color: var(--cyan); font-size: 9px; }
-    .msg.system .msg-type { color: var(--amber); }
-    .controls { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line); }
-    .control-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 9px; }
-    select, input { width: 100%; min-height: 39px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 4px; outline: none; color: #c9e1f1; background: #09131f; font-size: 11px; }
-    select:focus, input:focus { border-color: rgba(76,181,239,.48); box-shadow: 0 0 0 2px rgba(67,200,255,.08); }
-    input::placeholder { color: #526d82; }
-    .command-row { display: flex; gap: 8px; }
-    .button { min-height: 39px; padding: 0 16px; border: 1px solid var(--cyan); border-radius: 4px; color: #02111b; background: var(--cyan); cursor: pointer; font: 700 10px "JetBrains Mono",monospace; letter-spacing: .1em; transition: .15s ease; }
-    .button:hover { background: #9be5ff; box-shadow: 0 0 18px rgba(67,200,255,.22); }
-    .button.secondary { color: #b9d7e9; background: rgba(67,200,255,.05); border-color: var(--line); }
-    .button.secondary:hover { border-color: var(--cyan); }
-    .btn-audio { min-height: 39px; width: 39px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: rgba(67,200,255,.05); cursor: pointer; font-size: 16px; transition: .15s ease; flex-shrink: 0; }
-    .btn-audio:hover { border-color: var(--cyan); color: var(--cyan); }
-    .btn-audio.recording { border-color: var(--red); color: var(--red); animation: pulse 1s infinite; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
-    .item { padding: 11px; border: 1px solid rgba(92,152,206,.16); border-radius: 4px; background: rgba(8,19,30,.82); }
-    .item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .item-title { color: #dceefa; font-size: 12px; font-weight: 600; }
-    .item-sub { margin-top: 4px; color: var(--muted); font: 10px "JetBrains Mono",monospace; }
-    .progress { height: 4px; margin-top: 12px; overflow: hidden; border-radius: 5px; background: #142637; }
-    .progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
-    .small { margin-top: 6px; color: var(--muted); font-size: 10px; }
-    .quick-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; }
-    .status-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid rgba(92,152,206,.16); border-radius: 4px; color: #cce1ee; font-size: 11px; background: rgba(8,19,30,.82); }
-    .status-row span:first-child { color: var(--muted); }
-    .log-entry { position: relative; padding: 9px 10px 9px 20px; border-bottom: 1px solid rgba(92,152,206,.13); color: #b9cddd; font-size: 11px; line-height: 1.4; }
-    .log-entry::before { content: "›"; position: absolute; left: 5px; color: var(--cyan); font: 600 17px "JetBrains Mono",monospace; }
-    .meter-row { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
-    .meter { flex: 1; height: 5px; overflow: hidden; border-radius: 5px; background: #142637; }
-    .meter span { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
-    .meter-value { width: 35px; color: var(--muted); text-align: right; font: 10px "JetBrains Mono",monospace; }
-    .hint { padding: 15px; border: 1px solid rgba(67,200,255,.3); border-radius: 8px; background: linear-gradient(135deg, rgba(20,71,108,.35), rgba(6,15,24,.9)); }
-    .hint strong { display: block; margin-bottom: 6px; color: var(--cyan); font: 10px "JetBrains Mono",monospace; letter-spacing: .13em; text-transform: uppercase; }
-    .hint p { margin: 0; color: #9cb7ca; font-size: 11px; line-height: 1.55; }
-
-    @media (max-width: 1180px) { .dashboard, .workspace { grid-template-columns: 1fr; } }
-    @media (max-width: 720px) {
-      .shell { width: min(100% - 22px, 1640px); }
-      .topbar, .header-strip { align-items: flex-start; flex-direction: column; }
-      .topbar { padding: 15px; }
-      .metrics { grid-template-columns: repeat(2,1fr); }
-      .control-grid { grid-template-columns: 1fr; }
-      .command-row { flex-direction: column; }
+    /* ═══════════════════════════════════════════════════════════════════════
+       ROOT VARIABLES & BASE
+    ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: #020817;
+      --primary: #00d4ff;
+      --secondary: #00ffcc;
+      --text: #c8f0ff;
+      --dim: #5a7d99;
+      --danger: #ff3366;
+      --warning: #ffaa00;
+      --success: #00ff88;
+      --glass-bg: rgba(2, 15, 35, 0.55);
+      --glass-border: rgba(0, 212, 255, 0.18);
+      --glass-blur: 18px;
     }
 
-    .msg-audio-btn { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 3px; background: rgba(67,200,255,.08); color: var(--cyan); cursor: pointer; font-size: 10px; vertical-align: middle; }
-    .msg-audio-btn:hover { background: rgba(67,200,255,.18); }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Rajdhani, sans-serif;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SCANLINE CRT OVERLAY
+    ═══════════════════════════════════════════════════════════════════════ */
+    #scanlines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       THREE.JS CANVAS — Behind everything
+    ═══════════════════════════════════════════════════════════════════════ */
+    #globe-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      opacity: 0.45;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       PARTICLE SYSTEM
+    ═══════════════════════════════════════════════════════════════════════ */
+    #particles {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      bottom: -10px;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 6px var(--primary), 0 0 12px rgba(0, 212, 255, 0.3);
+      opacity: 0;
+      animation: floatUp linear infinite;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 0; transform: translateY(0) translateX(0); }
+      10% { opacity: 0.8; }
+      90% { opacity: 0.3; }
+      100% { opacity: 0; transform: translateY(-105vh) translateX(var(--drift, 30px)); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       GRID BACKGROUND
+    ═══════════════════════════════════════════════════════════════════════ */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: .12;
+      background-image:
+        linear-gradient(rgba(0,212,255,.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,.12) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(circle, black, transparent 80%);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TYPOGRAPHY
+    ═══════════════════════════════════════════════════════════════════════ */
+    .display { font-family: Orbitron, sans-serif; }
+    .mono { font-family: "JetBrains Mono", monospace; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       GLASSMORPHISM PANELS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .glass {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      box-shadow:
+        inset 0 0 30px rgba(0, 212, 255, .03),
+        0 0 40px rgba(0, 0, 0, .5),
+        0 8px 32px rgba(0, 0, 0, .3);
+      transition: transform 0.15s ease-out, box-shadow 0.3s ease;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       HOLOGRAPHIC RAINBOW EDGE ON HOVER
+    ═══════════════════════════════════════════════════════════════════════ */
+    .holo-edge {
+      position: relative;
+      overflow: hidden;
+    }
+    .holo-edge::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      z-index: -1;
+      border-radius: inherit;
+      background: linear-gradient(
+        135deg,
+        rgba(0, 212, 255, 0.0) 0%,
+        rgba(0, 212, 255, 0.0) 35%,
+        rgba(0, 255, 204, 0.5) 42%,
+        rgba(0, 212, 255, 0.7) 50%,
+        rgba(138, 43, 226, 0.5) 58%,
+        rgba(0, 212, 255, 0.0) 65%,
+        rgba(0, 212, 255, 0.0) 100%
+      );
+      background-size: 300% 300%;
+      opacity: 0;
+      transition: opacity 0.4s ease, background-position 0.4s ease;
+    }
+    .holo-edge:hover::before {
+      opacity: 1;
+      background-position: 100% 100%;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       GLOW EFFECTS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .glow {
+      text-shadow: 0 0 8px currentColor, 0 0 20px rgba(0,212,255,.45);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CORE REACTOR
+    ═══════════════════════════════════════════════════════════════════════ */
+    .core-wrapper {
+      position: relative;
+      width: min(40vw, 300px);
+      height: min(40vw, 300px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .core-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 212, 255, 0.35);
+      animation: pulseRing 3s ease-in-out infinite;
+    }
+    .core-ring-1 { inset: 0; }
+    .core-ring-2 { inset: 8%; border-color: rgba(0, 255, 204, 0.2); animation-delay: -0.5s; }
+    .core-ring-3 { inset: 16%; border-color: rgba(0, 212, 255, 0.12); animation-delay: -1s; }
+
+    .core {
+      width: 58%;
+      height: 58%;
+      border-radius: 50%;
+      border: 1px solid rgba(0,212,255,.55);
+      box-shadow:
+        0 0 30px rgba(0,212,255,.5),
+        0 0 60px rgba(0,212,255,.2),
+        inset 0 0 40px rgba(0,255,204,.35);
+      animation: corePulse 2.8s ease-in-out infinite;
+      position: relative;
+      z-index: 2;
+    }
+
+    .core::after {
+      content: "";
+      display: block;
+      width: 30%;
+      height: 30%;
+      margin: 35%;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 25px 12px var(--secondary), 0 0 60px 20px rgba(0, 255, 204, 0.3);
+    }
+
+    .core.speaking {
+      animation-duration: .75s;
+      box-shadow:
+        0 0 60px rgba(0,255,204,.85),
+        0 0 120px rgba(0,255,204,.3),
+        inset 0 0 50px rgba(0,255,204,.55);
+    }
+
+    .core.thinking {
+      animation-duration: 1.2s;
+      border-color: rgba(0,150,255,.7);
+      box-shadow:
+        0 0 40px rgba(0,150,255,.6),
+        0 0 80px rgba(0,150,255,.2),
+        inset 0 0 40px rgba(0,150,255,.3);
+    }
+
+    .core.call-active {
+      animation-duration: 0.6s;
+      border-color: rgba(255, 51, 102, 0.6);
+      box-shadow:
+        0 0 50px rgba(255, 51, 102, 0.5),
+        0 0 100px rgba(255, 51, 102, 0.2),
+        inset 0 0 40px rgba(255, 51, 102, 0.25);
+    }
+
+    .core.error {
+      animation-duration: 0.5s;
+      border-color: rgba(255, 51, 102, 0.8);
+      box-shadow:
+        0 0 40px rgba(255, 51, 102, 0.7),
+        inset 0 0 30px rgba(255, 51, 102, 0.4);
+    }
+
+    @keyframes corePulse {
+      0%, 100% { transform: scale(.93); opacity: .75; }
+      50% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes pulseRing {
+      0%, 100% { transform: scale(.96); opacity: .4; }
+      50% { transform: scale(1.04); opacity: .8; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CONNECTION STATUS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .conn-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      transition: background .3s, box-shadow .3s;
+    }
+    .conn-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .conn-dot.disconnected { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+    .conn-dot.connecting { background: var(--warning); animation: blink 1s infinite; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       MIC & CALL BUTTONS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .mic.active {
+      border-color: var(--danger) !important;
+      background: rgba(255,51,102,.2) !important;
+      box-shadow: 0 0 25px rgba(255,51,102,.6);
+    }
+
+    .call-btn.active {
+      border-color: var(--danger) !important;
+      background: rgba(255,51,102,.25) !important;
+      box-shadow: 0 0 25px rgba(255,51,102,.6);
+      animation: callPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes callPulse {
+      0%, 100% { box-shadow: 0 0 15px rgba(255,51,102,.4); }
+      50% { box-shadow: 0 0 35px rgba(255,51,102,.8); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       METRIC BARS & SPARKLINES
+    ═══════════════════════════════════════════════════════════════════════ */
+    .metric-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(0,212,255,.12);
+      overflow: hidden;
+    }
+    .metric-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .5s ease, background .5s ease;
+      background: var(--success);
+    }
+    .metric-bar-fill.warn { background: var(--warning); }
+    .metric-bar-fill.critical { background: var(--danger); }
+
+    .sparkline {
+      width: 100%;
+      height: 24px;
+      display: block;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LOG SCROLLBAR
+    ═══════════════════════════════════════════════════════════════════════ */
+    .log {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,212,255,.4) transparent;
+    }
+    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar-track { background: transparent; }
+    .log::-webkit-scrollbar-thumb { background: rgba(0,212,255,.4); border-radius: 2px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       COMMAND INPUT
+    ═══════════════════════════════════════════════════════════════════════ */
+    .command-input {
+      width: 100%;
+      outline: none;
+      border: 0;
+      color: var(--text);
+      background: transparent;
+      font: 14px "JetBrains Mono", monospace;
+    }
+    .command-input::placeholder { color: var(--dim); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       APPROVAL BANNER
+    ═══════════════════════════════════════════════════════════════════════ */
+    .approval-banner {
+      display: none;
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      animation: slideUp .3s ease-out;
+    }
+    .approval-banner.visible { display: flex; }
+
+    @keyframes slideUp {
+      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       THREAT LEVEL COLORS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .threat-green { color: var(--success); }
+    .threat-yellow { color: var(--warning); }
+    .threat-orange { color: #ff6600; }
+    .threat-red { color: var(--danger); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       WAVEFORM VISUALIZER
+    ═══════════════════════════════════════════════════════════════════════ */
+    #waveformCanvas {
+      width: 100%;
+      height: 60px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 212, 255, 0.15);
+      background: rgba(0, 10, 25, 0.5);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       FILE MANAGER
+    ═══════════════════════════════════════════════════════════════════════ */
+    .file-list {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,212,255,.3) transparent;
+    }
+    .file-list::-webkit-scrollbar { width: 3px; }
+    .file-list::-webkit-scrollbar-track { background: transparent; }
+    .file-list::-webkit-scrollbar-thumb { background: rgba(0,212,255,.3); border-radius: 2px; }
+
+    .file-item {
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .file-item:hover {
+      background: rgba(0, 212, 255, 0.08);
+      box-shadow: inset 0 0 12px rgba(0, 212, 255, 0.05);
+    }
+
+    .file-color-md { color: #00ffcc; }
+    .file-color-ts { color: #3b82f6; }
+    .file-color-js { color: #eab308; }
+    .file-color-json { color: #f59e0b; }
+    .file-color-py { color: #10b981; }
+    .file-color-html { color: #f97316; }
+    .file-color-css { color: #8b5cf6; }
+    .file-color-default { color: var(--dim); }
+    .file-color-folder { color: var(--primary); }
+    .file-color-img { color: #ec4899; }
+    .file-color-lock { color: #ef4444; }
+    .file-color-git { color: #6b7280; }
+    .file-color-yml { color: #a78bfa; }
+    .file-color-toml { color: #7c3aed; }
+    .file-color-prisma { color: #0ea5e9; }
+    .file-color-sql { color: #06b6d4; }
+    .file-color-sh { color: #22c55e; }
+    .file-color-docker { color: #0ea5e9; }
+    .file-color-env { color: #d4d4d4; }
+    .file-color-svg { color: #fb923c; }
+    .file-color-wasm { color: #7c3aed; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       GPU GAUGE
+    ═══════════════════════════════════════════════════════════════════════ */
+    .temp-gauge {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #00ff88 0%, #ffaa00 50%, #ff3366 100%);
+      position: relative;
+      overflow: visible;
+    }
+    .temp-gauge-indicator {
+      position: absolute;
+      top: -3px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 8px rgba(255,255,255,0.6);
+      transform: translateX(-50%);
+      transition: left 0.5s ease;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       NETWORK ARROWS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .net-arrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+    }
+    .net-arrow-up { color: var(--success); }
+    .net-arrow-down { color: var(--primary); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CALL STATUS INDICATOR
+    ═══════════════════════════════════════════════════════════════════════ */
+    .call-status {
+      display: none;
+      align-items: center;
+      gap: 6px;
+    }
+    .call-status.visible {
+      display: flex;
+    }
+    .call-status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--danger);
+      animation: blink 1s infinite;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SECTION SEPARATOR
+    ═══════════════════════════════════════════════════════════════════════ */
+    .section-sep {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,212,255,0.2), transparent);
+      margin: 8px 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       FILE SEARCH
+    ═══════════════════════════════════════════════════════════════════════ */
+    .file-search {
+      width: 100%;
+      outline: none;
+      border: 1px solid rgba(0,212,255,0.15);
+      border-radius: 4px;
+      padding: 5px 8px;
+      background: rgba(0, 10, 25, 0.5);
+      color: var(--text);
+      font: 11px "JetBrains Mono", monospace;
+      transition: border-color 0.2s;
+    }
+    .file-search::placeholder { color: var(--dim); }
+    .file-search:focus { border-color: rgba(0,212,255,0.4); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BREADCRUMBS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      flex-wrap: wrap;
+    }
+    .breadcrumb-item {
+      color: var(--dim);
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .breadcrumb-item:hover { color: var(--primary); }
+    .breadcrumb-item.active { color: var(--primary); }
+    .breadcrumb-sep { color: rgba(0,212,255,0.3); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      .core-wrapper {
+        width: min(55vw, 220px);
+        height: min(55vw, 220px);
+      }
+    }
   </style>
 </head>
-<body class="booting">
-  <div class="boot-screen" id="bootScreen">
-    <div class="boot-content">
-      <div class="boot-orbit">
-        <div class="boot-line horizontal"></div>
-        <div class="boot-line vertical"></div>
-        <div class="boot-core"></div>
-      </div>
-      <div class="boot-kicker">Harness Systems // Neural Command Layer</div>
-      <h1 class="boot-title">M<span>.</span>A<span>.</span>I</h1>
-      <div class="boot-subtitle">MULTIPLE ARRAY INTELLIGENCE</div>
-      <div class="boot-status">
-        <span>INITIALIZING CORE SYSTEMS</span>
-        <span class="boot-status-text" id="bootStatus">LOADING</span>
-      </div>
-      <div class="boot-progress"><span></span></div>
-    </div>
-    <button class="boot-skip" id="skipBoot">SKIP INTRO // ENTER CONSOLE</button>
-  </div>
+<body>
+  <!-- ═══ THREE.JS GLOBE CANVAS ═══ -->
+  <canvas id="globe-canvas"></canvas>
 
-  <main class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" style="position:relative"></div>
-        <div>
-          <div class="eyebrow">J.A.R.V.I.S. // Command Layer</div>
-          <h1>Operations Console</h1>
+  <!-- ═══ PARTICLE SYSTEM ═══ -->
+  <div id="particles"></div>
+
+  <!-- ═══ SCANLINE OVERLAY ═══ -->
+  <div id="scanlines"></div>
+
+  <!-- ═══ MAIN UI ═══ -->
+  <main id="mainUI" class="relative z-10 flex h-screen flex-col gap-3 p-3 md:p-4 lg:p-5">
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         HEADER
+    ════════════════════════════════════════════════════════════════════ -->
+    <header class="glass rounded-lg flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-3">
+        <div id="connDot" class="conn-dot disconnected"></div>
+        <span class="display text-xs font-bold tracking-[.25em] text-cyan-300 md:text-sm">M.A.I.//FRIDAY</span>
+        <span class="mono hidden text-xs text-cyan-600 md:inline">AGENTIC INTERFACE v3.0</span>
+        <!-- Call Status -->
+        <div id="callStatus" class="call-status ml-3">
+          <div class="call-status-dot"></div>
+          <span class="display text-xs tracking-widest" style="color:var(--danger)">CALL ACTIVE</span>
         </div>
       </div>
-      <div class="topbar-meta">
-        <span id="nodeInfo">NODE H-07</span>
-        <span class="online">ALL SYSTEMS NOMINAL</span>
-        <span id="clock">00:00:00 UTC</span>
+
+      <div class="flex items-center gap-3">
+        <div class="hidden text-right sm:block">
+          <div id="dateDisplay" class="mono text-xs text-cyan-600"></div>
+          <div id="timeDisplay" class="display text-cyan-300 glow"></div>
+        </div>
+
+        <!-- File Manager Toggle -->
+        <button id="fileMgrBtn"
+          class="holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
+          aria-label="Toggle File Manager">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+          </svg>
+        </button>
+
+        <!-- Voice Call Button -->
+        <button id="callBtn"
+          class="call-btn holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
+          aria-label="Toggle Voice Call">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+          </svg>
+        </button>
+
+        <!-- Mic Button -->
+        <button id="micBtn"
+          class="mic holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
+          aria-label="Toggle voice input">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/>
+            <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 0 0 2 0v-3.08A7 7 0 0 0 19 11Z"/>
+          </svg>
+        </button>
       </div>
     </header>
 
-    <div class="header-strip">
-      <div>
-        <h2>Mission Control</h2>
-        <p>Workflow orchestration, resource telemetry, and operator controls.</p>
-      </div>
-      <div class="header-status">
-        <span class="badge green">SAFE MODE</span>
-        <span class="badge">SUPERVISED</span>
-      </div>
-    </div>
+    <!-- ════════════════════════════════════════════════════════════════════
+         3-COLUMN GRID
+    ════════════════════════════════════════════════════════════════════ -->
+    <section class="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-12">
 
-    <section class="metrics">
-      <article class="metric"><div class="label">CPU Load</div><div class="metric-value green" id="cpuMetric">0%</div></article>
-      <article class="metric"><div class="label">Memory Allocation</div><div class="metric-value cyan" id="memMetric">0%</div></article>
-      <article class="metric"><div class="label">Available Actions</div><div class="metric-value" id="actionMetric">0</div></article>
-      <article class="metric"><div class="label">Provider</div><div class="metric-value amber" id="providerMetric">--</div></article>
-    </section>
-
-    <div class="dashboard">
-      <section class="workspace">
-        <article class="panel conversation">
-          <div class="panel-head">
-            <div><div class="panel-title"><h3>Operator Channel</h3></div><p>Secure command and response stream</p></div>
-            <span class="panel-code">CH-01 / LIVE</span>
-          </div>
-          <div class="panel-body">
-            <div class="messages" id="messages">
-              <div class="msg"><span class="msg-type">SYSTEM / INIT</span>System online. All subsystems nominal. Ready for instructions. <button class="msg-audio-btn" onclick="speakText(this.previousSibling.textContent)">🔊</button></div>
-              <div class="msg user"><span class="msg-type">OPERATOR / INIT</span>Show active workflows and background tasks. <button class="msg-audio-btn" onclick="speakText(this.previousSibling.textContent)">🔊</button></div>
-              <div class="msg"><span class="msg-type">SYSTEM / RESPONSE</span>Retrieving workflow state and resource metrics. <button class="msg-audio-btn" onclick="speakText(this.previousSibling.textContent)">🔊</button></div>
-            </div>
-            <div class="controls">
-              <div class="control-grid">
-                <select id="providerSelect" aria-label="Provider"></select>
-                <select id="voiceSelect" aria-label="Voice">
-                  <option value="builtIn">Built-in Voice</option>
-                  <option value="custom">Custom Voice</option>
-                  <option value="disabled">Disabled</option>
-                </select>
-                <select id="safetySelect" aria-label="Safety mode">
-                  <option value="balanced">Balanced Safety</option>
-                  <option value="conservative">Conservative</option>
-                  <option value="experimental">Experimental</option>
-                </select>
-              </div>
-              <form class="command-row" id="commandForm">
-                <button type="button" class="btn-audio" id="audioInputBtn" title="Voice input">🎤</button>
-                <input id="commandInput" type="text" placeholder="Enter operator command..." autocomplete="off">
-                <button class="button" type="submit">EXECUTE</button>
-              </form>
-            </div>
-          </div>
-        </article>
-
-        <div class="stack">
-          <article class="panel">
-            <div class="panel-head"><div><div class="panel-title"><h3>Active Workflows</h3></div><p>Managed background tasks</p></div><span class="badge" id="wfCount">0 ACTIVE</span></div>
-            <div class="panel-body"><div class="list" id="workflowList"><div class="item"><div class="item-row"><div class="item-title">No active workflows</div></div></div></div></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head"><div><div class="panel-title"><h3>Memory Index</h3></div><p>Obsidian vault and agent memory</p></div><span class="panel-code" id="memCount">0 RECORDS</span></div>
-            <div class="panel-body">
-              <form class="command-row" id="memoryForm">
-                <input id="memoryInput" type="text" placeholder="Search vault memory...">
-                <button class="button secondary" type="submit">SCAN</button>
-              </form>
-              <div class="list" style="margin-top:10px" id="memoryResults"><div class="item"><div class="item-title">Vault indexed</div><div class="item-sub">Ready for queries.</div></div></div>
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head"><div><div class="panel-title"><h3>Quick Controls</h3></div><p>Steering and approvals</p></div></div>
-            <div class="panel-body">
-              <div class="quick-grid">
-                <button class="button secondary" onclick="sendCommand('pause all workflows')">PAUSE</button>
-                <button class="button secondary" onclick="sendCommand('resume all workflows')">RESUME</button>
-                <button class="button secondary" onclick="sendCommand('prioritize active workflows')">PRIORITIZE</button>
-                <button class="button secondary" onclick="sendCommand('cancel pending workflows')">CANCEL</button>
-                <button class="button secondary" onclick="sendCommand('approve pending changes')">APPROVE</button>
-                <button class="button secondary" onclick="sendCommand('inspect system state')">INSPECT</button>
-              </div>
-            </div>
-          </article>
+      <!-- ════════════════════════════════════════════════════════════════
+           LEFT: ACTIVITY LOG
+      ════════════════════════════════════════════════════════════════ -->
+      <aside class="glass holo-edge order-2 flex min-h-0 flex-col rounded-lg p-4 md:order-1 md:col-span-3" data-parallax>
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="display text-xs tracking-widest text-cyan-400">ACTIVITY LOG</h2>
+          <span id="logLive" class="mono text-xs text-emerald-400">LIVE</span>
         </div>
+        <div id="logContainer" class="log flex-1 space-y-1.5 overflow-y-auto mono text-xs pr-1"></div>
+      </aside>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           CENTER: CORE DISPLAY + GLOBE
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="relative order-1 flex min-h-0 flex-col items-center justify-center md:order-2 md:col-span-5 lg:col-span-6">
+
+        <!-- Core Reactor with rings -->
+        <div class="core-wrapper">
+          <div class="core-ring core-ring-1"></div>
+          <div class="core-ring core-ring-2"></div>
+          <div class="core-ring core-ring-3"></div>
+          <div id="core" class="core"></div>
+        </div>
+
+        <div class="pointer-events-none absolute text-center">
+          <div id="status" class="display mb-2 text-sm tracking-[.35em] text-cyan-300 glow">
+            CONNECTING...
+          </div>
+          <div id="response" class="mono max-w-md px-6 text-xs leading-relaxed text-cyan-500/80"></div>
+        </div>
+
+        <!-- Waveform Visualizer (shown during call) -->
+        <div id="waveformWrapper" class="absolute bottom-16 w-64 opacity-0 transition-opacity duration-500" style="max-width:80%">
+          <canvas id="waveformCanvas"></canvas>
+        </div>
+
+        <!-- Approval Banner -->
+        <div id="approvalBanner" class="approval-banner glass gap-3 rounded-lg px-4 py-3">
+          <div class="flex items-center gap-2">
+            <span class="display text-xs tracking-widest text-amber-400">APPROVAL REQUIRED</span>
+          </div>
+          <span id="approvalAction" class="mono text-xs text-cyan-400"></span>
+          <div class="flex gap-2">
+            <button id="approveBtn"
+              class="holo-edge rounded border border-emerald-400/50 px-3 py-1 display text-xs tracking-wider text-emerald-400 transition hover:bg-emerald-400/15">
+              APPROVE
+            </button>
+            <button id="denyBtn"
+              class="holo-edge rounded border border-red-400/50 px-3 py-1 display text-xs tracking-wider text-red-400 transition hover:bg-red-400/15">
+              DENY
+            </button>
+          </div>
+        </div>
+
+        <button id="wakeBtn"
+          class="holo-edge glass absolute bottom-3 rounded border border-cyan-400/40 px-5 py-2 display text-xs tracking-widest text-cyan-300 transition hover:bg-cyan-400/10">
+          ENGAGE FRIDAY
+        </button>
       </section>
 
-      <aside class="stack">
-        <article class="panel">
-          <div class="panel-head"><div><div class="panel-title"><h3>Runtime Status</h3></div><p>Current system configuration</p></div><span class="panel-code">RT-07</span></div>
-          <div class="panel-body">
-            <div class="status-list" id="statusList">
-              <div class="status-row"><span>Model</span><strong id="statusModel">loading...</strong></div>
-              <div class="status-row"><span>Provider</span><strong id="statusProvider">loading...</strong></div>
-              <div class="status-row"><span>Actions</span><strong id="statusActions">0</strong></div>
-              <div class="status-row"><span>Audio Mode</span><strong id="statusAudio">--</strong></div>
-              <div class="status-row"><span>Safety</span><strong id="statusSafety">Balanced</strong></div>
+      <!-- ════════════════════════════════════════════════════════════════
+           RIGHT: SYSTEM METRICS + FILE MANAGER
+      ════════════════════════════════════════════════════════════════ -->
+      <aside class="glass holo-edge order-3 flex min-h-0 flex-col rounded-lg p-4 md:col-span-4 lg:col-span-3" data-parallax>
+
+        <!-- SYSTEM METRICS -->
+        <div>
+          <h2 class="display mb-3 text-xs tracking-widest text-cyan-400">SYSTEM METRICS</h2>
+          <div class="space-y-3 text-xs">
+
+            <!-- CPU -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">CPU</span>
+                <span id="cpuVal" class="mono text-cyan-300">--</span>
+              </div>
+              <div class="metric-bar"><div id="cpuBar" class="metric-bar-fill" style="width:0%"></div></div>
+              <svg id="cpuSparkline" class="sparkline mt-1" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+            </div>
+
+            <!-- MEMORY -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">MEMORY</span>
+                <span id="memVal" class="mono text-cyan-300">--</span>
+              </div>
+              <div class="metric-bar"><div id="memBar" class="metric-bar-fill" style="width:0%"></div></div>
+              <svg id="memSparkline" class="sparkline mt-1" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+            </div>
+
+            <!-- GPU TEMPERATURE -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">GPU TEMP</span>
+                <span id="gpuTempVal" class="mono text-cyan-300">--°C</span>
+              </div>
+              <div class="temp-gauge">
+                <div id="gpuTempIndicator" class="temp-gauge-indicator" style="left:0%"></div>
+              </div>
+              <div class="flex justify-between mt-0.5">
+                <span class="mono" style="font-size:9px;color:var(--success)">30°C</span>
+                <span id="gpuUtilVal" class="mono" style="font-size:9px;color:var(--dim)">Util: --</span>
+                <span class="mono" style="font-size:9px;color:var(--danger)">95°C</span>
+              </div>
+            </div>
+
+            <!-- NETWORK I/O -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">NETWORK I/O</span>
+              </div>
+              <div class="flex gap-3">
+                <div class="flex-1 flex items-center gap-1.5">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+                  <span class="net-arrow net-arrow-up mono" id="netUpVal">↑ 0 B/s</span>
+                </div>
+                <div class="flex-1 flex items-center gap-1.5">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  <span class="net-arrow net-arrow-down mono" id="netDownVal">↓ 0 B/s</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- DISK USAGE -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">DISK</span>
+                <span id="diskVal" class="mono text-cyan-300">--</span>
+              </div>
+              <div class="metric-bar"><div id="diskBar" class="metric-bar-fill" style="width:0%"></div></div>
+            </div>
+
+            <!-- THREAT -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">THREAT</span>
+                <span id="threat" class="threat-green">NOMINAL</span>
+              </div>
+            </div>
+
+            <!-- REACTOR -->
+            <div>
+              <div class="mb-1 flex justify-between items-center">
+                <span class="text-cyan-500">REACTOR</span>
+                <span id="reactorVal" class="mono text-cyan-300">--</span>
+              </div>
+              <div class="metric-bar"><div id="reactorBar" class="metric-bar-fill" style="width:100%"></div></div>
             </div>
           </div>
-        </article>
+        </div>
 
-        <article class="panel">
-          <div class="panel-head"><div><div class="panel-title"><h3>Agent Log</h3></div><p>Recent background activity</p></div></div>
-          <div class="panel-body">
-            <div class="log-list" id="logList">
-              <div class="log-entry">System initialized.</div>
-            </div>
+        <div class="section-sep"></div>
+
+        <!-- QUICK COMMANDS -->
+        <div>
+          <h2 class="display mb-2 text-xs tracking-widest text-cyan-400">QUICK COMMANDS</h2>
+          <div id="suggestions" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <div class="section-sep"></div>
+
+        <!-- ═══ FILE MANAGER ═══ -->
+        <div id="fileManagerSection" class="flex-1 flex flex-col min-h-0">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="display text-xs tracking-widest text-cyan-400">FILE MANAGER</h2>
+            <button id="fileMgrCollapseBtn" class="text-cyan-600 hover:text-cyan-300 transition" aria-label="Collapse file manager">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
           </div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head"><div><div class="panel-title"><h3>Resource Telemetry</h3></div><p>Live system metrics</p></div></div>
-          <div class="panel-body">
-            <div class="label">CPU</div><div class="meter-row"><div class="meter"><span id="cpuBar" style="width:0%"></span></div><div class="meter-value" id="cpuVal">0%</div></div>
-            <div class="label" style="margin-top:16px">RAM</div><div class="meter-row"><div class="meter"><span id="ramBar" style="width:0%"></span></div><div class="meter-value" id="ramVal">0%</div></div>
-            <div class="label" style="margin-top:16px">DISK</div><div class="meter-row"><div class="meter"><span id="diskBar" style="width:0%"></span></div><div class="meter-value" id="diskVal">0%</div></div>
+          <div id="fileManagerBody" class="flex-1 flex flex-col min-h-0 gap-2">
+            <!-- Search -->
+            <input id="fileSearch" class="file-search" placeholder="Search files..." type="text">
+            <!-- Breadcrumbs -->
+            <div id="fileBreadcrumbs" class="breadcrumb mono"></div>
+            <!-- File List -->
+            <div id="fileList" class="file-list flex-1 overflow-y-auto space-y-0.5 min-h-0"></div>
           </div>
-        </article>
+        </div>
 
-        <div class="hint"><strong>Operator Guidance</strong><p>Live workflow connections, approvals, memory search, and supervised steering are ready.</p></div>
       </aside>
-    </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         COMMAND FOOTER
+    ════════════════════════════════════════════════════════════════════ -->
+    <footer class="glass rounded-lg px-4 py-3">
+      <div class="flex items-center gap-3">
+        <span class="display text-sm tracking-widest text-cyan-400">FRIDAY<span class="text-cyan-600">&gt;</span></span>
+        <input id="commandInput" class="command-input flex-1"
+          placeholder="Type a command or use the microphone..."
+          autocomplete="off">
+        <button id="submitBtn"
+          class="holo-edge glass rounded border border-cyan-400/40 px-3 py-2 display text-xs tracking-widest text-cyan-300 transition hover:bg-cyan-400/10">
+          EXECUTE
+        </button>
+      </div>
+    </footer>
   </main>
 
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       JAVASCRIPT
+  ═══════════════════════════════════════════════════════════════════════ -->
   <script>
-    const bootScreen = document.getElementById("bootScreen");
-    const bootStatus = document.getElementById("bootStatus");
-    const clock = document.getElementById("clock");
-    const messages = document.getElementById("messages");
-    const commandForm = document.getElementById("commandForm");
-    const commandInput = document.getElementById("commandInput");
-    const memoryForm = document.getElementById("memoryForm");
-    const memoryInput = document.getElementById("memoryInput");
-    const providerSelect = document.getElementById("providerSelect");
+  (function() {
+    "use strict";
 
-    const API = window.location.origin;
+    // ─── Utility ──────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
 
-    // ===== Boot Sequence =====
-    const bootMessages = ["LOADING","CALIBRATING","LINKING ARRAYS","VERIFYING MEMORY","SYSTEM READY"];
-    bootMessages.forEach((msg, i) => setTimeout(() => bootStatus.textContent = msg, 700 + i * 850));
+    // ─── State ─────────────────────────────────────────────────────────────
+    const state = {
+      listening: false,
+      speaking: false,
+      callActive: false,
+      voice: null,
+      ws: null,
+      wsUrl: `ws://${window.location.hostname}:8080`,
+      reconnectTimer: null,
+      reconnectAttempts: 0,
+      maxReconnectDelay: 15000,
+      // Sparkline data (last 30 points)
+      cpuHistory: [],
+      memHistory: [],
+      // System status for globe reactivity
+      systemStatus: "idle", // idle, active, error
+      reactorPower: 0,
+      // File manager
+      fileManagerOpen: true,
+      files: [],
+      currentPath: "/",
+      fileSearchQuery: "",
+      // Audio context for waveform
+      audioContext: null,
+      analyser: null,
+      mediaStream: null,
+      // Globe reference
+      globeRotationSpeed: 0.001,
+      globeMaterial: null,
+      globeLight: null,
+    };
 
-    function enterConsole() {
-      document.body.classList.remove("booting");
-      bootScreen.classList.add("dismissed");
-      setTimeout(() => bootScreen.remove(), 850);
-      initConsole();
+    // ═══════════════════════════════════════════════════════════════════════
+    //  THREE.JS 3D GLOBE
+    // ═══════════════════════════════════════════════════════════════════════
+    function initGlobe() {
+      const canvas = $("globe-canvas");
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 4.5;
+
+      // Globe wireframe
+      const geometry = new THREE.SphereGeometry(1.5, 32, 24);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x00d4ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.15,
+      });
+      state.globeMaterial = material;
+      const globe = new THREE.Mesh(geometry, material);
+      scene.add(globe);
+
+      // Inner glow sphere
+      const innerGlow = new THREE.Mesh(
+        new THREE.SphereGeometry(1.48, 32, 24),
+        new THREE.MeshBasicMaterial({
+          color: 0x00ffcc,
+          transparent: true,
+          opacity: 0.03,
+        })
+      );
+      scene.add(innerGlow);
+
+      // Point light for glow effect
+      const light = new THREE.PointLight(0x00d4ff, 0.8, 8);
+      light.position.set(0, 0, 0);
+      scene.add(light);
+      state.globeLight = light;
+
+      // Ambient particles in 3D scene
+      const particlesGeo = new THREE.BufferGeometry();
+      const pCount = 300;
+      const pPositions = new Float32Array(pCount * 3);
+      for (let i = 0; i < pCount * 3; i++) {
+        pPositions[i] = (Math.random() - 0.5) * 12;
+      }
+      particlesGeo.setAttribute("position", new THREE.BufferAttribute(pPositions, 3));
+      const particlesMat = new THREE.PointsMaterial({
+        color: 0x00d4ff,
+        size: 0.02,
+        transparent: true,
+        opacity: 0.5,
+      });
+      const particles = new THREE.Points(particlesGeo, particlesMat);
+      scene.add(particles);
+
+      // Orbiting rings
+      const ringGeo = new THREE.RingGeometry(2.0, 2.05, 64);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x00d4ff,
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.DoubleSide,
+      });
+      const ring1 = new THREE.Mesh(ringGeo, ringMat);
+      ring1.rotation.x = Math.PI * 0.4;
+      ring1.rotation.y = Math.PI * 0.1;
+      scene.add(ring1);
+
+      const ring2 = ring1.clone();
+      ring2.rotation.x = Math.PI * 0.6;
+      ring2.rotation.y = -Math.PI * 0.2;
+      ring2.material = ringMat.clone();
+      ring2.material.opacity = 0.05;
+      scene.add(ring2);
+
+      // Animation loop
+      function animate() {
+        requestAnimationFrame(animate);
+
+        globe.rotation.y += state.globeRotationSpeed;
+        innerGlow.rotation.y -= state.globeRotationSpeed * 0.5;
+        particles.rotation.y += 0.0002;
+        ring1.rotation.z += 0.0005;
+        ring2.rotation.z -= 0.0003;
+
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      // Handle resize
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
     }
-    document.getElementById("skipBoot").addEventListener("click", enterConsole);
-    setTimeout(enterConsole, 5800);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CSS PARTICLE SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+    function createParticle() {
+      const container = $("particles");
+      const p = document.createElement("div");
+      p.className = "particle";
+      const x = Math.random() * 100;
+      const duration = 8 + Math.random() * 12;
+      const size = 1.5 + Math.random() * 2.5;
+      const drift = (Math.random() - 0.5) * 80;
+      p.style.cssText = `
+        left: ${x}%;
+        width: ${size}px;
+        height: ${size}px;
+        animation-duration: ${duration}s;
+        animation-delay: ${Math.random() * duration}s;
+        --drift: ${drift}px;
+      `;
+      container.appendChild(p);
+
+      // Remove after animation ends to prevent memory leak
+      setTimeout(() => {
+        if (p.parentNode) p.parentNode.removeChild(p);
+      }, (duration + duration) * 1000);
+    }
+
+    function initParticles() {
+      // Initial batch
+      for (let i = 0; i < 30; i++) createParticle();
+      // Continuously create new particles
+      setInterval(() => {
+        const count = state.systemStatus === "active" ? 3 : state.systemStatus === "error" ? 1 : 1;
+        for (let i = 0; i < count; i++) createParticle();
+      }, 800);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SPARKLINE RENDERER
+    // ═══════════════════════════════════════════════════════════════════════
+    function renderSparkline(svgId, data, color) {
+      const svg = $(svgId);
+      if (!svg || data.length < 2) return;
+
+      const maxVal = Math.max(...data, 1);
+      const w = 200, h = 24;
+      const step = w / (30 - 1);
+
+      // Pad to 30 points
+      const points = [];
+      for (let i = 0; i < 30; i++) {
+        const idx = data.length - 30 + i;
+        points.push(idx >= 0 ? data[idx] : 0);
+      }
+
+      let pathD = "";
+      let fillD = `M0,${h} `;
+
+      points.forEach((val, i) => {
+        const x = i * step;
+        const y = h - (val / maxVal) * (h - 2);
+        if (i === 0) {
+          pathD += `M${x},${y}`;
+          fillD += `L${x},${y}`;
+        } else {
+          const prevX = (i - 1) * step;
+          const prevIdx = i - 1;
+          const prevY = h - (points[prevIdx] / maxVal) * (h - 2);
+          const cpX = (prevX + x) / 2;
+          pathD += ` C${cpX},${prevY} ${cpX},${y} ${x},${y}`;
+          fillD += ` C${cpX},${prevY} ${cpX},${y} ${x},${y}`;
+        }
+      });
+
+      fillD += ` L${w},${h} Z`;
+
+      svg.innerHTML = `
+        <defs>
+          <linearGradient id="${svgId}-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <path d="${fillD}" fill="url(#${svgId}-grad)" />
+        <path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" />
+      `;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  GLOBE STATUS REACTIVITY
+    // ═══════════════════════════════════════════════════════════════════════
+    function updateGlobeForStatus(status) {
+      state.systemStatus = status;
+      if (!state.globeMaterial) return;
+
+      switch (status) {
+        case "active":
+          state.globeRotationSpeed = 0.004;
+          state.globeMaterial.color.setHex(0x00d4ff);
+          state.globeMaterial.opacity = 0.25;
+          if (state.globeLight) state.globeLight.color.setHex(0x00ffcc);
+          if (state.globeLight) state.globeLight.intensity = 1.2;
+          $("globe-canvas").style.opacity = "0.55";
+          break;
+        case "error":
+          state.globeRotationSpeed = 0.006;
+          state.globeMaterial.color.setHex(0xff3366);
+          state.globeMaterial.opacity = 0.2;
+          if (state.globeLight) state.globeLight.color.setHex(0xff3366);
+          if (state.globeLight) state.globeLight.intensity = 0.8;
+          $("globe-canvas").style.opacity = "0.5";
+          break;
+        default: // idle
+          state.globeRotationSpeed = 0.001;
+          state.globeMaterial.color.setHex(0x00d4ff);
+          state.globeMaterial.opacity = 0.12;
+          if (state.globeLight) state.globeLight.color.setHex(0x00d4ff);
+          if (state.globeLight) state.globeLight.intensity = 0.5;
+          $("globe-canvas").style.opacity = "0.35";
+          break;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  VOICE — TTS
+    // ═══════════════════════════════════════════════════════════════════════
+    function loadVoices() {
+      if (!("speechSynthesis" in window)) return;
+      const voices = speechSynthesis.getVoices();
+      const british = voices.filter(v => /^en-GB/i.test(v.lang));
+      state.voice =
+        voices.find(v => /Google UK English Female/i.test(v.name)) ||
+        voices.find(v => /^Microsoft.*(Hazel|Libby|Sonia)/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
+        british.find(v => /female|serena|kate|susan|hazel|libby|sonia/i.test(v.name)) ||
+        british[0] ||
+        voices.find(v => /^en-US/i.test(v.lang)) ||
+        voices[0];
+    }
+
+    if ("speechSynthesis" in window) {
+      loadVoices();
+      speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    }
+
+    function speak(text, callback) {
+      $("response").textContent = text;
+      addLog(`FRIDAY: ${text.slice(0, 120)}`, "friday");
+
+      if (!("speechSynthesis" in window)) {
+        if (callback) callback();
+        return;
+      }
+
+      speechSynthesis.cancel();
+      state.speaking = true;
+      $("core").classList.remove("thinking");
+      if (!state.callActive) $("core").classList.add("speaking");
+      updateStatus("SPEAKING");
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (state.voice) utterance.voice = state.voice;
+      utterance.lang = "en-GB";
+      utterance.rate = 0.94;
+      utterance.pitch = 1.08;
+      utterance.volume = 1;
+
+      const finished = () => {
+        state.speaking = false;
+        $("core").classList.remove("speaking");
+        if (state.callActive) {
+          $("core").classList.add("call-active");
+          updateStatus("CALL ACTIVE");
+        } else {
+          updateStatus(state.listening ? "LISTENING" : "STANDBY");
+        }
+        if (callback) callback();
+      };
+
+      utterance.onend = finished;
+      utterance.onerror = finished;
+      setTimeout(() => speechSynthesis.speak(utterance), 60);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  UI HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+    function updateStatus(text) {
+      $("status").textContent = text;
+    }
+
+    function setConnStatus(status) {
+      const dot = $("connDot");
+      dot.className = "conn-dot " + status;
+      if (status === "connected") updateStatus("STANDBY");
+      else if (status === "connecting") updateStatus("CONNECTING...");
+      else updateStatus("DISCONNECTED");
+    }
+
+    function addLog(text, type = "system") {
+      const colors = {
+        system: "text-cyan-400/75",
+        user: "text-amber-300",
+        friday: "text-cyan-300",
+        action: "text-emerald-400/80",
+        error: "text-red-400/80",
+        warning: "text-amber-400/80",
+        policy: "text-orange-400/80"
+      };
+      const item = document.createElement("div");
+      item.className = colors[type] || colors.system;
+      item.textContent = `[${new Date().toLocaleTimeString("en-GB", { hour12: false })}] ${text}`;
+
+      const container = $("logContainer");
+      container.appendChild(item);
+      while (container.children.length > 200) container.removeChild(container.firstChild);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  WEBSOCKET
+    // ═══════════════════════════════════════════════════════════════════════
+    function connectWS() {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) return;
+
+      setConnStatus("connecting");
+      addLog(`Connecting to ${state.wsUrl}...`);
+
+      try {
+        state.ws = new WebSocket(state.wsUrl);
+      } catch (err) {
+        addLog("WebSocket creation failed: " + err.message, "error");
+        scheduleReconnect();
+        return;
+      }
+
+      state.ws.onopen = () => {
+        state.reconnectAttempts = 0;
+        setConnStatus("connected");
+        addLog("Connected to M.A.I. agent", "friday");
+        $("core").classList.remove("thinking", "error");
+      };
+
+      state.ws.onclose = () => {
+        setConnStatus("disconnected");
+        addLog("Disconnected from M.A.I.", "warning");
+        scheduleReconnect();
+      };
+
+      state.ws.onerror = () => {
+        addLog("WebSocket error", "error");
+      };
+
+      state.ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleWSMessage(msg);
+        } catch { /* ignore non-JSON */ }
+      };
+    }
+
+    function scheduleReconnect() {
+      if (state.reconnectTimer) return;
+      const delay = Math.min(1000 * Math.pow(1.5, state.reconnectAttempts), state.maxReconnectDelay);
+      state.reconnectAttempts++;
+      addLog(`Reconnecting in ${Math.round(delay / 1000)}s (attempt ${state.reconnectAttempts})...`, "warning");
+      state.reconnectTimer = setTimeout(() => {
+        state.reconnectTimer = null;
+        connectWS();
+      }, delay);
+    }
+
+    function sendWS(data) {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify(data));
+      } else {
+        addLog("Cannot send — not connected", "error");
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HANDLE INCOMING HUD MESSAGES
+    // ═══════════════════════════════════════════════════════════════════════
+    function handleWSMessage(msg) {
+      switch (msg.channel) {
+        // ── Existing channels ──
+        case "jarvis_speech": {
+          const text = msg.payload?.text || "";
+          if (text) speak(text);
+          break;
+        }
+
+        case "activity_log": {
+          const level = msg.payload?.level || "info";
+          const message = msg.payload?.message || "";
+          if (message) {
+            const typeMap = { info: "system", warn: "warning", error: "error" };
+            addLog(message, typeMap[level] || "system");
+          }
+          break;
+        }
+
+        case "system_metrics": {
+          const cpu = msg.payload?.cpu ?? 0;
+          const mem = msg.payload?.memory ?? 0;
+          const disk = msg.payload?.disk ?? 0;
+          const memTotal = msg.payload?.memory_total_gb ?? 16;
+          const memUsed = msg.payload?.memory_used_gb ?? 0;
+
+          // CPU
+          $("cpuVal").textContent = cpu.toFixed(1) + "%";
+          $("cpuBar").style.width = cpu + "%";
+          $("cpuBar").className = "metric-bar-fill" + (cpu > 80 ? " critical" : cpu > 60 ? " warn" : "");
+          state.cpuHistory.push(cpu);
+          if (state.cpuHistory.length > 30) state.cpuHistory.shift();
+          renderSparkline("cpuSparkline", state.cpuHistory, cpu > 80 ? "#ff3366" : cpu > 60 ? "#ffaa00" : "#00d4ff");
+
+          // Memory
+          if (memUsed > 0) {
+            $("memVal").textContent = `${memUsed.toFixed(1)}/${memTotal} GB`;
+          } else {
+            $("memVal").textContent = mem.toFixed(1) + "%";
+          }
+          $("memBar").style.width = mem + "%";
+          $("memBar").className = "metric-bar-fill" + (mem > 85 ? " critical" : mem > 70 ? " warn" : "");
+          state.memHistory.push(mem);
+          if (state.memHistory.length > 30) state.memHistory.shift();
+          renderSparkline("memSparkline", state.memHistory, mem > 85 ? "#ff3366" : mem > 70 ? "#ffaa00" : "#00ffcc");
+
+          // Disk
+          if (disk > 0) {
+            const diskTotal = msg.payload?.disk_total_gb ?? 0;
+            const diskUsed = msg.payload?.disk_used_gb ?? 0;
+            if (diskUsed > 0 && diskTotal > 0) {
+              $("diskVal").textContent = `${diskUsed.toFixed(1)}/${diskTotal} GB`;
+            } else {
+              $("diskVal").textContent = disk.toFixed(1) + "%";
+            }
+            $("diskBar").style.width = disk + "%";
+            $("diskBar").className = "metric-bar-fill" + (disk > 90 ? " critical" : disk > 75 ? " warn" : "");
+          }
+
+          break;
+        }
+
+        case "threat_level": {
+          const level = msg.payload?.level || "green";
+          const detail = msg.payload?.detail || "";
+          const threatEl = $("threat");
+          threatEl.textContent = level.toUpperCase();
+          threatEl.className = "threat-" + level;
+          if (detail) addLog(`Threat: ${detail}`, level === "green" ? "system" : "warning");
+
+          if (level === "red" || level === "orange") {
+            updateGlobeForStatus("error");
+            $("core").classList.add("error");
+          }
+          break;
+        }
+
+        case "reactor_pulse": {
+          const power = msg.payload?.power ?? 0;
+          const rstatus = msg.payload?.status || "idle";
+          state.reactorPower = power;
+
+          $("reactorVal").textContent = power + "% — " + rstatus.toUpperCase();
+          $("reactorBar").style.width = power + "%";
+
+          $("core").classList.remove("thinking", "error");
+          if (rstatus === "active") {
+            $("core").classList.add("thinking");
+            updateStatus("PROCESSING");
+            updateGlobeForStatus("active");
+          } else {
+            if (!state.speaking && !state.listening) {
+              updateStatus(state.callActive ? "CALL ACTIVE" : "STANDBY");
+            }
+            updateGlobeForStatus("idle");
+          }
+          break;
+        }
+
+        // ── NEW channels ──
+        case "file_list": {
+          const files = msg.payload?.files || [];
+          state.files = files;
+          renderFileList();
+          break;
+        }
+
+        case "voice_call_state": {
+          const active = msg.payload?.active ?? false;
+          const transcript = msg.payload?.transcript || "";
+          if (active && !state.callActive) {
+            startCallMode();
+          } else if (!active && state.callActive) {
+            stopCallMode();
+          }
+          if (transcript && !state.speaking) {
+            $("response").textContent = transcript;
+          }
+          break;
+        }
+
+        case "network_stats": {
+          const up = msg.payload?.upload_bps ?? 0;
+          const down = msg.payload?.download_bps ?? 0;
+          $("netUpVal").textContent = "↑ " + formatBytes(up) + "/s";
+          $("netDownVal").textContent = "↓ " + formatBytes(down) + "/s";
+          break;
+        }
+
+        case "gpu_stats": {
+          const temp = msg.payload?.temperature ?? 0;
+          const util = msg.payload?.utilization ?? 0;
+          const memUsed = msg.payload?.memory_used ?? 0;
+          const memTotal = msg.payload?.memory_total ?? 0;
+
+          $("gpuTempVal").textContent = temp + "°C";
+          $("gpuTempVal").style.color = temp > 80 ? "var(--danger)" : temp > 60 ? "var(--warning)" : "var(--text)";
+
+          // Position indicator: 30°C = 0%, 95°C = 100%
+          const pct = Math.max(0, Math.min(100, ((temp - 30) / 65) * 100));
+          $("gpuTempIndicator").style.left = pct + "%";
+
+          $("gpuUtilVal").textContent = `Util: ${util.toFixed(0)}% | VRAM: ${memUsed.toFixed(1)}/${memTotal.toFixed(1)} GB`;
+          break;
+        }
+
+        default:
+          addLog(`Unknown channel: ${msg.channel}`, "warning");
+      }
+    }
+
+    // ─── Format bytes helper ──────────────────────────────────────────────
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB", "TB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  USER COMMANDS
+    // ═══════════════════════════════════════════════════════════════════════
+    function processCommand(input) {
+      const text = input.trim();
+      if (!text) return;
+      addLog(`USER: ${text}`, "user");
+      sendWS({ type: "user_input", text });
+      updateStatus("PROCESSING");
+      $("core").classList.remove("speaking");
+      $("core").classList.add("thinking");
+      updateGlobeForStatus("active");
+    }
+
+    function showApproval(actionName) {
+      $("approvalAction").textContent = actionName;
+      $("approvalBanner").classList.add("visible");
+      addLog(`Approval requested: ${actionName}`, "policy");
+    }
+
+    function resolveApproval(approved) {
+      sendWS({ type: "approval_response", approved });
+      $("approvalBanner").classList.remove("visible");
+      addLog(approved ? "Action APPROVED" : "Action DENIED", approved ? "action" : "error");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  VOICE CALL MODE
+    // ═══════════════════════════════════════════════════════════════════════
+    function startCallMode() {
+      state.callActive = true;
+      $("callBtn").classList.add("active");
+      $("callStatus").classList.add("visible");
+      $("waveformWrapper").style.opacity = "1";
+      $("core").classList.remove("speaking", "thinking");
+      $("core").classList.add("call-active");
+      updateStatus("CALL ACTIVE");
+      addLog("Voice call mode ACTIVATED", "friday");
+
+      // Start mic if not already listening
+      if (!state.listening && recognition) {
+        try { recognition.start(); } catch (_) {}
+        state.listening = true;
+        $("micBtn").classList.add("active");
+      }
+
+      // Start audio visualizer
+      startWaveformVisualizer();
+    }
+
+    function stopCallMode() {
+      state.callActive = false;
+      $("callBtn").classList.remove("active");
+      $("callStatus").classList.remove("visible");
+      $("waveformWrapper").style.opacity = "0";
+      $("core").classList.remove("call-active");
+      updateStatus(state.listening ? "LISTENING" : "STANDBY");
+      addLog("Voice call mode DEACTIVATED", "friday");
+
+      stopWaveformVisualizer();
+    }
+
+    function toggleCallMode() {
+      if (state.callActive) {
+        stopCallMode();
+        sendWS({ type: "voice_call", active: false });
+      } else {
+        startCallMode();
+        sendWS({ type: "voice_call", active: true });
+        speak("Voice call link established. I'm listening.");
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  WAVEFORM VISUALIZER
+    // ═══════════════════════════════════════════════════════════════════════
+    let waveformAnimId = null;
+
+    function startWaveformVisualizer() {
+      const canvas = $("waveformCanvas");
+      canvas.width = canvas.offsetWidth * 2;
+      canvas.height = canvas.offsetHeight * 2;
+      const ctx = canvas.getContext("2d");
+
+      // Create audio context and analyser
+      if (!state.audioContext) {
+        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      state.audioContext.resume();
+
+      if (!state.analyser) {
+        state.analyser = state.audioContext.createAnalyser();
+        state.analyser.fftSize = 256;
+      }
+
+      // Get mic stream
+      if (!state.mediaStream) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          state.mediaStream = stream;
+          const source = state.audioContext.createMediaStreamSource(stream);
+          source.connect(state.analyser);
+        }).catch(() => {});
+      }
+
+      const bufferLength = state.analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      function drawWaveform() {
+        if (!state.callActive) return;
+        waveformAnimId = requestAnimationFrame(drawWaveform);
+
+        state.analyser.getByteTimeDomainData(dataArray);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw waveform
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(255, 51, 102, 0.8)";
+        ctx.shadowColor = "rgba(255, 51, 102, 0.5)";
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+
+        const sliceWidth = canvas.width / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = v * canvas.height / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+
+        // Secondary glow line
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0, 212, 255, 0.3)";
+        ctx.shadowColor = "rgba(0, 212, 255, 0.3)";
+        ctx.shadowBlur = 4;
+        ctx.beginPath();
+        x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = v * canvas.height / 2 + 3;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx.lineTo(canvas.width, canvas.height / 2 + 3);
+        ctx.stroke();
+      }
+
+      drawWaveform();
+    }
+
+    function stopWaveformVisualizer() {
+      if (waveformAnimId) {
+        cancelAnimationFrame(waveformAnimId);
+        waveformAnimId = null;
+      }
+
+      if (state.mediaStream) {
+        state.mediaStream.getTracks().forEach(t => t.stop());
+        state.mediaStream = null;
+      }
+
+      const canvas = $("waveformCanvas");
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  FILE MANAGER
+    // ═══════════════════════════════════════════════════════════════════════
+    function getFileColorClass(filename) {
+      const ext = filename.split(".").pop().toLowerCase();
+      const map = {
+        md: "file-color-md",
+        ts: "file-color-ts", tsx: "file-color-ts",
+        js: "file-color-js", jsx: "file-color-js", mjs: "file-color-js",
+        json: "file-color-json", jsonl: "file-color-json",
+        py: "file-color-py", pyw: "file-color-py",
+        html: "file-color-html", htm: "file-color-html",
+        css: "file-color-css", scss: "file-color-css", less: "file-color-css",
+        yml: "file-color-yml", yaml: "file-color-yml",
+        toml: "file-color-toml",
+        prisma: "file-color-prisma",
+        sql: "file-color-sql",
+        sh: "file-color-sh", bash: "file-color-sh",
+        svg: "file-color-svg",
+        wasm: "file-color-wasm",
+        png: "file-color-img", jpg: "file-color-img", jpeg: "file-color-img",
+        gif: "file-color-img", webp: "file-color-img", ico: "file-color-img",
+        lock: "file-color-lock",
+        gitignore: "file-color-git",
+        dockerfile: "file-color-docker", env: "file-color-env",
+      };
+      // Special filenames
+      if (filename === ".gitignore" || filename === ".git") return "file-color-git";
+      if (filename === "Dockerfile" || filename.startsWith("docker-compose")) return "file-color-docker";
+      if (filename.startsWith(".env")) return "file-color-env";
+      return map[ext] || "file-color-default";
+    }
+
+    function getFileIcon(type) {
+      if (type === "directory" || type === "folder") {
+        return `<svg class="w-3.5 h-3.5 flex-shrink-0 file-color-folder" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>`;
+      }
+      return `<svg class="w-3.5 h-3.5 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
+    }
+
+    function renderBreadcrumbs() {
+      const container = $("fileBreadcrumbs");
+      const parts = state.currentPath.split("/").filter(Boolean);
+      let html = `<span class="breadcrumb-item ${parts.length === 0 ? "active" : ""}" data-path="/">/</span>`;
+      let pathSoFar = "";
+      parts.forEach((part, i) => {
+        pathSoFar += "/" + part;
+        const isLast = i === parts.length - 1;
+        html += `<span class="breadcrumb-sep">/</span>`;
+        html += `<span class="breadcrumb-item ${isLast ? "active" : ""}" data-path="${pathSoFar}">${part}</span>`;
+      });
+      container.innerHTML = html;
+
+      container.querySelectorAll(".breadcrumb-item").forEach(el => {
+        el.addEventListener("click", () => {
+          state.currentPath = el.dataset.path;
+          sendWS({ type: "list_files", path: state.currentPath });
+          renderBreadcrumbs();
+        });
+      });
+    }
+
+    function renderFileList() {
+      const container = $("fileList");
+      let files = state.files || [];
+
+      // Filter by search
+      if (state.fileSearchQuery) {
+        const q = state.fileSearchQuery.toLowerCase();
+        files = files.filter(f => f.name.toLowerCase().includes(q));
+      }
+
+      // Sort: folders first, then files
+      files = [...files].sort((a, b) => {
+        const aDir = (a.type === "directory" || a.type === "folder") ? 0 : 1;
+        const bDir = (b.type === "directory" || b.type === "folder") ? 0 : 1;
+        if (aDir !== bDir) return aDir - bDir;
+        return a.name.localeCompare(b.name);
+      });
+
+      if (files.length === 0) {
+        container.innerHTML = `<div class="mono text-xs text-cyan-600/60 py-4 text-center">${state.fileSearchQuery ? "No matches found" : "No files loaded"}</div>`;
+        return;
+      }
+
+      container.innerHTML = files.map(f => {
+        const isDir = f.type === "directory" || f.type === "folder";
+        const colorClass = isDir ? "file-color-folder" : getFileColorClass(f.name);
+        const sizeStr = isDir ? "—" : (f.size ? formatBytes(f.size) : "—");
+        const modStr = f.modified ? new Date(f.modified).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "";
+        return `
+          <div class="file-item mono" data-name="${f.name}" data-path="${f.path || ""}" data-type="${f.type || "file"}">
+            ${getFileIcon(f.type)}
+            <span class="flex-1 ${colorClass} truncate" title="${f.path || f.name}">${f.name}</span>
+            ${modStr ? `<span class="text-cyan-700 text-xs flex-shrink-0" style="font-size:10px">${modStr}</span>` : ""}
+            ${!isDir ? `<span class="text-cyan-600 text-xs flex-shrink-0" style="font-size:10px">${sizeStr}</span>` : ""}
+          </div>
+        `;
+      }).join("");
+
+      container.querySelectorAll(".file-item").forEach(el => {
+        el.addEventListener("click", () => {
+          const type = el.dataset.type;
+          const name = el.dataset.name;
+          const path = el.dataset.path;
+          if (type === "directory" || type === "folder") {
+            state.currentPath = path || (state.currentPath === "/" ? "/" + name : state.currentPath + "/" + name);
+            sendWS({ type: "list_files", path: state.currentPath });
+            renderBreadcrumbs();
+          } else {
+            sendWS({ type: "read-file", path: path || name });
+            addLog(`Reading file: ${name}`, "action");
+          }
+        });
+      });
+    }
+
+    function toggleFileManager() {
+      state.fileManagerOpen = !state.fileManagerOpen;
+      const body = $("fileManagerBody");
+      const collapseIcon = $("fileMgrCollapseBtn");
+      if (state.fileManagerOpen) {
+        body.style.display = "flex";
+        collapseIcon.style.transform = "rotate(0deg)";
+      } else {
+        body.style.display = "none";
+        collapseIcon.style.transform = "rotate(-90deg)";
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  VOICE RECOGNITION
+    // ═══════════════════════════════════════════════════════════════════════
+    let recognition = null;
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (Recognition) {
+      recognition = new Recognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-GB";
+
+      recognition.onresult = event => {
+        let interim = "";
+        let finalText = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const text = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalText += text;
+          else interim += text;
+        }
+
+        if (interim && !state.speaking) {
+          $("response").textContent = `"${interim}"`;
+        }
+
+        if (finalText.trim()) {
+          processCommand(finalText.trim());
+          $("commandInput").value = "";
+        }
+      };
+
+      recognition.onerror = event => {
+        if (!["no-speech", "aborted"].includes(event.error)) {
+          addLog(`Recognition error: ${event.error}`, "error");
+        }
+      };
+
+      recognition.onend = () => {
+        if (state.listening || state.callActive) {
+          try { recognition.start(); } catch (_) {}
+        }
+      };
+    }
+
+    function toggleListening() {
+      if (!recognition) {
+        speak("Voice recognition is unavailable. Please use the command console.");
+        return;
+      }
+
+      state.listening = !state.listening;
+      $("micBtn").classList.toggle("active", state.listening);
+
+      if (state.listening) {
+        try { recognition.start(); } catch (_) {}
+        if (!state.callActive) updateStatus("LISTENING");
+        addLog("Voice input engaged");
+        speak("Yes, how may I help?");
+      } else {
+        try { recognition.stop(); } catch (_) {}
+        if (!state.callActive) updateStatus("STANDBY");
+        addLog("Voice input disengaged");
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PARALLAX EFFECT
+    // ═══════════════════════════════════════════════════════════════════════
+    function initParallax() {
+      const panels = document.querySelectorAll("[data-parallax]");
+      document.addEventListener("mousemove", e => {
+        const cx = (e.clientX / window.innerWidth - 0.5) * 2;
+        const cy = (e.clientY / window.innerHeight - 0.5) * 2;
+        panels.forEach((panel, i) => {
+          const factor = (i % 2 === 0 ? 1 : -1) * 2;
+          panel.style.transform = `translate(${cx * factor}px, ${cy * factor}px)`;
+        });
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CLOCK
+    // ═══════════════════════════════════════════════════════════════════════
     function updateClock() {
-      clock.textContent = new Date().toISOString().slice(11, 19) + " UTC";
+      const now = new Date();
+      $("timeDisplay").textContent = now.toLocaleTimeString("en-GB", { hour12: false });
+      $("dateDisplay").textContent = now.toLocaleDateString("en-GB", {
+        weekday: "short", day: "numeric", month: "short", year: "numeric"
+      }).toUpperCase();
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  QUICK COMMANDS
+    // ═══════════════════════════════════════════════════════════════════════
+    const suggestions = [
+      "What can you do?",
+      "Check system info",
+      "List my home directory",
+      "What processes are running?",
+      "Read agent/policy.md",
+      "Help",
+    ];
+
+    suggestions.forEach(cmd => {
+      const btn = document.createElement("button");
+      btn.className = "holo-edge rounded border border-cyan-400/20 px-2 py-0.5 mono text-xs text-cyan-500 transition hover:bg-cyan-400/10 hover:text-cyan-300";
+      btn.textContent = cmd;
+      btn.onclick = () => {
+        $("commandInput").value = cmd;
+        $("commandInput").focus();
+      };
+      $("suggestions").appendChild(btn);
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  EVENT LISTENERS
+    // ═══════════════════════════════════════════════════════════════════════
+    $("micBtn").addEventListener("click", toggleListening);
+    $("callBtn").addEventListener("click", toggleCallMode);
+
+    $("fileMgrBtn").addEventListener("click", toggleFileManager);
+    $("fileMgrCollapseBtn").addEventListener("click", toggleFileManager);
+
+    $("fileSearch").addEventListener("input", e => {
+      state.fileSearchQuery = e.target.value;
+      renderFileList();
+    });
+
+    $("wakeBtn").addEventListener("click", () => {
+      if (!state.listening) toggleListening();
+      else speak("Yes, how may I help?");
+    });
+
+    $("submitBtn").addEventListener("click", () => {
+      const input = $("commandInput");
+      processCommand(input.value);
+      input.value = "";
+    });
+
+    $("commandInput").addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        processCommand(event.target.value);
+        event.target.value = "";
+      }
+    });
+
+    $("approveBtn").addEventListener("click", () => resolveApproval(true));
+    $("denyBtn").addEventListener("click", () => resolveApproval(false));
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  INITIALIZATION
+    // ═══════════════════════════════════════════════════════════════════════
     updateClock();
     setInterval(updateClock, 1000);
 
-    // ===== Console Initialization =====
-    async function initConsole() {
-      await loadProviders();
-      await loadStatus();
-      await refreshMetrics();
-      addLog("System initialized. Console ready.");
-    }
+    addLog("Friday interface v3.0 initialising...");
+    addLog("Three.js globe engine loaded");
+    addLog("Particle systems online");
+    addLog("WebSocket target: " + state.wsUrl);
 
-    async function api(path, options = {}) {
-      const resp = await fetch(`${API}${path}`, {
-        headers: { "Content-Type": "application/json" },
-        ...options
-      });
-      return resp.json();
-    }
+    // Initialize subsystems
+    initGlobe();
+    initParticles();
+    initParallax();
+    renderBreadcrumbs();
+    renderFileList();
 
-    // ===== Providers =====
-    async function loadProviders() {
-      try {
-        const data = await api("/api/providers");
-        providerSelect.innerHTML = "";
-        if (data.providers) {
-          data.providers.forEach(p => {
-            const opt = document.createElement("option");
-            opt.value = p.name;
-            opt.textContent = `${p.name} (${p.type})`;
-            if (p.name === data.defaultProvider) opt.selected = true;
-            providerSelect.appendChild(opt);
-          });
-        }
-      } catch (e) { console.warn("Failed to load providers:", e); }
-    }
+    // Connect to M.A.I. backend
+    connectWS();
 
-    providerSelect.addEventListener("change", async () => {
-      try {
-        await api("/api/provider", {
-          method: "POST",
-          body: JSON.stringify({ name: providerSelect.value })
-        });
-        addLog(`Provider switched to ${providerSelect.value}`);
-        await loadStatus();
-      } catch (e) { console.warn("Failed to switch provider:", e); }
-    });
-
-    // ===== Status =====
-    async function loadStatus() {
-      try {
-        const data = await api("/api/status");
-        document.getElementById("statusModel").textContent = data.provider ?? "N/A";
-        document.getElementById("statusProvider").textContent = data.provider ?? "N/A";
-        document.getElementById("statusActions").textContent = data.actions ?? 0;
-        document.getElementById("statusAudio").textContent = data.audio ?? "disabled";
-        document.getElementById("providerMetric").textContent = data.provider ?? "--";
-        document.getElementById("actionMetric").textContent = data.actions ?? 0;
-      } catch (e) { console.warn("Failed to load status:", e); }
-    }
-
-    // ===== Resource Metrics (via pc.monitor API) =====
-    async function refreshMetrics() {
-      try {
-        const data = await api("/api/action", {
-          method: "POST",
-          body: JSON.stringify({ name: "pc.monitor", input: {} })
-        });
-        const r = data.result;
-        if (r) {
-          const cpu = r.cpu?.loadAvg?.[0] ?? 0;
-          const mem = r.memory?.usedPercent ?? 0;
-          const disk = r.disk?.usedPercent ?? 0;
-
-          document.getElementById("cpuMetric").textContent = `${cpu.toFixed(0)}%`;
-          document.getElementById("memMetric").textContent = `${mem.toFixed(0)}%`;
-
-          document.getElementById("cpuBar").style.width = `${Math.min(cpu, 100)}%`;
-          document.getElementById("cpuVal").textContent = `${cpu.toFixed(0)}%`;
-          document.getElementById("ramBar").style.width = `${Math.min(mem, 100)}%`;
-          document.getElementById("ramVal").textContent = `${mem.toFixed(0)}%`;
-          document.getElementById("diskBar").style.width = `${Math.min(disk, 100)}%`;
-          document.getElementById("diskVal").textContent = `${disk.toFixed(0)}%`;
-        }
-      } catch (e) { /* silent */ }
-    }
-    setInterval(refreshMetrics, 15000);
-
-    // ===== Chat =====
-    commandForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const command = commandInput.value.trim();
-      if (!command) return;
-      sendCommand(command);
-    });
-
-    async function sendCommand(text) {
-      addMessage(text, "user");
-      commandInput.value = "";
-
-      try {
-        const data = await api("/api/chat", {
-          method: "POST",
-          body: JSON.stringify({ message: text })
-        });
-        const response = data.response || "No response.";
-        // Show response with audio button
-        const msgDiv = document.createElement("div");
-        msgDiv.className = "msg";
-        const typeSpan = document.createElement("span");
-        typeSpan.className = "msg-type";
-        typeSpan.textContent = "SYSTEM / RESPONSE";
-        const textNode = document.createTextNode(response);
-        const audioBtn = document.createElement("button");
-        audioBtn.className = "msg-audio-btn";
-        audioBtn.textContent = "🔊";
-        audioBtn.onclick = () => speakText(response);
-        msgDiv.appendChild(typeSpan);
-        msgDiv.appendChild(textNode);
-        msgDiv.appendChild(audioBtn);
-        messages.appendChild(msgDiv);
-        messages.scrollTop = messages.scrollHeight;
-        addLog(`Executed: "${text.slice(0, 40)}..."`);
-      } catch (e) {
-        addMessage(`Error: ${e.message}`, "system");
+    // Greeting after connection
+    setTimeout(() => {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        speak("Good day. M.A.I. systems online and at your service. The new holographic interface is fully operational. How may I assist you?");
       }
-    }
+    }, 1500);
 
-    function addMessage(text, className = "") {
-      const msg = document.createElement("div");
-      msg.className = `msg ${className}`;
-      const type = document.createElement("span");
-      type.className = "msg-type";
-      type.textContent = className === "user" ? `OPERATOR / NOW` : `SYSTEM / ${new Date().toLocaleTimeString()}`;
-      const textNode = document.createTextNode(text);
-      const audioBtn = document.createElement("button");
-      audioBtn.className = "msg-audio-btn";
-      audioBtn.textContent = "🔊";
-      audioBtn.onclick = () => speakText(text);
-      msg.appendChild(type);
-      msg.appendChild(textNode);
-      msg.appendChild(audioBtn);
-      messages.appendChild(msg);
-      messages.scrollTop = messages.scrollHeight;
-    }
-
-    // ===== Audio =====
-    const audioInputBtn = document.getElementById("audioInputBtn");
-    let mediaRecorder = null;
-    let audioChunks = [];
-
-    audioInputBtn.addEventListener("click", async () => {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        audioInputBtn.classList.remove("recording");
-        audioInputBtn.textContent = "🎤";
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-        mediaRecorder.onstop = async () => {
-          const blob = new Blob(audioChunks, { type: "audio/wav" });
-          // Send to STT
-          const reader = new FileReader();
-          reader.onload = async () => {
-            const buffer = reader.result;
-            try {
-              const resp = await fetch(`${API}/api/action`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  name: "vault.search",
-                  input: { query: "transcribe audio" }
-                })
-              });
-              const data = await resp.json();
-              addLog("Audio captured, processing...");
-            } catch (e) { console.warn(e); }
-          };
-          reader.readAsArrayBuffer(blob);
-          stream.getTracks().forEach(t => t.stop());
-        };
-        mediaRecorder.start();
-        audioInputBtn.classList.add("recording");
-        audioInputBtn.textContent = "⏹";
-      } catch (e) {
-        addMessage("Microphone access denied or unavailable.", "system");
-      }
-    });
-
-    function speakText(text) {
-      if (!window.speechSynthesis) return;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      speechSynthesis.speak(utterance);
-    }
-
-    // ===== Memory Search =====
-    memoryForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const query = memoryInput.value.trim() || "all";
-      memoryInput.value = "";
-      try {
-        const data = await api("/api/memory/search", {
-          method: "POST",
-          body: JSON.stringify({ query })
-        });
-        const results = document.getElementById("memoryResults");
-        results.innerHTML = "";
-        if (data.results && data.results.length > 0) {
-          data.results.slice(0, 5).forEach(note => {
-            const div = document.createElement("div");
-            div.className = "item";
-            div.innerHTML = `<div class="item-title">${note.title}</div><div class="item-sub">${note.path}</div>`;
-            results.appendChild(div);
-          });
-        } else {
-          results.innerHTML = `<div class="item"><div class="item-title">No results</div></div>`;
-        }
-        addLog(`Memory search: "${query}" - ${data.results?.length ?? 0} results`);
-      } catch (e) { console.warn(e); }
-    });
-
-    // ===== Logging =====
-    function addLog(text) {
-      const logList = document.getElementById("logList");
-      const entry = document.createElement("div");
-      entry.className = "log-entry";
-      entry.textContent = text;
-      logList.insertBefore(entry, logList.firstChild);
-      if (logList.children > 20) logList.removeChild(logList.lastChild);
-    }
+  })();
   </script>
 </body>
 </html>

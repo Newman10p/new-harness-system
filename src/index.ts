@@ -1,9 +1,6 @@
 // ─── M.A.I. CLI Entry Point ─────────────────────────────────────────────────
 // Terminal-based REPL interface for interacting with the agent.
-// Supports slash commands: /quit, /clear, /history, /policy, /help
-//
-// Usage: npx tsx src/index.ts
-//   or:  npm run cli (after build)
+// Supports slash commands: /quit, /clear, /history, /policy, /help, /providers, /audit
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -13,9 +10,10 @@ import { AgentLoop } from "./core/AgentLoop.js";
 import { PolicyEngine } from "./security/PolicyEngine.js";
 import { ActionRegistry } from "./actions/index.js";
 import { INBOX_PATH } from "./core/constants.js";
+import { initAuditLog, readAuditLog } from "./core/AuditLogger.js";
 import fs from "node:fs";
 import path from "node:path";
-import type { LLMConfig, InboxEvent, HudChannel, HudPayloads } from "./types/index.js";
+import type { LLMConfig, InboxEvent, AuditEntry } from "./types/index.js";
 
 const llmConfig: LLMConfig = {
   baseURL: process.env.LLM_BASE_URL ?? "http://localhost:11434/v1",
@@ -31,7 +29,8 @@ async function main() {
   console.log("╚══════════════════════════════════════════════╝");
   console.log();
 
-  // Bootstrap
+  const audit = await initAuditLog();
+
   const policyEngine = await PolicyEngine.load();
   const registry = new ActionRegistry();
 
@@ -49,6 +48,9 @@ async function main() {
     onText: (text) => {
       console.log(`\n🤖 M.A.I.: ${text}\n`);
     },
+    onToken: (token) => {
+      process.stdout.write(token);
+    },
     onActionStart: (action) => {
       console.log(`  ▶ [${action.action}]`);
     },
@@ -65,7 +67,6 @@ async function main() {
     onApprovalRequired: (action) => {
       console.log(`  ⏳ Approval needed: ${action.action}`);
       console.log(`  Auto-approving in CLI mode...`);
-      // CLI mode: auto-approve for convenience
       setTimeout(() => loop.resolveApproval(true), 100);
     },
     onError: (error) => {
@@ -74,6 +75,11 @@ async function main() {
   });
 
   loop.setInboxAppender(inboxAppender);
+  loop.setAudit(audit);
+
+  const providerInfo = loop.getProviderInfo();
+  console.log(`[LLM] ${providerInfo.count} provider(s): ${providerInfo.names.join(", ")}`);
+  console.log();
 
   // REPL
   const rl = readline.createInterface({
@@ -92,7 +98,6 @@ async function main() {
       return;
     }
 
-    // Slash commands
     if (input.startsWith("/")) {
       const cmd = input.toLowerCase();
 
@@ -102,7 +107,6 @@ async function main() {
           console.log("Shutting down...");
           registry.shutdown();
           process.exit(0);
-          break;
 
         case "/clear":
           loop.clearHistory();
@@ -111,9 +115,7 @@ async function main() {
 
         case "/history": {
           const state = loop.getState();
-          console.log(
-            `[History] ${state.messages.length} messages, ${state.loopCount} loops`
-          );
+          console.log(`[History] ${state.messages.length} messages, ${state.loopCount} loops`);
           break;
         }
 
@@ -131,9 +133,23 @@ async function main() {
           console.log(`Registered actions: ${registry.listActions().join(", ")}`);
           break;
 
+        case "/providers": {
+          const info = loop.getProviderInfo();
+          console.log(`Providers (${info.count}): ${info.names.join(", ")}`);
+          break;
+        }
+
+        case "/audit": {
+          const log = await readAuditLog(20);
+          console.log("\n── Recent Audit Log ──");
+          console.log(log);
+          console.log();
+          break;
+        }
+
         case "/state": {
           const st = loop.getState();
-          console.log(`Running: ${st.isRunning} | Loops: ${st.loopCount} | Pending: ${st.pendingApproval !== null}`);
+          console.log(`Running: ${st.isRunning} | Loops: ${st.loopCount} | Messages: ${st.messages.length} | Pending: ${st.pendingApproval !== null}`);
           break;
         }
 
@@ -146,7 +162,9 @@ async function main() {
     /history    Show message/loop count
     /policy     Display current policy config
     /actions    List registered actions
-    /state      Show agent state
+    /providers  Show configured LLM providers
+    /audit      Show recent audit log (last 20 entries)
+    /state      Show detailed agent state
 
   Or just type a message to chat with M.A.I.
           `);
@@ -160,7 +178,7 @@ async function main() {
       return;
     }
 
-    // Regular message — send to agent
+    // Regular message
     await loop.processUserMessage(input);
     rl.prompt();
   });
