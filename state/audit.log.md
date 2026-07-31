@@ -1,0 +1,9 @@
+- [2026-07-30T18:33:22.356Z] → M.A.I. server starting
+- [2026-07-30T18:33:22.377Z] 📋 Policy loaded: 11 deny, 7 network, 10 approval
+- [2026-07-30T18:33:22.430Z] → M.A.I. server fully started (HTTP:3000, WS:8080, 1 providers, 47 actions)
+- [2026-07-30T18:33:40.283Z] → M.A.I. server starting
+- [2026-07-30T18:33:40.286Z] 📋 Policy loaded: 11 deny, 7 network, 10 approval
+- [2026-07-30T18:33:40.292Z] → M.A.I. server fully started (HTTP:3000, WS:8080, 1 providers, 47 actions)
+- [2026-07-30T18:34:24.776Z] → M.A.I. server starting
+- [2026-07-30T18:34:24.779Z] 📋 Policy loaded: 11 deny, 7 network, 10 approval
+- [2026-07-30T18:34:24.785Z] → M.A.I. server fully started (HTTP:3000, WS:8080, 1 providers, 47 actions)

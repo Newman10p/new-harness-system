@@ -1,0 +1,27 @@
+{
+  "messageHistory": true,
+  "maxHistorySize": 1000,
+  "rateLimitPerMinute": 30,
+  "maxQueueSize": 500,
+  "defaultChannel": "local",
+  "channels": {
+    "sms": {
+      "enabled": false
+    },
+    "telegram": {
+      "enabled": false
+    },
+    "whatsapp": {
+      "enabled": false
+    },
+    "sip": {
+      "enabled": false
+    },
+    "webhook": {
+      "enabled": false
+    },
+    "local": {
+      "enabled": true
+    }
+  }
+}
