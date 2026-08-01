@@ -1209,6 +1209,8 @@
       addLog(`Voice switched to ${profile.name}`, "system");
       speak(profile.greetHour(new Date().getHours()) + ` ${profile.name} interface active.`);
     }
+    // Expose to global scope for HTML onclick attributes
+    window.switchVoice = switchVoice;
 
     function loadVoices() {
       if (!("speechSynthesis" in window)) return;
