@@ -222,6 +222,8 @@ export async function* streamWithProvider(
 ): AsyncGenerator<string, void, unknown> {
   if (instance.isOllamaNative) {
     // Ollama native streaming via /api/chat with stream: true
+    // Format: newline-delimited JSON objects, each with { message: { content: "..." }, done: false }
+    // Final object has done: true. Chunks may split JSON boundaries.
     let base = instance.baseURL.replace(/\/+$/, "");
     if (base.endsWith("/v1")) {
       base = base.slice(0, -3);
@@ -256,25 +258,59 @@ export async function* streamWithProvider(
     const decoder = new TextDecoder();
     let buffer = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    // Add a timeout so the generator can't hang forever
+    const timeoutMs = (options.max_tokens ?? 4096) * 50; // rough estimate: 50ms per token
+    const timeout = setTimeout(() => {
+      reader.cancel?.();
+    }, Math.max(timeoutMs, 120_000)); // at least 2 minutes
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed === "}") continue;
-        try {
-          const json = JSON.parse(trimmed.startsWith("{") ? trimmed : trimmed);
-          const token = json.message?.content;
-          if (token) yield token;
-        } catch {
-          // Might be a partial JSON — accumulate
+        buffer += decoder.decode(value, { stream: true });
+
+        // Split by newlines, keep the last (possibly incomplete) line in buffer
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          try {
+            const json = JSON.parse(trimmed);
+            if (json.done === true) {
+              // Stream complete — process any final content and exit
+              if (json.message?.content) {
+                yield json.message.content;
+              }
+              clearTimeout(timeout);
+              return;
+            }
+            const token = json.message?.content;
+            if (token) yield token;
+          } catch {
+            // Incomplete JSON from chunk split — will be prepended by next chunk via buffer
+            // Don't skip it, put it back in the buffer
+            buffer = trimmed + "\n" + buffer;
+            break; // stop processing lines, wait for more data
+          }
         }
       }
+
+      // Process any remaining buffer after stream ends
+      if (buffer.trim()) {
+        try {
+          const json = JSON.parse(buffer.trim());
+          if (json.message?.content) yield json.message.content;
+        } catch {
+          // Can't parse remaining buffer, discard
+        }
+      }
+    } finally {
+      clearTimeout(timeout);
     }
   } else {
     // OpenAI SDK streaming
