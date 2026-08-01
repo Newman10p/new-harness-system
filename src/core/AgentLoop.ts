@@ -28,7 +28,7 @@ import { ResponseParser } from "./ResponseParser.js";
 import { PolicyEngine } from "../security/PolicyEngine.js";
 import { ActionRegistry } from "../actions/index.js";
 import { MAX_LOOP_ITERATIONS } from "./constants.js";
-import { loadProviders, createClients, callWithFallback, type LLMInstance } from "./MultiProvider.js";
+import { loadProviders, createClients, callWithFallback, streamWithProvider, type LLMInstance } from "./MultiProvider.js";
 
 // Lazy-load intelligence engines (files may not exist yet)
 const _require = createRequire(import.meta.url);
@@ -424,23 +424,18 @@ export class AgentLoop {
     const client = this.clients[0];
     if (!client) throw new Error("No LLM provider configured");
 
-    const stream = await client.client.chat.completions.create({
-      model: client.model,
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      temperature: 0.7,
-      max_tokens: 4096,
-      stream: true,
-    });
-
+    // Use streamWithProvider which handles both OpenAI SDK and Ollama native
     let fullText = "";
     let buffer = "";
 
-    for await (const chunk of stream as AsyncIterable<{ choices?: Array<{ delta?: { content?: string } }> }>) {
-      const token = chunk.choices?.[0]?.delta?.content;
-      if (token) {
+    try {
+      const tokenStream = streamWithProvider(
+        client,
+        messages.map((m) => ({ role: m.role, content: m.content })),
+        { temperature: 0.7, max_tokens: 4096 }
+      );
+
+      for await (const token of tokenStream) {
         buffer += token;
         fullText += token;
 
@@ -450,11 +445,20 @@ export class AgentLoop {
           buffer = "";
         }
       }
-    }
 
-    // Flush remaining buffer
-    if (buffer) {
-      this.callbacks.onToken?.(buffer);
+      // Flush remaining buffer
+      if (buffer) {
+        this.callbacks.onToken?.(buffer);
+      }
+    } catch (err) {
+      const duration = Date.now() - start;
+      this.audit({
+        type: "llm_error",
+        detail: `Provider ${client.name}: ${err instanceof Error ? err.message : String(err)}`,
+        durationMs: duration,
+        ok: false,
+      });
+      throw err;
     }
 
     const duration = Date.now() - start;
