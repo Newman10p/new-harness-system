@@ -147,7 +147,8 @@ export type HudChannel =
   | "notification_incoming"
   | "ambient_listening"
   | "tunnel_status"
-  | "analytics_snapshot";
+  | "analytics_snapshot"
+  | "approval_request";
 
 export interface HudPayloads {
   jarvis_speech: { text: string };
@@ -170,6 +171,7 @@ export interface HudPayloads {
   ambient_listening: { active: boolean; wakeWord: string; audioLevel: number };
   tunnel_status: { active: boolean; method: string; publicUrl: string | null };
   analytics_snapshot: { totalInteractions: number; messagesSent: number; actionsExecuted: number; errorRate: number; uptimeSeconds: number };
+  approval_request: { action: string; detail?: string };
 }
 
 export type HudMessage<C extends HudChannel> = {

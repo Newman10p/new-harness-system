@@ -332,6 +332,11 @@ export class AgentLoop {
               message: `Approval required for: ${action.action}`,
               level: "warn",
             });
+            // Direct approval request to HUD (shows approve/deny buttons)
+            this.hudEmitter("approval_request", {
+              action: action.action,
+              detail: `Action "${action.action}" requires your approval before execution`,
+            });
             const approved = await this.waitForApproval(action);
             if (!approved) {
               results.push(`[${action.action}] DENIED by user (approval rejected)`);

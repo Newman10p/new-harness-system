@@ -1252,7 +1252,25 @@
           if (message) {
             const typeMap = { info: "system", warn: "warning", error: "error" };
             addLog(message, typeMap[level] || "system");
+
+            // Detect approval requests in activity log messages
+            if (message.includes("Approval required") || message.includes("approval")) {
+              // Extract action name from message like "Approval required for: execute-terminal"
+              const match = message.match(/Approval required for:\s*(\S+)/);
+              if (match) {
+                showApproval(match[1]);
+              }
+            }
           }
+          break;
+        }
+
+        case "approval_request": {
+          // Direct approval request from backend
+          const actionName = msg.payload?.action || msg.payload?.name || "unknown-action";
+          const detail = msg.payload?.detail || "";
+          showApproval(actionName);
+          if (detail) addLog(`Approval detail: ${detail}`, "warning");
           break;
         }
 

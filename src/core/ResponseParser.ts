@@ -7,19 +7,20 @@
 
 import type { Action, ActionName, ParsedResponse, ActionResult } from "../types/index.js";
 
+// Import all valid action names from the type system (single source of truth)
 const VALID_ACTIONS: ActionName[] = [
-  "execute-terminal",
-  "read-file",
-  "write-file",
-  "append-file",
-  "list-directory",
-  "watch-directory",
-  "get-system-info",
-  "get-process-list",
-  "open-url",
-  "http-request",
-  "emit-hud-update",
-  "compact-memory",
+  "execute-terminal", "read-file", "write-file", "append-file",
+  "list-directory", "watch-directory", "get-system-info", "get-process-list",
+  "open-url", "http-request", "emit-hud-update", "compact-memory",
+  "run-skill", "schedule-task", "screenshot-capture", "clipboard-read",
+  "clipboard-write", "open-application", "search-files", "get-gpu-info",
+  "get-network-info", "manage-processes", "voice-call", "list-files-detailed",
+  "semantic-recall", "self-modify", "self-evaluate", "self-diagnose",
+  "self-repair", "adaptive-config", "remember", "recall", "forget",
+  "profile-update", "learn-pattern", "create-skill", "optimize-skill",
+  "rollback", "control-window", "input-inject", "system-setting",
+  "media-control", "screen-arrange", "notification-send", "dry-run",
+  "run-macro", "search-conversations",
 ];
 
 // Regex: match ```action ... ``` blocks (greedy content capture)
