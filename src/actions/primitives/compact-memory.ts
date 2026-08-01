@@ -5,12 +5,13 @@
 
 import fs from "node:fs/promises";
 import type { Action, ActionContext, ActionResult, OpenAI } from "../../types/index.js";
+import { resolvePath } from "./resolvePath.js";
 
 export async function compactMemory(
   action: Action,
   ctx: ActionContext
 ): Promise<ActionResult> {
-  const filePath = String(action.path ?? "");
+  const filePath = resolvePath(String(action.path ?? ""));
 
   if (!filePath) {
     return { ok: false, error: "Missing required field: path" };

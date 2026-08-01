@@ -421,10 +421,16 @@ async function main() {
     pendingVoiceCall = null;
   }
 
-  // 9b. Proactive engine — checks conditions every 30s (if available)
+  // 9b. Proactive engine — checks conditions every 60s (if available)
   if (_ProactiveEngine) {
     try {
       const proactiveEngine = new _ProactiveEngine();
+      proactiveEngine.setActionCallback(async (actionText: string) => {
+        console.log(`[Proactive] Triggering action: ${actionText.slice(0, 80)}`);
+        loop.processUserMessage(actionText).catch((err) => {
+          console.error(`[Proactive] Action failed: ${err instanceof Error ? err.message : err}`);
+        });
+      });
       setInterval(async () => {
         try {
           const cpu = await getCpuUsage();
@@ -435,8 +441,8 @@ async function main() {
             clients: typeof hudServer.getClientCount === "function" ? hudServer.getClientCount() : 0,
           });
         } catch { /* non-fatal */ }
-      }, 30_000);
-      console.log("[Proactive] Engine initialized (30s polling interval)");
+      }, 60_000);
+      console.log("[Proactive] Engine initialized (60s polling interval)");
     } catch { /* non-fatal */ }
   }
 

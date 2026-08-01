@@ -8,6 +8,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import matter from "gray-matter";
 import { createRequire } from "node:module";
 import {
@@ -103,7 +104,38 @@ export class ContextAssembler {
       }
     }
 
-    // 5. User profile (learned preferences from UserModel)
+    // 5. Runtime environment — platform, home dir, cwd, shell info
+    const homeDir = os.homedir();
+    const platform = os.platform();
+    const arch = os.arch();
+    const hostname = os.hostname();
+    const cwd = process.cwd();
+    const shell = process.env.SHELL || process.env.COMSPEC || "unknown";
+    const desktopDir = path.join(homeDir, platform === "win32" ? "Desktop" : "Desktop");
+    const downloadsDir = path.join(homeDir, platform === "win32" ? "Downloads" : "Downloads");
+    const documentsDir = path.join(homeDir, platform === "win32" ? "Documents" : "Documents");
+    const tmpDir = os.tmpdir();
+    const platformName = platform === "win32" ? "Windows" : platform === "darwin" ? "macOS" : "Linux";
+
+    sections.push(
+      `## Runtime Environment\n\n` +
+      `- **OS**: ${platformName} (${platform} ${arch})\n` +
+      `- **Hostname**: ${hostname}\n` +
+      `- **User Home**: ${homeDir}\n` +
+      `- **Working Directory**: ${cwd}\n` +
+      `- **Shell**: ${shell}\n` +
+      `- **Temp**: ${tmpDir}\n\n` +
+      `**Common Paths** (always use these absolute paths):\n` +
+      `- Desktop: \`${desktopDir}\`\n` +
+      `- Downloads: \`${downloadsDir}\`\n` +
+      `- Documents: \`${documentsDir}\`\n` +
+      `- Home: \`${homeDir}\`\n\n` +
+      `**Important**: When the user refers to "the desktop", "my desktop", "put it on the desktop", etc., use the path \`${desktopDir}\`. ` +
+      `Always use absolute paths starting with \`${homeDir}\` or \`${cwd}\` for file operations. ` +
+      `Do NOT create relative directories like "./desktop" — always use the real absolute path.`
+    );
+
+    // 6. User profile (learned preferences from UserModel)
     if (_UserModel) {
       try {
         const userProfile = new _UserModel();

@@ -58,7 +58,7 @@ export const CONVERSATION_INDEX_PATH = path.join(PROJECT_ROOT, "memory", "conver
 export const SANDBOX_CONFIG_PATH = path.join(PROJECT_ROOT, "state", "sandbox-config.json");
 
 // Safety limits
-export const MAX_LOOP_ITERATIONS = 20;
+export const MAX_LOOP_ITERATIONS = 8;
 export const ACTION_TIMEOUT_MS = 60_000;
 export const LLM_MAX_TOKENS = 4096;
 export const HTTP_TIMEOUT_MS = 30_000;

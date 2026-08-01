@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Action, ActionContext, ActionResult } from "../../types/index.js";
 import { INBOX_PATH } from "../../core/constants.js";
+import { resolvePath } from "./resolvePath.js";
 
 // Track active watchers so they can be stopped on shutdown
 const activeWatchers = new Map<
@@ -18,7 +19,7 @@ export async function watchDirectory(
   action: Action,
   ctx: ActionContext
 ): Promise<ActionResult> {
-  const dirPath = String(action.path ?? "");
+  const dirPath = resolvePath(String(action.path ?? ""));
 
   if (!dirPath) {
     return { ok: false, error: "Missing required field: path" };

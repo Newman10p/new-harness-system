@@ -5,6 +5,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Action, ActionContext, ActionResult, HudChannel } from "../../types/index.js";
+import { resolvePath } from "./resolvePath.js";
 
 interface DetailedFileEntry {
   name: string;
@@ -20,7 +21,7 @@ export async function listFilesDetailed(
   action: Action,
   ctx: ActionContext
 ): Promise<ActionResult> {
-  const dirPath = path.resolve(String(action.path ?? "."));
+  const dirPath = resolvePath(String(action.path ?? "."));
   const showHidden = action.show_hidden === true;
 
   try {

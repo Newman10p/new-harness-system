@@ -9,6 +9,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { Action, ActionContext, ActionResult, HudChannel } from "../../types/index.js";
+import { resolvePath } from "./resolvePath.js";
 
 const execAsync = promisify(exec);
 
@@ -16,7 +17,7 @@ export async function screenshotCapture(
   action: Action,
   ctx: ActionContext
 ): Promise<ActionResult> {
-  const userPath = action.path ? String(action.path) : "";
+  const userPath = action.path ? resolvePath(String(action.path)) : "";
   const display = action.display != null ? Number(action.display) : undefined;
   const startMs = Date.now();
 

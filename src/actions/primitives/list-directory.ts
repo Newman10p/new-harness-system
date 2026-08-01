@@ -3,12 +3,13 @@
 
 import fs from "node:fs/promises";
 import type { Action, ActionContext, ActionResult } from "../../types/index.js";
+import { resolvePath } from "./resolvePath.js";
 
 export async function listDirectory(
   action: Action,
   _ctx: ActionContext
 ): Promise<ActionResult> {
-  const dirPath = String(action.path ?? ".");
+  const dirPath = resolvePath(String(action.path ?? "."));
 
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });

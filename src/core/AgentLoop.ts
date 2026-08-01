@@ -154,6 +154,9 @@ export class AgentLoop {
       return;
     }
 
+    // Reset speech dedup on new user message
+    this.state.lastSpeechText = "";
+
     // Build context payload (inbox + memory)
     let contextPayload = "";
     try {

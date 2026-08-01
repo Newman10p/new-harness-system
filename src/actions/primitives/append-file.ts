@@ -5,12 +5,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Action, ActionContext, ActionResult } from "../../types/index.js";
+import { resolvePath } from "./resolvePath.js";
 
 export async function appendFile(
   action: Action,
   _ctx: ActionContext
 ): Promise<ActionResult> {
-  const filePath = String(action.path ?? "");
+  const filePath = resolvePath(String(action.path ?? ""));
   const content = String(action.content ?? "");
 
   if (!filePath) {
