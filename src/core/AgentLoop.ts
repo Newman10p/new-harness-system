@@ -141,6 +141,7 @@ export class AgentLoop {
       loopCount: 0,
       isRunning: false,
       pendingApproval: null,
+      lastSpeechText: "",
     };
   }
 
@@ -289,8 +290,16 @@ export class AgentLoop {
 
         // Stream conversational text to HUD and CLI
         if (parsed.text) {
-          this.callbacks.onText?.(parsed.text);
-          this.hudEmitter("jarvis_speech", { text: parsed.text });
+          // Deduplicate: skip if same text was spoken in previous iteration
+          const normalizedText = parsed.text.trim();
+          if (normalizedText !== this.state.lastSpeechText) {
+            this.state.lastSpeechText = normalizedText;
+            this.callbacks.onText?.(parsed.text);
+            this.hudEmitter("jarvis_speech", { text: parsed.text });
+          } else {
+            // Still push to message history for LLM context
+            this.callbacks.onText?.(parsed.text);
+          }
           this.state.messages.push({ role: "assistant", content: parsed.text });
         }
 
@@ -332,10 +341,14 @@ export class AgentLoop {
               message: `Approval required for: ${action.action}`,
               level: "warn",
             });
-            // Direct approval request to HUD (shows approve/deny buttons)
+            // Direct approval request to HUD — include action parameters for visibility
+            const params = Object.entries(action)
+              .filter(([k]) => k !== "action")
+              .map(([k, v]) => `${k}: ${typeof v === "string" ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)}`)
+              .join(" | ");
             this.hudEmitter("approval_request", {
               action: action.action,
-              detail: `Action "${action.action}" requires your approval before execution`,
+              detail: params ? `Parameters — ${params}` : `Action "${action.action}" requires your approval before execution`,
             });
             const approved = await this.waitForApproval(action);
             if (!approved) {

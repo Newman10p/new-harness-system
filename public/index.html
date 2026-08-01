@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>F.R.I.D.A.Y. — M.A.I. Interface v3.0</title>
+  <title>M.A.I. — Agentic Interface v3.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -487,6 +487,46 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
+       VOICE PERSONALITY SWITCHER
+    ═══════════════════════════════════════════════════════════════════════ */
+    .voice-switcher {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 10, 25, 0.6);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 20px;
+      padding: 3px 4px;
+    }
+    .voice-option {
+      padding: 3px 10px;
+      border-radius: 16px;
+      font-family: Orbitron, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+      color: var(--dim);
+    }
+    .voice-option:hover {
+      color: var(--primary);
+      border-color: rgba(0, 212, 255, 0.3);
+    }
+    .voice-option.active {
+      color: var(--primary);
+      background: rgba(0, 212, 255, 0.12);
+      border-color: rgba(0, 212, 255, 0.5);
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
+    }
+    .voice-option.active-jarvis {
+      color: #4da6ff;
+      background: rgba(77, 166, 255, 0.12);
+      border-color: rgba(77, 166, 255, 0.5);
+      box-shadow: 0 0 10px rgba(77, 166, 255, 0.2);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
        SECTION SEPARATOR
     ═══════════════════════════════════════════════════════════════════════ */
     .section-sep {
@@ -561,8 +601,13 @@
     <header class="glass rounded-lg flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-3">
         <div id="connDot" class="conn-dot disconnected"></div>
-        <span class="display text-xs font-bold tracking-[.25em] text-cyan-300 md:text-sm">M.A.I.//FRIDAY</span>
-        <span class="mono hidden text-xs text-cyan-600 md:inline">AGENTIC INTERFACE v3.0</span>
+        <span id="headerTitle" class="display text-xs font-bold tracking-[.25em] text-cyan-300 md:text-sm">M.A.I.//FRIDAY</span>
+        <span id="agentLabel" class="mono hidden text-xs text-cyan-600 md:inline">AGENTIC INTERFACE v3.0</span>
+        <!-- Voice Personality Switcher -->
+        <div class="voice-switcher ml-2">
+          <div id="voiceFriday" class="voice-option active" onclick="switchVoice('friday')">F.R.I.D.A.Y</div>
+          <div id="voiceJarvis" class="voice-option" onclick="switchVoice('jarvis')">J.A.R.V.I.S</div>
+        </div>
         <!-- Call Status -->
         <div id="callStatus" class="call-status ml-3">
           <div class="call-status-dot"></div>
@@ -653,6 +698,7 @@
             <span class="display text-xs tracking-widest text-amber-400">APPROVAL REQUIRED</span>
           </div>
           <span id="approvalAction" class="mono text-xs text-cyan-400"></span>
+          <span id="approvalDetail" class="mono text-xs text-cyan-600" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
           <div class="flex gap-2">
             <button id="approveBtn"
               class="holo-edge rounded border border-emerald-400/50 px-3 py-1 display text-xs tracking-wider text-emerald-400 transition hover:bg-emerald-400/15">
@@ -800,7 +846,7 @@
     ════════════════════════════════════════════════════════════════════ -->
     <footer class="glass rounded-lg px-4 py-3">
       <div class="flex items-center gap-3">
-        <span class="display text-sm tracking-widest text-cyan-400">FRIDAY<span class="text-cyan-600">&gt;</span></span>
+        <span id="footerLabel" class="display text-sm tracking-widest text-cyan-400">FRIDAY<span class="text-cyan-600">&gt;</span></span>
         <input id="commandInput" class="command-input flex-1"
           placeholder="Type a command or use the microphone..."
           autocomplete="off">
@@ -1079,19 +1125,96 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  VOICE — TTS
+    //  VOICE PERSONALITY SYSTEM
     // ═══════════════════════════════════════════════════════════════════════
+
+    const VOICE_PROFILES = {
+      friday: {
+        name: "F.R.I.D.A.Y",
+        headerTitle: "M.A.I.//FRIDAY",
+        footerLabel: "FRIDAY<span class=\"text-cyan-600\">&gt;</span>",
+        wakeBtn: "ENGAGE FRIDAY",
+        logPrefix: "FRIDAY",
+        voiceClass: "friday",
+        // British female voice selection
+        selectVoice: (voices) => {
+          const british = voices.filter(v => /^en-GB/i.test(v.lang));
+          return voices.find(v => /Google UK English Female/i.test(v.name)) ||
+            voices.find(v => /^Microsoft.*(Hazel|Libby|Sonia)/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
+            british.find(v => /female|serena|kate|susan|hazel|libby|sonia/i.test(v.name)) ||
+            british[0] ||
+            voices.find(v => /^en-US/i.test(v.lang)) ||
+            voices[0];
+        },
+        rate: 0.94,
+        pitch: 1.08,
+        greeting: "Good day. M.A.I. systems online and at your service. The new holographic interface is fully operational. How may I assist you?",
+        responseGreeting: "Yes, how may I help?",
+        greetHour: (h) => h < 12 ? "Good morning." : h < 18 ? "Good afternoon." : "Good evening.",
+      },
+      jarvis: {
+        name: "J.A.R.V.I.S",
+        headerTitle: "M.A.I.//JARVIS",
+        footerLabel: "JARVIS<span class=\"text-cyan-600\">&gt;</span>",
+        wakeBtn: "ENGAGE JARVIS",
+        logPrefix: "JARVIS",
+        voiceClass: "friday",
+        // British male voice selection
+        selectVoice: (voices) => {
+          const british = voices.filter(v => /^en-GB/i.test(v.lang));
+          return voices.find(v => /Google UK English Male/i.test(v.name)) ||
+            voices.find(v => /^Microsoft.*(Daniel|George)/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
+            british.find(v => /male|daniel|george|james|oliver/i.test(v.name)) ||
+            british[0] ||
+            voices.find(v => /^en-US/i.test(v.lang) && /male/i.test(v.name)) ||
+            voices.find(v => /^en-US/i.test(v.lang)) ||
+            voices[0];
+        },
+        rate: 0.88,
+        pitch: 0.82,
+        greeting: "All systems are online and fully operational. The holographic interface is at your disposal. How may I be of service, sir?",
+        responseGreeting: "At your service, sir.",
+        greetHour: (h) => h < 12 ? "Good morning, sir." : h < 18 ? "Good afternoon, sir." : "Good evening, sir.",
+      }
+    };
+
+    // Current voice personality
+    state.personality = localStorage.getItem("mai-personality") || "friday";
+
+    function getProfile() {
+      return VOICE_PROFILES[state.personality] || VOICE_PROFILES.friday;
+    }
+
+    function switchVoice(personality) {
+      state.personality = personality;
+      localStorage.setItem("mai-personality", personality);
+      const profile = getProfile();
+
+      // Update all UI labels
+      $("headerTitle").textContent = profile.headerTitle;
+      $("footerLabel").innerHTML = profile.footerLabel;
+      $("wakeBtn").textContent = profile.wakeBtn;
+
+      // Update switcher button states
+      $("voiceFriday").className = "voice-option" + (personality === "friday" ? " active" : "");
+      $("voiceJarvis").className = "voice-option" + (personality === "jarvis" ? " active-jarvis" : "");
+
+      // Reload voice
+      loadVoices();
+
+      // Notify backend of personality change
+      sendWS({ type: "voice_switch", personality });
+
+      // Announce switch
+      addLog(`Voice switched to ${profile.name}`, "system");
+      speak(profile.greetHour(new Date().getHours()) + ` ${profile.name} interface active.`);
+    }
+
     function loadVoices() {
       if (!("speechSynthesis" in window)) return;
       const voices = speechSynthesis.getVoices();
-      const british = voices.filter(v => /^en-GB/i.test(v.lang));
-      state.voice =
-        voices.find(v => /Google UK English Female/i.test(v.name)) ||
-        voices.find(v => /^Microsoft.*(Hazel|Libby|Sonia)/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
-        british.find(v => /female|serena|kate|susan|hazel|libby|sonia/i.test(v.name)) ||
-        british[0] ||
-        voices.find(v => /^en-US/i.test(v.lang)) ||
-        voices[0];
+      const profile = getProfile();
+      state.voice = profile.selectVoice(voices);
     }
 
     if ("speechSynthesis" in window) {
@@ -1101,7 +1224,8 @@
 
     function speak(text, callback) {
       $("response").textContent = text;
-      addLog(`FRIDAY: ${text.slice(0, 120)}`, "friday");
+      const profile = getProfile();
+      addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
 
       if (!("speechSynthesis" in window)) {
         if (callback) callback();
@@ -1117,8 +1241,8 @@
       const utterance = new SpeechSynthesisUtterance(text);
       if (state.voice) utterance.voice = state.voice;
       utterance.lang = "en-GB";
-      utterance.rate = 0.94;
-      utterance.pitch = 1.08;
+      utterance.rate = profile.rate;
+      utterance.pitch = profile.pitch;
       utterance.volume = 1;
 
       const finished = () => {
@@ -1269,8 +1393,26 @@
           // Direct approval request from backend
           const actionName = msg.payload?.action || msg.payload?.name || "unknown-action";
           const detail = msg.payload?.detail || "";
-          showApproval(actionName);
+          showApproval(actionName, detail);
           if (detail) addLog(`Approval detail: ${detail}`, "warning");
+          break;
+        }
+
+        case "voice_switch": {
+          // Sync personality from another client or backend
+          const personality = msg.payload?.personality;
+          if (personality && personality !== state.personality) {
+            state.personality = personality;
+            localStorage.setItem("mai-personality", personality);
+            const profile = getProfile();
+            $("headerTitle").textContent = profile.headerTitle;
+            $("footerLabel").innerHTML = profile.footerLabel;
+            $("wakeBtn").textContent = profile.wakeBtn;
+            $("voiceFriday").className = "voice-option" + (personality === "friday" ? " active" : "");
+            $("voiceJarvis").className = "voice-option" + (personality === "jarvis" ? " active-jarvis" : "");
+            loadVoices();
+            addLog(`Voice synced to ${profile.name}`, "system");
+          }
           break;
         }
 
@@ -1429,8 +1571,9 @@
       updateGlobeForStatus("active");
     }
 
-    function showApproval(actionName) {
+    function showApproval(actionName, detail) {
       $("approvalAction").textContent = actionName;
+      $("approvalDetail").textContent = detail || "";
       $("approvalBanner").classList.add("visible");
       addLog(`Approval requested: ${actionName}`, "policy");
     }
@@ -1849,7 +1992,7 @@
 
     $("wakeBtn").addEventListener("click", () => {
       if (!state.listening) toggleListening();
-      else speak("Yes, how may I help?");
+      else speak(getProfile().responseGreeting);
     });
 
     $("submitBtn").addEventListener("click", () => {
@@ -1874,7 +2017,7 @@
     updateClock();
     setInterval(updateClock, 1000);
 
-    addLog("Friday interface v3.0 initialising...");
+    addLog("Interface v3.0 initialising...");
     addLog("Three.js globe engine loaded");
     addLog("Particle systems online");
     addLog("WebSocket target: " + state.wsUrl);
@@ -1886,13 +2029,23 @@
     renderBreadcrumbs();
     renderFileList();
 
+    // Apply saved personality on startup
+    const savedProfile = getProfile();
+    $("headerTitle").textContent = savedProfile.headerTitle;
+    $("footerLabel").innerHTML = savedProfile.footerLabel;
+    $("wakeBtn").textContent = savedProfile.wakeBtn;
+    $("voiceFriday").className = "voice-option" + (state.personality === "friday" ? " active" : "");
+    $("voiceJarvis").className = "voice-option" + (state.personality === "jarvis" ? " active-jarvis" : "");
+
     // Connect to M.A.I. backend
     connectWS();
 
-    // Greeting after connection
+    // Greeting after connection — use time-aware greeting
+    state.greetingSpoken = false;
     setTimeout(() => {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        speak("Good day. M.A.I. systems online and at your service. The new holographic interface is fully operational. How may I assist you?");
+      if (state.ws && state.ws.readyState === WebSocket.OPEN && !state.greetingSpoken) {
+        state.greetingSpoken = true;
+        speak(savedProfile.greeting);
       }
     }, 1500);
 

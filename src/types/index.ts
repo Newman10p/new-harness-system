@@ -89,6 +89,7 @@ export interface AgentState {
   loopCount: number;
   isRunning: boolean;
   pendingApproval: PendingApproval | null;
+  lastSpeechText?: string;
 }
 
 export interface PendingApproval {
@@ -148,7 +149,8 @@ export type HudChannel =
   | "ambient_listening"
   | "tunnel_status"
   | "analytics_snapshot"
-  | "approval_request";
+  | "approval_request"
+  | "voice_switch";
 
 export interface HudPayloads {
   jarvis_speech: { text: string };
@@ -172,6 +174,7 @@ export interface HudPayloads {
   tunnel_status: { active: boolean; method: string; publicUrl: string | null };
   analytics_snapshot: { totalInteractions: number; messagesSent: number; actionsExecuted: number; errorRate: number; uptimeSeconds: number };
   approval_request: { action: string; detail?: string };
+  voice_switch: { personality: string };
 }
 
 export type HudMessage<C extends HudChannel> = {

@@ -77,7 +77,12 @@ interface InboundConversationSearch {
   limit?: number;
 }
 
-type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch;
+interface InboundVoiceSwitch {
+  type: "voice_switch";
+  personality: "friday" | "jarvis";
+}
+
+type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch;
 
 export class HudServer {
   private wss: WebSocketServer;
@@ -85,7 +90,7 @@ export class HudServer {
   private agentLoop: AgentLoop | null = null;
 
   constructor(
-    httpServer: Server | undefined,
+    httpServer: unknown,
     private port: number = 8080
   ) {
     // Always create a standalone WebSocket server on its own port.
@@ -291,6 +296,14 @@ export class HudServer {
         const cs = msg as InboundConversationSearch;
         console.log(`[HUD] conversation_search: ${cs.query}`);
         this.agentLoop?.processUserMessage(`Search my conversation history for: ${cs.query}`);
+        break;
+      }
+
+      case "voice_switch": {
+        const vs = msg as InboundVoiceSwitch;
+        console.log(`[HUD] voice_switch: ${vs.personality}`);
+        // Broadcast to all connected clients so they sync
+        this.broadcast("voice_switch", { personality: vs.personality });
         break;
       }
 
