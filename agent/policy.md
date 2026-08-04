@@ -16,9 +16,14 @@ allow_network:
   - "api.github.com"
   - "ollama.ai"
   - "api.openai.com"
+  - "opencode.ai"
   - "localhost"
   - "127.0.0.1"
   - "integrate.api.nvidia.com"
+  - "lite.duckduckgo.com"
+  - "duckduckgo.com"
+  - "api.tavily.com"
+  - "html.duckduckgo.com"
 require_approval:
   - "execute-terminal"
   - "write-file"
@@ -89,6 +94,8 @@ require_approval:
 | create-skill | Auto | Creates new skill file |
 | optimize-skill | Auto | Modifies existing skill |
 | rollback | Approval | Can revert system state |
+| web-search | Auto | Read-only web search |
+| web-scrape | Auto | Read-only web page fetch |
 
 ## Self-Modification Safety
 

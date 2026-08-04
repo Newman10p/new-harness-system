@@ -1,7 +1,7 @@
 ---
 name: M.A.I. Tools Catalog
 version: 4.0.0
-total_actions: 47
+total_actions: 49
 ---
 
 # M.A.I. Tools Catalog
@@ -384,3 +384,29 @@ Search through indexed conversation history.
 - `intent` (optional): Filter by intent type
 - `from` (optional): Start date for date range filter
 - `to` (optional): End date for date range filter
+
+## Web Search & Browsing Actions (v5.0)
+
+### web-search
+Search the web using a multi-backend search engine. Returns ranked results with titles, URLs, and snippets. Use this to look up current information, news, documentation, or any real-time data from the internet.
+```json
+{"action": "web-search", "query": "latest Node.js LTS release version"}
+```
+- `query` (required): Search query — what you want to find on the internet
+- `max_results` (optional): Max results to return (default: 8, max: 20)
+
+**When to use**: Any time you need information from the internet — current events, documentation, APIs, news, weather, prices, tutorials, troubleshooting, etc. Always prefer `web-search` over guessing or using outdated training knowledge. After getting search results, use `web-scrape` to read the full content of the most relevant URLs.
+
+### web-scrape
+Fetch a web page and extract its readable text content. Strips HTML, scripts, styles, and navigation noise. Returns clean text you can read and summarize.
+```json
+{"action": "web-scrape", "url": "https://nodejs.org/en/blog/release"}
+```
+- `url` (required): The web page URL to fetch and read
+- `max_chars` (optional): Maximum characters to return (default: 15000, max: 50000)
+
+**When to use**: After `web-search` finds relevant URLs, use `web-scrape` to read the actual page content. Also useful for fetching specific documentation pages, articles, or any web content directly.
+
+**Workflow**: `web-search` to find relevant URLs → `web-scrape` the best ones → read and summarize for the user.
+
+**Note**: Only works with HTML pages. For JSON APIs, use `http-request` instead.

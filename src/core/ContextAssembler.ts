@@ -117,6 +117,16 @@ export class ContextAssembler {
     const tmpDir = os.tmpdir();
     const platformName = platform === "win32" ? "Windows" : platform === "darwin" ? "macOS" : "Linux";
 
+    // Web search engine configuration
+    const searchEngine = process.env.SEARCH_ENGINE || "duckduckgo";
+    const hasTavily = !!process.env.TAVILY_API_KEY;
+    const hasSearXNG = !!process.env.SEARXNG_URL;
+    const searchCapabilities: string[] = [searchEngine];
+    if (hasTavily && searchEngine !== "tavily") searchCapabilities.push("tavily");
+    if (hasSearXNG && searchEngine !== "searxng") searchCapabilities.push("searxng");
+    // DuckDuckGo is always available as fallback
+    if (searchEngine !== "duckduckgo") searchCapabilities.push("duckduckgo (fallback)");
+
     sections.push(
       `## Runtime Environment\n\n` +
       `- **OS**: ${platformName} (${platform} ${arch})\n` +
@@ -130,6 +140,10 @@ export class ContextAssembler {
       `- Downloads: \`${downloadsDir}\`\n` +
       `- Documents: \`${documentsDir}\`\n` +
       `- Home: \`${homeDir}\`\n\n` +
+      `**Web Search**: Available via \`${searchCapabilities.join(" + ")}\` engine(s).\n` +
+      `Use \`web-search\` to look up current information, and \`web-scrape\` to read web page content.\n` +
+      `You have full internet access — use it whenever the user asks about current events, recent data,\n` +
+      `documentation, news, weather, or anything that may have changed after your training cutoff.\n\n` +
       `**Important**: When the user refers to "the desktop", "my desktop", "put it on the desktop", etc., use the path \`${desktopDir}\`. ` +
       `Always use absolute paths starting with \`${homeDir}\` or \`${cwd}\` for file operations. ` +
       `Do NOT create relative directories like "./desktop" — always use the real absolute path.`

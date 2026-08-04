@@ -45,6 +45,8 @@ import { manageProcesses } from "./primitives/manage-processes.js";
 import { voiceCall } from "./primitives/voice-call.js";
 import { listFilesDetailed } from "./primitives/list-files-detailed.js";
 import { semanticRecall } from "./primitives/semantic-recall.js";
+import { webSearch } from "./primitives/web-search.js";
+import { webScrape } from "./primitives/web-scrape.js";
 
 // Intelligence primitives — loaded conditionally (files may not exist yet)
 type LazyPrimitive = { name: ActionName; exec: PrimitiveExecutor } | null;
@@ -87,6 +89,12 @@ const deviceControlPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("notification-send", "notification-send.js"),
 ];
 
+// Web search & scrape primitives
+const webPrimitives: LazyPrimitive[] = [
+  tryLoadPrimitive("web-search", "web-search.js"),
+  tryLoadPrimitive("web-scrape", "web-scrape.js"),
+];
+
 // Advanced primitives — lazy loaded
 const advancedPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("dry-run", "dry-run.js"),
@@ -101,7 +109,7 @@ export class ActionRegistry {
   private handlers = new Map<ActionName, PrimitiveExecutor>();
 
   constructor() {
-    // Pre-register all primitives (25 core + 13 intelligence + 6 device control + 3 advanced = 47)
+    // Pre-register all primitives (25 core + 13 intelligence + 6 device control + 3 advanced + 2 web = 49)
     this.register("execute-terminal", executeTerminal);
     this.register("read-file", readFile);
     this.register("write-file", writeFile);
@@ -127,6 +135,8 @@ export class ActionRegistry {
     this.register("voice-call", voiceCall);
     this.register("list-files-detailed", listFilesDetailed);
     this.register("semantic-recall", semanticRecall);
+    this.register("web-search", webSearch);
+    this.register("web-scrape", webScrape);
 
     // Register intelligence primitives (gracefully skip if not yet created)
     for (const prim of intelligencePrimitives) {
@@ -144,6 +154,13 @@ export class ActionRegistry {
 
     // Register advanced primitives (gracefully skip if not yet created)
     for (const prim of advancedPrimitives) {
+      if (prim) {
+        this.register(prim.name, prim.exec);
+      }
+    }
+
+    // Register web primitives (gracefully skip if not yet created)
+    for (const prim of webPrimitives) {
       if (prim) {
         this.register(prim.name, prim.exec);
       }

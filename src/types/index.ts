@@ -54,7 +54,9 @@ export type ActionName =
   | "notification-send"
   | "dry-run"
   | "run-macro"
-  | "search-conversations";
+  | "search-conversations"
+  | "web-search"
+  | "web-scrape";
 
 export interface Action {
   action: ActionName;
@@ -157,6 +159,14 @@ export type HudChannel =
   | "piper_audio"
   | "tts_engine_status"
   | "tts_engine_switch";
+
+// ─── Search Engine ──────────────────────────────────────────────────────
+export interface SearchEngineConfig {
+  engine: "duckduckgo" | "tavily" | "searxng";
+  tavilyApiKey?: string;
+  searxngUrl?: string;
+  maxResults: number;
+}
 
 export interface HudPayloads {
   jarvis_speech: { text: string };
