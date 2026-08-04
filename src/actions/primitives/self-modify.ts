@@ -2,6 +2,7 @@
 // Allows M.A.I. to modify its own brain files (identity, context, inbox,
 // memory, skills, catalog). Enforces a strict whitelist, creates backups
 // before every modification, and logs every change to the audit trail.
+// Now includes diff generation for pre-approval review.
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -31,6 +32,15 @@ const FORBIDDEN_PATHS = [
 
 const VALID_OPERATIONS = ["append", "replace", "insert_before", "insert_after", "remove_section"] as const;
 type ValidOperation = (typeof VALID_OPERATIONS)[number];
+
+// Operations that modify existing file content (require diff)
+const MODIFYING_OPERATIONS = new Set<ValidOperation>([
+  "append",
+  "replace",
+  "insert_before",
+  "insert_after",
+  "remove_section",
+]);
 
 function isAllowed(target: string): boolean {
   const normalized = target.replace(/\\/g, "/");
@@ -95,6 +105,146 @@ function findSectionEnd(content: string, startLine: number): number {
   return lines.length;
 }
 
+// ── Unified diff generation ─────────────────────────────────────────────────
+
+function generateDiff(original: string, modified: string, filename: string): string {
+  const oldLines = original.split("\n");
+  const newLines = modified.split("\n");
+  const header = [
+    `--- a/${filename}`,
+    `+++ b/${filename}`,
+  ];
+
+  // Simple LCS-based diff for unified output
+  const diffLines = computeUnifiedDiff(oldLines, newLines);
+  return header.join("\n") + "\n" + diffLines.join("\n");
+}
+
+function computeUnifiedDiff(oldLines: string[], newLines: string[]): string[] {
+  // Build a simple Myers-like diff using LCS on lines
+  const n = oldLines.length;
+  const m = newLines.length;
+
+  // LCS table
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to get the diff
+  const result: string[] = [];
+  let i = n;
+  let j = m;
+  const operations: Array<{ type: "keep" | "remove" | "add"; oldIdx?: number; newIdx?: number; line: string }> = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      operations.push({ type: "keep", oldIdx: i - 1, newIdx: j - 1, line: oldLines[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      operations.push({ type: "add", newIdx: j - 1, line: newLines[j - 1] });
+      j--;
+    } else {
+      operations.push({ type: "remove", oldIdx: i - 1, line: oldLines[i - 1] });
+      i--;
+    }
+  }
+
+  operations.reverse();
+
+  // Generate unified diff hunks
+  let contextStart = 0;
+  let inHunk = false;
+  let hunkOldStart = 0;
+  let hunkOldCount = 0;
+  let hunkNewStart = 0;
+  let hunkNewCount = 0;
+  let hunkLines: string[] = [];
+  const CONTEXT = 3;
+
+  function flushHunk(): void {
+    if (hunkLines.length > 0) {
+      result.push(`@@ -${hunkOldStart},${hunkOldCount} +${hunkNewStart},${hunkNewCount} @@`);
+      result.push(...hunkLines);
+      hunkLines = [];
+    }
+  }
+
+  for (let idx = 0; idx < operations.length; idx++) {
+    const op = operations[idx];
+    const isChange = op.type === "remove" || op.type === "add";
+
+    if (isChange && !inHunk) {
+      // Start a new hunk with trailing context
+      flushHunk();
+      inHunk = true;
+      const ctxBefore = Math.max(0, idx - CONTEXT);
+      hunkOldStart = (op.oldIdx ?? op.newIdx ?? 0) - (idx - ctxBefore) + 1;
+      hunkNewStart = (op.newIdx ?? op.oldIdx ?? 0) - (idx - ctxBefore) + 1;
+      hunkOldCount = 0;
+      hunkNewCount = 0;
+      // Add context lines before the change
+      for (let c = ctxBefore; c < idx; c++) {
+        hunkLines.push(` ${operations[c].line}`);
+        hunkOldCount++;
+        hunkNewCount++;
+      }
+    }
+
+    if (inHunk) {
+      if (op.type === "keep") {
+        hunkLines.push(` ${op.line}`);
+        hunkOldCount++;
+        hunkNewCount++;
+      } else if (op.type === "remove") {
+        hunkLines.push(`-${op.line}`);
+        hunkOldCount++;
+      } else if (op.type === "add") {
+        hunkLines.push(`+${op.line}`);
+        hunkNewCount++;
+      }
+
+      // Check if we need to close the hunk (trailing context reached)
+      let changesAhead = false;
+      for (let k = idx + 1; k < Math.min(operations.length, idx + CONTEXT + 1); k++) {
+        if (operations[k].type !== "keep") {
+          changesAhead = true;
+          break;
+        }
+      }
+      if (!changesAhead) {
+        // Add trailing context
+        let ctxAdded = 0;
+        for (let k = idx + 1; k < operations.length && ctxAdded < CONTEXT; k++) {
+          if (operations[k].type === "keep") {
+            hunkLines.push(` ${operations[k].line}`);
+            hunkOldCount++;
+            hunkNewCount++;
+            ctxAdded++;
+            idx = k; // advance the outer loop
+          } else {
+            break;
+          }
+        }
+        flushHunk();
+        inHunk = false;
+      }
+    }
+  }
+
+  flushHunk();
+  return result;
+}
+
+// ── Main self-modify function ───────────────────────────────────────────────
+
 export async function selfModify(
   action: Action,
   ctx: ActionContext
@@ -125,8 +275,9 @@ export async function selfModify(
   try {
     // Create backup if file exists
     let backupPath: string | null = null;
+    let originalContent = "";
     try {
-      await fs.access(fullPath);
+      originalContent = await fs.readFile(fullPath, "utf-8");
       backupPath = await createBackup(fullPath);
     } catch {
       // File doesn't exist — no backup needed for new files
@@ -206,6 +357,21 @@ export async function selfModify(
         return { ok: false, error: `Unhandled operation: ${operation}` };
     }
 
+    // Generate diff for modifying operations on existing files
+    let diff: string | undefined;
+    if (MODIFYING_OPERATIONS.has(operation) && originalContent !== "") {
+      diff = generateDiff(originalContent, result, normalizedTarget);
+
+      // Emit bg_activity event with diff preview
+      ctx.emitHud("bg_activity", {
+        id: `self-modify-${Date.now()}`,
+        action: "self-modify-preview",
+        status: "completed",
+        detail: `Modified ${normalizedTarget} (${operation})`,
+        result: diff.length > 2000 ? diff.slice(0, 2000) + "\n... (truncated)" : diff,
+      });
+    }
+
     // Emit HUD event
     ctx.emitHud("activity_log", {
       message: `Self-modified ${normalizedTarget} (${operation})`,
@@ -219,15 +385,22 @@ export async function selfModify(
       ok: true,
     });
 
+    const responseData: Record<string, unknown> = {
+      target: normalizedTarget,
+      operation,
+      section_marker: sectionMarker || null,
+      backup: backupPath,
+      new_size: result.length,
+    };
+
+    // Include diff in response data if generated
+    if (diff !== undefined) {
+      responseData.diff = diff;
+    }
+
     return {
       ok: true,
-      data: {
-        target: normalizedTarget,
-        operation,
-        section_marker: sectionMarker || null,
-        backup: backupPath,
-        new_size: result.length,
-      },
+      data: responseData,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

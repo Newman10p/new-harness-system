@@ -56,7 +56,8 @@ export type ActionName =
   | "run-macro"
   | "search-conversations"
   | "web-search"
-  | "web-scrape";
+  | "web-scrape"
+  | "analyze-image";
 
 export interface Action {
   action: ActionName;

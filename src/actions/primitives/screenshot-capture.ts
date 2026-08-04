@@ -2,6 +2,9 @@
 // Captures a screenshot of the screen. Tries npx screenshot-desktop first,
 // falls back to platform-specific approaches. Saves to a given path or
 // state/screenshots/ with a timestamp filename.
+//
+// Optional `analyze: true` parameter sends the screenshot to a VLM for
+// automatic visual analysis, returning both the file path and description.
 
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
@@ -10,6 +13,7 @@ import path from "node:path";
 import os from "node:os";
 import type { Action, ActionContext, ActionResult, HudChannel } from "../../types/index.js";
 import { resolvePath } from "./resolvePath.js";
+import { VisionAnalyzer } from "../../core/VisionAnalyzer.js";
 
 const execAsync = promisify(exec);
 
@@ -19,6 +23,8 @@ export async function screenshotCapture(
 ): Promise<ActionResult> {
   const userPath = action.path ? resolvePath(String(action.path)) : "";
   const display = action.display != null ? Number(action.display) : undefined;
+  const shouldAnalyze = action.analyze === true;
+  const analysisPrompt = action.analysis_prompt ? String(action.analysis_prompt) : undefined;
   const startMs = Date.now();
 
   // Determine output path
@@ -120,13 +126,45 @@ export async function screenshotCapture(
       ok: true,
     });
 
+    const resultData: Record<string, unknown> = {
+      path: outputPath,
+      sizeBytes: stat.size,
+      sizeKB: Math.round((stat.size / 1024) * 100) / 100,
+    };
+
+    // Optional VLM analysis
+    if (shouldAnalyze) {
+      try {
+        const imageBuffer = await fs.readFile(outputPath);
+        const imageBase64 = imageBuffer.toString("base64");
+        const analyzer = new VisionAnalyzer();
+        const visionResult = await analyzer.analyze(imageBase64, analysisPrompt);
+
+        if (visionResult.ok && visionResult.description) {
+          resultData.analysis = visionResult.description;
+
+          ctx.emitHud("activity_log" as HudChannel, {
+            message: `Screenshot analyzed: ${outputPath}`,
+            level: "info",
+          } as never);
+        } else {
+          resultData.analysisError = visionResult.error ?? "Vision analysis returned no description.";
+          console.warn(
+            `[screenshot-capture] Vision analysis failed: ${visionResult.error}`
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        resultData.analysisError = `Vision analysis error: ${msg}`;
+        console.warn(
+          `[screenshot-capture] Vision analysis error: ${msg}`
+        );
+      }
+    }
+
     return {
       ok: true,
-      data: {
-        path: outputPath,
-        sizeBytes: stat.size,
-        sizeKB: Math.round((stat.size / 1024) * 100) / 100,
-      },
+      data: resultData,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

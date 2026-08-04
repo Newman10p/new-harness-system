@@ -1,7 +1,7 @@
 ---
 name: M.A.I. Tools Catalog
-version: 4.0.0
-total_actions: 49
+version: 5.0.0
+total_actions: 50
 ---
 
 # M.A.I. Tools Catalog
@@ -44,12 +44,14 @@ List files and directories at a path.
 ## Terminal
 
 ### execute-terminal
-Execute a shell command. Requires approval.
+Execute a shell command with sandboxing. Requires approval. Simple commands (no pipes/redirects) run via `spawn` with `shell: false`; commands requiring shell operators fall back to `exec` with a restricted environment and danger-pattern blocking.
 ```json
 {"action": "execute-terminal", "command": "ls -la", "timeout": 30000}
 ```
 - `command` (required): Shell command to run
 - `timeout` (optional): Timeout in ms (default: 30000)
+
+**Blocked patterns**: pipes to `sh -c`, `eval`, `exec`, `source`, dot-source, `${IFS}`, `$()`, backtick subshells, `base64 -d |`, `xxd -r |`, heredoc redirects to shell, process substitution, pipe to interpreters, curl/wget pipe to shell.
 
 ## Monitoring
 
@@ -113,9 +115,11 @@ Compress and summarize a markdown file using LLM.
 ## Extended Actions (v2.1)
 
 ### screenshot-capture
-Capture a screenshot of the current screen.
-**Parameters**: `path` (optional), `display` (optional)
-**Returns**: File path of saved screenshot
+Capture a screenshot of the current screen. Optionally analyze it with a VLM.
+**Parameters**: `path` (optional), `display` (optional), `analyze` (optional, boolean), `analysis_prompt` (optional)
+- `analyze`: If true, automatically sends the screenshot to a Vision Language Model for analysis
+- `analysis_prompt`: Custom prompt for the VLM (default: "Describe what you see in this screenshot...")
+**Returns**: File path, size, and optionally `analysis` (VLM description) or `analysisError`
 
 ### clipboard-read
 Read the current system clipboard content.
@@ -163,13 +167,15 @@ Search memory and context files for relevant information.
 
 ### self-modify
 Modify M.A.I.'s own configuration, identity, or policy files.
-Requires approval.
+Requires approval. For existing file modifications, a unified diff is generated and included in the response data.
 ```json
-{"action": "self-modify", "target": "identity.md", "changes": "Update core identity section"}
+{"action": "self-modify", "target": "identity.md", "operation": "append", "content": "New section text"}
 ```
 - `target` (required): File to modify (identity.md, policy.md, catalog.md, etc.)
-- `changes` (required): Description of changes to make
-- `backup` (optional): Whether to create backup first (default: true)
+- `operation` (required): One of: `append`, `replace`, `insert_before`, `insert_after`, `remove_section`
+- `content` (required for append/replace/insert_before/insert_after): Content to apply
+- `section_marker` (required for insert_before/insert_after/remove_section): Markdown heading to locate
+- **Returns**: `target`, `operation`, `section_marker`, `backup`, `new_size`, and `diff` (unified diff string for existing file modifications)
 
 ### self-evaluate
 Evaluate M.A.I.'s recent performance and generate a quality score.
@@ -274,14 +280,15 @@ Optimize an existing skill for better performance or reliability.
 - `strategy` (optional): Optimization strategy (default: "reduce_steps")
 
 ### rollback
-Revert the system or a specific component to a previous state.
-Requires approval.
+Revert a file to a previous state using timestamped backups. Requires approval.
 ```json
-{"action": "rollback", "target": "config", "version": "previous"}
+{"action": "rollback", "target": "memory/context.md", "backup_id": "auto"}
 ```
-- `target` (required): What to rollback — "config", "skill", "identity", "policy", "all"
-- `version` (optional): Version or checkpoint to rollback to (default: "previous")
-- `reason` (optional): Reason for the rollback
+- `target` (required): File path to restore (relative to project root)
+- `backup_id` (optional): Backup ID to restore, `"auto"` (most recent, default), `"list"` (list all backups with diffs), or `"compare:<id>"` (show diff between backup and current file without restoring)
+- `dry_run` (optional): If true, preview the restore without modifying files
+
+**Features**: Backup rotation (max 50 per target), `diff_from_current` in listings, `compare` mode for inspection without restore, pre-rollback backup creation.
 
 ## Device Manipulation Actions (v4.0)
 
@@ -410,3 +417,25 @@ Fetch a web page and extract its readable text content. Strips HTML, scripts, st
 **Workflow**: `web-search` to find relevant URLs → `web-scrape` the best ones → read and summarize for the user.
 
 **Note**: Only works with HTML pages. For JSON APIs, use `http-request` instead.
+
+## Vision Actions (v5.0)
+
+### analyze-image
+Analyze an image using a Vision Language Model (VLM). Accepts a file path or base64-encoded image string and returns a text description of the image contents.
+```json
+{"action": "analyze-image", "path": "/path/to/screenshot.png", "prompt": "What's on screen?"}
+```
+Or with base64:
+```json
+{"action": "analyze-image", "image_base64": "iVBORw0KGgo...", "prompt": "Describe this"}
+```
+- `path` (optional): File path to the image to analyze
+- `image_base64` (optional): Base64-encoded image string (data URL or raw base64)
+- `prompt` (optional): Custom analysis prompt (default: "Describe what you see in this screenshot. Be specific about UI elements, text, and any notable state.")
+
+**Requires**: Either `path` or `image_base64` must be provided.
+**Returns**: `description` — the VLM's text description of the image
+
+**When to use**: When you need to understand what's in a screenshot or image — reading UI content, identifying visual elements, checking screen state, describing images. Pairs well with `screenshot-capture` for a "see and understand" workflow.
+
+**Configuration**: Uses `VISION_MODEL` (default: `gpt-4o-mini`), `VISION_BASE_URL`, and `VISION_API_KEY` env vars. Falls back to `LLM_BASE_URL` / `LLM_API_KEY` if vision-specific vars are not set.

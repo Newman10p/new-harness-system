@@ -1,15 +1,36 @@
 [Unit]
-Description=Jarvis AI Harness with Wake Word Listener
+Description=M.A.I. — Multiple Array Intelligence (Agentic AI Harness)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=%i
 WorkingDirectory=/path/to/new-harness-system
-ExecStart=/usr/bin/npm start
+ExecStart=/usr/bin/env node dist/index.js
 Restart=on-failure
 RestartSec=10
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+# Auto-restart on OOM kill or signal
+KillSignal=SIGTERM
+KillMode=process
+FinalKillSignal=SIGKILL
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/path/to/new-harness-system
+ProtectHome=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mai-harness
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

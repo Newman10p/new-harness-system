@@ -6,6 +6,8 @@
 // Everything else is treated as conversational text and streamed to the HUD.
 
 import type { Action, ActionName, ParsedResponse, ActionResult } from "../types/index.js";
+import type { NativeToolCall } from "./MultiProvider.js";
+import { getToolSchemaNames } from "./ToolSchema.js";
 
 // Import all valid action names from the type system (single source of truth)
 const VALID_ACTIONS: ActionName[] = [
@@ -91,5 +93,72 @@ export class ResponseParser {
     } else {
       return `${label} Error: ${result.error || "Unknown error"}`;
     }
+  }
+
+  /**
+   * Parse native OpenAI tool_calls into structured Actions.
+   *
+   * Each tool_call has a `function.name` (matching the action name) and
+   * `function.arguments` (raw JSON string of the action parameters).
+   *
+   * - Parses the arguments JSON for each tool call
+   * - Validates the action name against VALID_ACTIONS and the tool schema set
+   * - Injects the `action` discriminator field so the result matches the
+   *   standard Action interface expected by the rest of the pipeline
+   * - Returns a ParsedResponse with the actions array (text is empty — any
+   *   accompanying text from the LLM is handled separately in the loop)
+   */
+  static parseToolCalls(toolCalls: NativeToolCall[]): ParsedResponse {
+    const actions: Action[] = [];
+    let malformedCount = 0;
+
+    const schemaNames = getToolSchemaNames();
+
+    for (const tc of toolCalls) {
+      // Validate that the tool name is a known action
+      if (!VALID_ACTIONS.includes(tc.name as ActionName)) {
+        console.warn(
+          `[ResponseParser] Native tool_call references unknown action: "${tc.name}". Skipping.`
+        );
+        malformedCount++;
+        continue;
+      }
+
+      // Also validate it's one of our tool-schematized actions
+      // (Non-schematized actions could come from the LLM hallucinating extra tools)
+      if (!schemaNames.has(tc.name)) {
+        console.warn(
+          `[ResponseParser] Native tool_call "${tc.name}" has no tool schema. Skipping (will be handled via regex if needed).`
+        );
+        malformedCount++;
+        continue;
+      }
+
+      // Parse the arguments JSON
+      let parsedArgs: Record<string, unknown>;
+      try {
+        parsedArgs = JSON.parse(tc.arguments) as Record<string, unknown>;
+      } catch (err) {
+        console.warn(
+          `[ResponseParser] Failed to parse arguments for tool_call "${tc.name}": ${err instanceof Error ? err.message : String(err)}`
+        );
+        malformedCount++;
+        continue;
+      }
+
+      // Build a standard Action by merging the `action` discriminator with params
+      const action: Action = {
+        action: tc.name as ActionName,
+        ...parsedArgs,
+      };
+
+      actions.push(action);
+    }
+
+    return {
+      text: "",
+      actions,
+      malformedCount,
+    };
   }
 }

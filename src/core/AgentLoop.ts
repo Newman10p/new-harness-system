@@ -28,7 +28,8 @@ import { ResponseParser } from "./ResponseParser.js";
 import { PolicyEngine } from "../security/PolicyEngine.js";
 import { ActionRegistry } from "../actions/index.js";
 import { MAX_LOOP_ITERATIONS } from "./constants.js";
-import { loadProviders, createClients, callWithFallback, streamWithProvider, type LLMInstance } from "./MultiProvider.js";
+import { loadProviders, createClients, callWithFallback, streamWithProvider, streamWithTools, supportsToolCalling, type LLMInstance, type StreamWithToolsResult } from "./MultiProvider.js";
+import { getToolSchemas } from "./ToolSchema.js";
 
 // Lazy-load intelligence engines (files may not exist yet)
 const _require = createRequire(import.meta.url);
@@ -100,6 +101,8 @@ export class AgentLoop {
   private userModel: { updateFromInteraction: (params: { userMessage: string; actions: string[]; loopIterations: number; success: boolean; errors: string[] }) => Promise<void>; save: () => Promise<void>; init: () => Promise<void> } | null = null;
   private messageQueue: string[] = [];
   private processingQueue = false;
+  /** When true, native tool-calling is used for providers that support it. */
+  private useNativeToolCalling: boolean;
 
   constructor(
     llmConfig: LLMConfig,
@@ -140,6 +143,10 @@ export class AgentLoop {
 
     // Enable fallback if there are multiple providers
     this.useFallback = this.clients.length > 1;
+
+    // Enable native tool calling by default (can be disabled via env var)
+    const envToolCalling = process.env.NATIVE_TOOL_CALLING;
+    this.useNativeToolCalling = envToolCalling !== "false";
 
     this.state = {
       messages: [],
@@ -300,6 +307,14 @@ export class AgentLoop {
     return this.state;
   }
 
+  /**
+   * Check whether native tool calling is enabled and the primary
+   * provider supports it. Useful for logging/debugging.
+   */
+  isNativeToolCallingActive(): boolean {
+    return this.useNativeToolCalling && this.clients.length > 0 && supportsToolCalling(this.clients[0]);
+  }
+
   getProviderInfo(): { count: number; names: string[] } {
     return {
       count: this.clients.length,
@@ -329,10 +344,17 @@ export class AgentLoop {
           this.state.messages.unshift({ role: "system", content: systemPrompt });
         }
 
-        // ─── Phase 2: INFER (with streaming + fallback) ──
+        // ─── Phase 2: INFER (with streaming + fallback + tool calling) ──
         let rawResponse: string;
+        let toolCallResult: StreamWithToolsResult | null = null;
         try {
-          rawResponse = await this.callLLMStreaming(this.state.messages);
+          if (this.useNativeToolCalling && this.isNativeToolCallingActive()) {
+            // Use native tool calling for the primary provider
+            toolCallResult = await this.callLLMWithTools(this.state.messages);
+            rawResponse = toolCallResult.text;
+          } else {
+            rawResponse = await this.callLLMStreaming(this.state.messages);
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           this.callbacks.onError?.(`LLM call failed: ${message}`);
@@ -346,7 +368,40 @@ export class AgentLoop {
         }
 
         // ─── Phase 3: PARSE ──
-        const parsed = ResponseParser.parseResponse(rawResponse);
+        // Priority: native tool_calls > regex markdown blocks
+        let parsed = ResponseParser.parseResponse(rawResponse);
+        let nativeToolActionsUsed = false;
+
+        if (toolCallResult && toolCallResult.toolCalls.length > 0) {
+          // Native tool calls found — parse them into Actions
+          const toolParsed = ResponseParser.parseToolCalls(toolCallResult.toolCalls);
+
+          if (toolParsed.actions.length > 0) {
+            // Merge: native tool actions take priority over regex-extracted ones
+            // If the LLM returned BOTH text with markdown blocks AND native tool_calls,
+            // use native tool_calls and keep the text portion for display.
+            parsed = {
+              text: parsed.text, // keep any conversational text
+              actions: toolParsed.actions,
+              malformedCount:
+                (parsed.malformedCount ?? 0) + (toolParsed.malformedCount ?? 0),
+            };
+            nativeToolActionsUsed = true;
+
+            this.audit({
+              type: "llm_call",
+              detail: `Native tool calling: ${toolParsed.actions.length} action(s) extracted via tool_calls (provider: ${toolCallResult.providerName})`,
+              ok: true,
+            });
+          } else if (parsed.actions.length === 0) {
+            // No native tool actions AND no regex actions — check for malformed tool calls
+            if (toolParsed.malformedCount && toolParsed.malformedCount > 0) {
+              this.callbacks.onError?.(
+                `Tool-call parse warning: ${toolParsed.malformedCount} malformed native tool_call(s) ignored`
+              );
+            }
+          }
+        }
 
         // Stream conversational text to HUD and CLI
         if (parsed.text) {
@@ -365,7 +420,7 @@ export class AgentLoop {
 
         if (parsed.malformedCount && parsed.malformedCount > 0) {
           this.callbacks.onError?.(
-            `Parse warning: ${parsed.malformedCount} malformed action block(s) ignored`
+            `Parse warning: ${parsed.malformedCount} malformed action block(s) ignored${nativeToolActionsUsed ? ' (native tool calling active)' : ''}`
           );
         }
 
@@ -480,6 +535,52 @@ export class AgentLoop {
           await this.userModel.save();
         } catch { /* non-fatal */ }
       }
+    }
+  }
+
+  /**
+   * Call LLM with native tool calling support.
+   * Uses the primary provider's streamWithTools which passes tool schemas
+   * via the OpenAI `tools` parameter. Falls back to regular streaming
+   * if the provider doesn't support tool calling.
+   */
+  private async callLLMWithTools(messages: ChatMessage[]): Promise<StreamWithToolsResult> {
+    const start = Date.now();
+    const client = this.clients[0];
+    if (!client) throw new Error("No LLM provider configured");
+
+    const toolSchemas = getToolSchemas();
+
+    try {
+      const result = await streamWithTools(
+        client,
+        messages.map((m) => ({ role: m.role, content: m.content })),
+        toolSchemas,
+        {
+          temperature: 0.7,
+          max_tokens: 4096,
+          onToken: (token) => this.callbacks.onToken?.(token),
+        }
+      );
+
+      const duration = Date.now() - start;
+      this.audit({
+        type: "llm_call",
+        detail: `Provider: ${client.name}, Model: ${client.model}, Tokens: ~${result.text.length}, ToolCalls: ${result.toolCalls.length}${result.toolCalls.length > 0 ? ' (native)' : ''}`,
+        durationMs: duration,
+        ok: true,
+      });
+
+      return result;
+    } catch (err) {
+      const duration = Date.now() - start;
+      this.audit({
+        type: "llm_error",
+        detail: `Provider ${client.name} (tool-calling): ${err instanceof Error ? err.message : String(err)}`,
+        durationMs: duration,
+        ok: false,
+      });
+      throw err;
     }
   }
 

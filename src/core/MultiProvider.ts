@@ -25,6 +25,7 @@
 
 import OpenAI from "openai";
 import type { ProviderEntry } from "../types/index.js";
+import type { OpenAIToolSchema } from "./ToolSchema.js";
 
 // ─── Provider types ────────────────────────────────────────────────────────
 // Ollama Cloud uses native /api/chat endpoint (not OpenAI-compatible).
@@ -529,4 +530,241 @@ export async function* streamWithProvider(
       if (token) yield token;
     }
   }
+}
+
+// ─── Native Tool-Calling Support ─────────────────────────────────────────────
+// Types for the combined text + tool_calls streaming result.
+
+export interface NativeToolCall {
+  id: string;
+  name: string;
+  arguments: string; // raw JSON string from the LLM
+}
+
+export interface StreamWithToolsResult {
+  text: string;
+  toolCalls: NativeToolCall[];
+  providerName: string;
+}
+
+/**
+ * Check whether a provider instance supports native tool/function calling.
+ * Ollama native and OpenCode Anthropic providers do NOT support it.
+ */
+export function supportsToolCalling(instance: LLMInstance): boolean {
+  return !instance.isOllamaNative && !instance.isOpenCodeAnthropic;
+}
+
+/**
+ * Stream an LLM response with native tool-calling support.
+ *
+ * For providers that support the OpenAI `tools` parameter, passes the
+ * tool schemas alongside messages. Returns both the text content AND any
+ * `tool_calls` the LLM emits.
+ *
+ * For providers that DON'T support tool calling (Ollama native, OpenCode
+ * Anthropic), falls back to the existing `streamWithProvider()` and returns
+ * only text (no tool calls — the regex parser will handle action extraction).
+ *
+ * The function collects the full response before returning because tool_calls
+ * arrive as streaming deltas that must be assembled. Text is still streamed
+ * to the `onToken` callback in real-time.
+ */
+export async function streamWithTools(
+  instance: LLMInstance,
+  messages: { role: string; content: string }[],
+  toolSchemas: OpenAIToolSchema[],
+  options: {
+    temperature?: number;
+    max_tokens?: number;
+    onToken?: (token: string) => void;
+  } = {}
+): Promise<StreamWithToolsResult> {
+  // ── Fallback path: providers without tool-calling support ──
+  if (!supportsToolCalling(instance)) {
+    let fullText = "";
+    const tokenStream = streamWithProvider(
+      instance,
+      messages,
+      { temperature: options.temperature, max_tokens: options.max_tokens }
+    );
+
+    for await (const token of tokenStream) {
+      fullText += token;
+      options.onToken?.(token);
+    }
+
+    return {
+      text: fullText,
+      toolCalls: [],
+      providerName: instance.name,
+    };
+  }
+
+  // ── OpenAI SDK path: providers with native tool-calling ──
+  const stream = await instance.client.chat.completions.create({
+    model: instance.model,
+    messages: messages as Parameters<typeof instance.client.chat.completions.create>[0]["messages"],
+    temperature: options.temperature ?? 0.7,
+    max_tokens: options.max_tokens ?? 4096,
+    stream: true,
+    tools: toolSchemas,
+  });
+
+  let fullText = "";
+  const toolCallMap = new Map<number, { id: string; name: string; arguments: string }>();
+  let tokenBuffer = "";
+
+  type ChunkDelta = {
+    content?: string | null;
+    tool_calls?: Array<{
+      index: number;
+      id?: string;
+      function?: {
+        name?: string;
+        arguments?: string;
+      };
+    }>;
+  };
+
+  for await (const chunk of stream as AsyncIterable<{
+    choices?: Array<{
+      delta?: ChunkDelta;
+      finish_reason?: string | null;
+    }>;
+  }>) {
+    const choice = chunk.choices?.[0];
+    if (!choice) continue;
+
+    const delta = choice.delta;
+
+    // ── Collect text content ──
+    if (delta?.content) {
+      fullText += delta.content;
+      tokenBuffer += delta.content;
+
+      // Stream tokens in ~50-char chunks for smoother display
+      if (tokenBuffer.length >= 50) {
+        options.onToken?.(tokenBuffer);
+        tokenBuffer = "";
+      }
+    }
+
+    // ── Collect tool_call deltas ──
+    if (delta?.tool_calls) {
+      for (const tc of delta.tool_calls) {
+        if (!toolCallMap.has(tc.index)) {
+          toolCallMap.set(tc.index, {
+            id: tc.id ?? "",
+            name: tc.function?.name ?? "",
+            arguments: "",
+          });
+        }
+
+        const entry = toolCallMap.get(tc.index)!;
+        if (tc.id) entry.id = tc.id;
+        if (tc.function?.name) entry.name = tc.function.name;
+        if (tc.function?.arguments) entry.arguments += tc.function.arguments;
+      }
+    }
+  }
+
+  // Flush remaining text buffer
+  if (tokenBuffer) {
+    options.onToken?.(tokenBuffer);
+  }
+
+  // Convert map to array, filtering out empty entries
+  const toolCalls: NativeToolCall[] = [];
+  for (const entry of toolCallMap.values()) {
+    if (entry.id && entry.name && entry.arguments) {
+      toolCalls.push(entry);
+    }
+  }
+
+  return {
+    text: fullText,
+    toolCalls,
+    providerName: instance.name,
+  };
+}
+
+/**
+ * Non-streaming variant of streamWithTools for use in fallback chains.
+ * Collects the full response (text + tool_calls) using the non-streaming
+ * OpenAI SDK endpoint. Falls back to callOllamaNative for native providers.
+ */
+export async function callWithTools(
+  instance: LLMInstance,
+  messages: { role: string; content: string }[],
+  toolSchemas: OpenAIToolSchema[],
+  options: { temperature?: number; max_tokens?: number } = {}
+): Promise<StreamWithToolsResult> {
+  // ── Fallback: providers without tool-calling ──
+  if (!supportsToolCalling(instance)) {
+    let content: string;
+    if (instance.isOllamaNative) {
+      content = await callOllamaNative(
+        instance.baseURL,
+        instance.apiKey,
+        instance.model,
+        messages,
+        options
+      );
+    } else if (instance.isOpenCodeAnthropic) {
+      content = await callOpenCodeAnthropic(
+        instance.baseURL,
+        instance.apiKey,
+        instance.model,
+        messages,
+        options
+      );
+    } else {
+      // Shouldn't reach here — all non-native providers support tools
+      const response = await instance.client.chat.completions.create({
+        model: instance.model,
+        messages: messages as Parameters<typeof instance.client.chat.completions.create>[0]["messages"],
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.max_tokens ?? 4096,
+      });
+      content = (response as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? "";
+    }
+
+    return { text: content, toolCalls: [], providerName: instance.name };
+  }
+
+  // ── OpenAI SDK: non-streaming with tools ──
+  const response = await instance.client.chat.completions.create({
+    model: instance.model,
+    messages: messages as Parameters<typeof instance.client.chat.completions.create>[0]["messages"],
+    temperature: options.temperature ?? 0.7,
+    max_tokens: options.max_tokens ?? 4096,
+    tools: toolSchemas,
+  });
+
+  const choice = (response as {
+    choices?: Array<{
+      message?: {
+        content?: string | null;
+        tool_calls?: Array<{
+          id: string;
+          function: { name: string; arguments: string };
+        }>;
+      };
+    }>;
+  }).choices?.[0];
+
+  const message = choice?.message;
+
+  const toolCalls: NativeToolCall[] = (message?.tool_calls ?? []).map((tc) => ({
+    id: tc.id,
+    name: tc.function.name,
+    arguments: tc.function.arguments,
+  }));
+
+  return {
+    text: message?.content ?? "",
+    toolCalls,
+    providerName: instance.name,
+  };
 }

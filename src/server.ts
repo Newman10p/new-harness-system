@@ -13,6 +13,7 @@ import os from "node:os";
 import { exec } from "node:child_process";
 
 import { AgentLoop } from "./core/AgentLoop.js";
+import { LlmBudget } from "./core/LlmBudget.js";
 import { PolicyEngine } from "./security/PolicyEngine.js";
 import { ActionRegistry, setTaskRunner } from "./actions/index.js";
 import { HudServer } from "./ui/HudServer.js";
@@ -80,6 +81,9 @@ async function main() {
   console.log("║   Markdown-First Agentic Harness              ║");
   console.log("╚══════════════════════════════════════════════╝");
   console.log();
+
+  // 0. Initialize LLM budget governor
+  const llmBudget = new LlmBudget();
 
   // 1. Initialize audit logger
   const audit = await initAuditLog();
@@ -176,6 +180,11 @@ async function main() {
   console.log(`[LLM] ${providerInfo.count} provider(s): ${providerInfo.names.join(", ")}`);
   console.log(`[LLM] Primary: ${llmConfig.provider} @ ${llmConfig.baseURL}`);
   console.log(`[LLM] Model: ${llmConfig.model}`);
+
+  // Log budget governor status
+  const budgetStatus = llmBudget.getStatus();
+  console.log(`[Budget] ${budgetStatus.totalCalls}/${budgetStatus.dailyLimit} daily calls used (${budgetStatus.percentUsed}%)`);
+  console.log(`[Budget] Hourly rate: ${budgetStatus.currentHourCalls}/${budgetStatus.hourlyLimit} this hour`);
   console.log(`[HTTP] File server: http://localhost:${HTTP_PORT}`);
   console.log(`[WS]  WebSocket: ws://localhost:${WS_PORT}`);
   console.log();
@@ -336,10 +345,21 @@ async function main() {
         } catch { /* skip */ }
       }
 
+      // Check LLM budget
+      const budgetStat = llmBudget.getStatus();
+      const budgetStatus2: "ok" | "degraded" | "failed" = budgetStat.percentUsed >= 100 ? "failed" : budgetStat.percentUsed >= 80 ? "degraded" : "ok";
+      subsystems.push({
+        name: "llm_budget",
+        status: budgetStatus2,
+        detail: `${budgetStat.totalCalls}/${budgetStat.dailyLimit} daily, ${budgetStat.currentHourCalls}/${budgetStat.hourlyLimit} hourly`,
+      });
+      if (budgetStatus2 === "degraded") degradedCount++;
+      if (budgetStatus2 === "failed") failedCount++;
+
       const overall: "healthy" | "degraded" | "critical" = failedCount > 0 ? "critical" : degradedCount > 0 ? "degraded" : "healthy";
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, overall, subsystems }));
+      res.end(JSON.stringify({ ok: true, overall, subsystems, budget: budgetStat }));
       return;
     }
 

@@ -7,6 +7,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Action, ActionContext, ActionResult } from "../../types/index.js";
+import { EmbeddingStore } from "../../memory/EmbeddingStore.js";
 
 const ROOT = process.cwd();
 const MEMORY_FILE = path.join(ROOT, "memory", "long-term.md");
@@ -128,6 +129,19 @@ export async function remember(
     }
 
     await fs.writeFile(MEMORY_FILE, formatMemoryFile(entries), "utf-8");
+
+    // Index the fact into the embedding store (fire-and-forget, non-blocking)
+    const store = new EmbeddingStore({ rootDir: ROOT });
+    store.add(
+      `[${category}] ${fact}`,
+      "memory",
+      {
+        tags: tags.length > 0 ? tags : undefined,
+        file: "memory/long-term.md",
+      }
+    ).catch(() => {
+      // Embedding failure is non-fatal — the fact is already stored in long-term.md
+    });
 
     ctx.emitHud("activity_log", {
       message: `Remembered: ${fact.slice(0, 80)}${fact.length > 80 ? "..." : ""} [${category}]`,

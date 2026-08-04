@@ -89,10 +89,11 @@ const deviceControlPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("notification-send", "notification-send.js"),
 ];
 
-// Web search & scrape primitives
+// Web search, scrape, and vision primitives
 const webPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("web-search", "web-search.js"),
   tryLoadPrimitive("web-scrape", "web-scrape.js"),
+  tryLoadPrimitive("analyze-image", "analyze-image.js"),
 ];
 
 // Advanced primitives — lazy loaded
@@ -109,7 +110,7 @@ export class ActionRegistry {
   private handlers = new Map<ActionName, PrimitiveExecutor>();
 
   constructor() {
-    // Pre-register all primitives (25 core + 13 intelligence + 6 device control + 3 advanced + 2 web = 49)
+    // Pre-register all primitives (25 core + 13 intelligence + 6 device control + 3 advanced + 3 web = 50)
     this.register("execute-terminal", executeTerminal);
     this.register("read-file", readFile);
     this.register("write-file", writeFile);
