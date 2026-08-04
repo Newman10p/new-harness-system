@@ -82,12 +82,24 @@ interface InboundVoiceSwitch {
   personality: "friday" | "jarvis";
 }
 
-type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch;
+interface InboundTtsSwitch {
+  type: "tts_switch";
+  engine: "browser" | "piper";
+}
+
+interface InboundPiperSpeak {
+  type: "piper_speak";
+  text: string;
+}
+
+type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak;
 
 export class HudServer {
   private wss: WebSocketServer;
   private clients: Set<WebSocket> = new Set();
   private agentLoop: AgentLoop | null = null;
+  private piperAdapter: import("../audio/PiperTtsAdapter.js").PiperTtsAdapter | null = null;
+  private piperReady = false;
 
   constructor(
     httpServer: unknown,
@@ -111,6 +123,41 @@ export class HudServer {
     this.wss.on("error", (err) => {
       console.error(`[HUD] WebSocket server error: ${err.message}`);
     });
+  }
+
+  /**
+   * Initialize Piper TTS adapter if available.
+   */
+  initPiper(config?: { model?: string; bin?: string; config?: string; dataDir?: string }): void {
+    try {
+      const { PiperTtsAdapter } = require("../audio/PiperTtsAdapter.js");
+      this.piperAdapter = new PiperTtsAdapter({
+        model: config?.model || process.env.PIPER_MODEL || "",
+        bin: config?.bin || process.env.PIPER_BIN,
+        config: config?.config || process.env.PIPER_CONFIG,
+        dataDir: config?.dataDir || process.env.PIPER_DATA,
+      });
+      this.piperReady = this.piperAdapter!.isReady();
+      if (this.piperReady) {
+        console.log("[HUD] Piper TTS initialized");
+        // Broadcast Piper availability to all clients
+        this.broadcast("tts_engine_status", {
+          engine: "piper",
+          ready: true,
+          info: this.piperAdapter!.getInfo(),
+        } as any);
+      } else {
+        console.warn("[HUD] Piper TTS configured but not ready (check model/binary)");
+        this.broadcast("tts_engine_status", {
+          engine: "piper",
+          ready: false,
+          error: "Model or binary not found",
+        } as any);
+      }
+    } catch (err) {
+      console.warn(`[HUD] Piper TTS not available: ${err instanceof Error ? err.message : err}`);
+      this.piperReady = false;
+    }
   }
 
   /**
@@ -307,9 +354,56 @@ export class HudServer {
         break;
       }
 
+      case "tts_switch": {
+        const ts = msg as InboundTtsSwitch;
+        console.log(`[HUD] tts_switch: ${ts.engine}`);
+        // Broadcast engine switch to all clients
+        this.broadcast("tts_engine_switch", {
+          engine: ts.engine,
+          piperReady: this.piperReady,
+        } as any);
+        break;
+      }
+
+      case "piper_speak": {
+        const ps = msg as InboundPiperSpeak;
+        if (!ps.text || !this.piperAdapter || !this.piperReady) {
+          // Piper not available — clients should fall back to browser TTS
+          break;
+        }
+        // Synthesize audio and send as base64 to requesting client
+        this.synthesizeAndBroadcastPiper(ps.text);
+        break;
+      }
+
       default: {
         console.warn(`[HUD] Unknown message type: ${(msg as { type: string }).type}`);
       }
+    }
+  }
+
+  /**
+   * Synthesize text with Piper and broadcast audio to all connected clients.
+   * Audio is sent as base64-encoded WAV via the piper_audio channel.
+   */
+  private async synthesizeAndBroadcastPiper(text: string): Promise<void> {
+    if (!this.piperAdapter || !this.piperReady) return;
+
+    try {
+      const base64Audio = await this.piperAdapter.synthesizeToBase64(text);
+      this.broadcast("piper_audio", {
+        audio: base64Audio,
+        format: "wav",
+        text: text.slice(0, 100), // preview text for logging
+      } as any);
+    } catch (err) {
+      console.error(`[HUD] Piper synthesis failed: ${err instanceof Error ? err.message : err}`);
+      // Notify clients to fall back to browser TTS
+      this.broadcast("tts_engine_status", {
+        engine: "piper",
+        ready: false,
+        error: `Synthesis failed: ${err instanceof Error ? err.message : "unknown"}`,
+      } as any);
     }
   }
 }

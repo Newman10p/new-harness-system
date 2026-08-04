@@ -419,6 +419,14 @@ export class AgentLoop {
 
           this.callbacks.onActionStart?.(action);
 
+          // Emit background activity start notification to HUD
+          this.hudEmitter("bg_activity", {
+            id: `action_${Date.now()}_${action.action}`,
+            action: action.action,
+            status: "started",
+            detail: `Executing ${action.action}${action.command ? ": " + String(action.command).slice(0, 80) : ""}`,
+          });
+
           const result = await this.registry.execute(action, {
             emitHud: this.hudEmitter,
             appendInbox: this.inboxAppender,
@@ -429,6 +437,15 @@ export class AgentLoop {
           });
 
           this.callbacks.onActionResult?.(action, result);
+
+          // Emit background activity completion notification to HUD
+          this.hudEmitter("bg_activity", {
+            id: `action_${Date.now()}_${action.action}`,
+            action: action.action,
+            status: result.ok ? "completed" : "failed",
+            detail: result.ok ? `${action.action} completed` : `${action.action} failed: ${result.error || "unknown error"}`,
+            result: result.ok ? "ok" : result.error,
+          });
           results.push(ResponseParser.formatActionResult(action, result));
         }
 

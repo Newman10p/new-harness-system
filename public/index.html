@@ -574,11 +574,253 @@
     /* ═══════════════════════════════════════════════════════════════════════
        RESPONSIVE
     ═══════════════════════════════════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════════════════════
+       RICH TEXT / MARKDOWN RENDERED OUTPUT
+    ═══════════════════════════════════════════════════════════ */
+    .rich-output {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,212,255,.35) transparent;
+    }
+    .rich-output::-webkit-scrollbar { width: 4px; }
+    .rich-output::-webkit-scrollbar-track { background: transparent; }
+    .rich-output::-webkit-scrollbar-thumb { background: rgba(0,212,255,.35); border-radius: 2px; }
+
+    .chat-bubble {
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      animation: fadeSlideIn .3s ease-out;
+      line-height: 1.6;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .chat-bubble.ai {
+      background: rgba(0, 212, 255, 0.06);
+      border-left: 3px solid rgba(0, 212, 255, 0.35);
+    }
+    .chat-bubble.user {
+      background: rgba(255, 170, 0, 0.06);
+      border-left: 3px solid rgba(255, 170, 0, 0.35);
+    }
+    .chat-bubble.system {
+      background: rgba(255, 51, 102, 0.06);
+      border-left: 3px solid rgba(255, 51, 102, 0.25);
+      font-size: 11px;
+    }
+    .chat-bubble-label {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      margin-bottom: 4px;
+      font-family: Orbitron, sans-serif;
+    }
+    .chat-bubble.ai .chat-bubble-label { color: var(--primary); }
+    .chat-bubble.user .chat-bubble-label { color: var(--warning); }
+    .chat-bubble.system .chat-bubble-label { color: var(--danger); }
+
+    /* Markdown rendered elements inside chat */
+    .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
+      font-family: Orbitron, sans-serif;
+      color: var(--primary);
+      margin: 12px 0 6px 0;
+      font-weight: 700;
+    }
+    .md h1 { font-size: 16px; }
+    .md h2 { font-size: 14px; }
+    .md h3 { font-size: 13px; }
+    .md h4, .md h5, .md h6 { font-size: 12px; }
+    .md p { margin: 4px 0; }
+    .md strong { color: var(--secondary); font-weight: 700; }
+    .md em { color: #a0d2ff; font-style: italic; }
+    .md del { color: var(--dim); text-decoration: line-through; }
+    .md code {
+      font-family: "JetBrains Mono", monospace;
+      background: rgba(0, 212, 255, 0.1);
+      border: 1px solid rgba(0, 212, 255, 0.15);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 11px;
+      color: #00ffcc;
+    }
+    .md pre {
+      background: rgba(0, 5, 15, 0.7);
+      border: 1px solid rgba(0, 212, 255, 0.12);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 8px 0;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,212,255,.3) transparent;
+    }
+    .md pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 11px;
+      color: #c8f0ff;
+      line-height: 1.5;
+    }
+    .md ul, .md ol {
+      padding-left: 18px;
+      margin: 6px 0;
+    }
+    .md li { margin: 2px 0; }
+    .md li::marker { color: var(--primary); }
+    .md blockquote {
+      border-left: 3px solid rgba(0, 212, 255, 0.3);
+      padding-left: 10px;
+      margin: 6px 0;
+      color: var(--dim);
+    }
+    .md a {
+      color: var(--primary);
+      text-decoration: underline;
+      text-decoration-color: rgba(0,212,255,.3);
+      text-underline-offset: 2px;
+    }
+    .md a:hover { text-decoration-color: var(--primary); }
+    .md hr {
+      border: none;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,212,255,.25), transparent);
+      margin: 10px 0;
+    }
+    .md table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+      font-size: 11px;
+    }
+    .md th, .md td {
+      border: 1px solid rgba(0,212,255,.15);
+      padding: 4px 8px;
+      text-align: left;
+    }
+    .md th {
+      background: rgba(0,212,255,.08);
+      font-family: Orbitron, sans-serif;
+      font-size: 10px;
+      color: var(--primary);
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       BACKGROUND ACTIVITIES PANEL
+    ═══════════════════════════════════════════════════════════ */
+    .bg-activity-panel {
+      max-height: 200px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,212,255,.3) transparent;
+    }
+    .bg-activity-panel::-webkit-scrollbar { width: 3px; }
+    .bg-activity-panel::-webkit-scrollbar-thumb { background: rgba(0,212,255,.3); border-radius: 2px; }
+
+    .bg-activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 5px;
+      background: rgba(0, 10, 25, 0.4);
+      border: 1px solid rgba(0, 212, 255, 0.08);
+      margin-bottom: 6px;
+      animation: fadeSlideIn .25s ease-out;
+      transition: opacity .3s;
+    }
+    .bg-activity-item.completed,
+    .bg-activity-item.failed {
+      opacity: 0.5;
+    }
+    .bg-activity-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-size: 10px;
+      font-family: "JetBrains Mono", monospace;
+    }
+    .bg-activity-icon.running {
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      color: var(--primary);
+      animation: spin 1.2s linear infinite;
+    }
+    .bg-activity-icon.queued {
+      background: rgba(255, 170, 0, 0.15);
+      border: 1px solid rgba(255, 170, 0, 0.3);
+      color: var(--warning);
+    }
+    .bg-activity-icon.completed {
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      color: var(--success);
+    }
+    .bg-activity-icon.failed {
+      background: rgba(255, 51, 102, 0.15);
+      border: 1px solid rgba(255, 51, 102, 0.3);
+      color: var(--danger);
+    }
+    .bg-activity-icon.started {
+      background: rgba(0, 255, 204, 0.15);
+      border: 1px solid rgba(0, 255, 204, 0.3);
+      color: var(--secondary);
+    }
+    .bg-activity-name {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--text);
+      flex: 1;
+    }
+    .bg-activity-status {
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      font-family: Orbitron, sans-serif;
+      flex-shrink: 0;
+    }
+    .bg-activity-status.running { color: var(--primary); }
+    .bg-activity-status.queued { color: var(--warning); }
+    .bg-activity-status.completed { color: var(--success); }
+    .bg-activity-status.failed { color: var(--danger); }
+    .bg-activity-status.started { color: var(--secondary); }
+    .bg-activity-detail {
+      font-size: 10px;
+      color: var(--dim);
+      width: 100%;
+      margin-top: 2px;
+    }
+    .bg-activity-progress {
+      width: 100%;
+      height: 3px;
+      background: rgba(0,212,255,.1);
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .bg-activity-progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--primary);
+      transition: width .4s ease;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 768px) {
       .core-wrapper {
         width: min(55vw, 220px);
         height: min(55vw, 220px);
       }
+      .bg-activity-panel { max-height: 150px; }
     }
   </style>
 </head>
@@ -607,6 +849,11 @@
         <div class="voice-switcher ml-2">
           <div id="voiceFriday" class="voice-option active" onclick="switchVoice('friday')">F.R.I.D.A.Y</div>
           <div id="voiceJarvis" class="voice-option" onclick="switchVoice('jarvis')">J.A.R.V.I.S</div>
+        </div>
+        <!-- TTS Engine Switcher -->
+        <div class="voice-switcher ml-2" id="ttsSwitcher" style="display:none">
+          <div id="ttsBrowser" class="voice-option active" onclick="switchTts('browser')">BROWSER</div>
+          <div id="ttsPiper" class="voice-option" onclick="switchTts('piper')">PIPER</div>
         </div>
         <!-- Call Status -->
         <div id="callStatus" class="call-status ml-3">
@@ -668,23 +915,38 @@
       </aside>
 
       <!-- ════════════════════════════════════════════════════════════════
-           CENTER: CORE DISPLAY + GLOBE
+           CENTER: CORE DISPLAY + RICH CHAT + BACKGROUND ACTIVITIES
       ════════════════════════════════════════════════════════════════ -->
-      <section class="relative order-1 flex min-h-0 flex-col items-center justify-center md:order-2 md:col-span-5 lg:col-span-6">
+      <section class="relative order-1 flex min-h-0 flex-col md:order-2 md:col-span-5 lg:col-span-6">
 
-        <!-- Core Reactor with rings -->
-        <div class="core-wrapper">
-          <div class="core-ring core-ring-1"></div>
-          <div class="core-ring core-ring-2"></div>
-          <div class="core-ring core-ring-3"></div>
-          <div id="core" class="core"></div>
+        <!-- Top Row: Core Reactor + Status -->
+        <div class="flex items-center justify-center gap-4 flex-shrink-0 py-2">
+          <div class="core-wrapper" style="width:min(28vw,160px);height:min(28vw,160px)">
+            <div class="core-ring core-ring-1"></div>
+            <div class="core-ring core-ring-2"></div>
+            <div class="core-ring core-ring-3"></div>
+            <div id="core" class="core"></div>
+          </div>
+          <div class="text-center">
+            <div id="status" class="display mb-1 text-sm tracking-[.35em] text-cyan-300 glow">
+              CONNECTING...
+            </div>
+            <div id="interimText" class="mono text-xs text-cyan-600/70 italic" style="min-height:16px"></div>
+          </div>
         </div>
 
-        <div class="pointer-events-none absolute text-center">
-          <div id="status" class="display mb-2 text-sm tracking-[.35em] text-cyan-300 glow">
-            CONNECTING...
+        <!-- Rich Chat Output Area -->
+        <div id="chatContainer" class="rich-output flex-1 min-h-0 overflow-y-auto px-2 md:px-4 space-y-0">
+          <!-- Chat bubbles are dynamically added here -->
+        </div>
+
+        <!-- Background Activities Panel -->
+        <div id="bgPanelWrapper" class="flex-shrink-0" style="display:none">
+          <div class="flex items-center justify-between px-2 pt-2 pb-1">
+            <h3 class="display text-[10px] tracking-[.2em] text-cyan-500/70">BACKGROUND ACTIVITIES</h3>
+            <span id="bgCount" class="mono text-[10px] text-cyan-600">0</span>
           </div>
-          <div id="response" class="mono max-w-md px-6 text-xs leading-relaxed text-cyan-500/80"></div>
+          <div id="bgActivityPanel" class="bg-activity-panel px-2 pb-2"></div>
         </div>
 
         <!-- Waveform Visualizer (shown during call) -->
@@ -898,7 +1160,247 @@
       globeRotationSpeed: 0.001,
       globeMaterial: null,
       globeLight: null,
+      // Chat bubbles
+      chatBubbles: [],
+      maxBubbles: 80,
+      // Background activities tracking
+      bgActivities: new Map(), // id -> { action, status, detail, progress, element }
+      // TTS engine state
+      ttsEngine: localStorage.getItem("mai-tts-engine") || "browser", // "browser" or "piper"
+      piperReady: false,
+      piperAudioContext: null,
     };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  MARKDOWN → HTML RENDERER
+    // ═══════════════════════════════════════════════════════════════════════
+    function renderMarkdown(text) {
+      if (!text) return "";
+      let html = text;
+
+      // Fenced code blocks (```lang ... ```) — extract first to protect from inner processing
+      const codeBlocks = [];
+      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const idx = codeBlocks.length;
+        codeBlocks.push(`<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`);
+        return `%%CODEBLOCK_${idx}%%`;
+      });
+
+      // Tables
+      html = html.replace(/^(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)+)/gm, (_, header, sep, body) => {
+        const headers = header.split("|").filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join("");
+        const rows = body.trim().split("\n").map(row => {
+          const cols = row.split("|").filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join("");
+          return `<tr>${cols}</tr>`;
+        }).join("");
+        const align = sep.includes(":") ? (sep.includes(":-:") ? "center" : sep.includes("-:") ? "right" : "left") : "left";
+        return `<table style="text-align:${align}"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+      });
+
+      // Headings
+      html = html.replace(/^######\s+(.+)/gm, '<h6>$1</h6>');
+      html = html.replace(/^#####\s+(.+)/gm, '<h5>$1</h5>');
+      html = html.replace(/^####\s+(.+)/gm, '<h4>$1</h4>');
+      html = html.replace(/^###\s+(.+)/gm, '<h3>$1</h3>');
+      html = html.replace(/^##\s+(.+)/gm, '<h2>$1</h2>');
+      html = html.replace(/^#\s+(.+)/gm, '<h1>$1</h1>');
+
+      // Horizontal rule
+      html = html.replace(/^---+$/gm, '<hr>');
+
+      // Blockquotes
+      html = html.replace(/^>\s+(.+)/gm, '<blockquote>$1</blockquote>');
+
+      // Bold + italic combo
+      html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      // Bold
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      // Italic
+      html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      // Strikethrough
+      html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
+
+      // Inline code (backtick)
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // Links
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+      // Unordered lists
+      html = html.replace(/^[\s]*[-*+]\s+(.+)/gm, '<li>$1</li>');
+      html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+      // Ordered lists
+      html = html.replace(/^\d+\.\s+(.+)/gm, '<li>$1</li>');
+
+      // Paragraphs: wrap lines that are not already wrapped in block elements
+      html = html.replace(/^(?!<[a-z]|%%CODEBLOCK)(.*\S.*)$/gm, '<p>$1</p>');
+
+      // Clean up empty paragraphs
+      html = html.replace(/<p>\s*<\/p>/g, '');
+
+      // Collapse multiple newlines
+      html = html.replace(/\n{3,}/g, '\n\n');
+
+      // Restore code blocks
+      codeBlocks.forEach((block, idx) => {
+        html = html.replace(`%%CODEBLOCK_${idx}%%`, block);
+      });
+
+      return html;
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CHAT BUBBLE SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+    function addChatBubble(type, text, label) {
+      const container = $("chatContainer");
+      const profile = getProfile();
+
+      const bubble = document.createElement("div");
+      bubble.className = `chat-bubble ${type}`;
+
+      const timeStr = new Date().toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const labelText = label || (type === "ai" ? profile.logPrefix : type === "user" ? "YOU" : "SYS");
+
+      bubble.innerHTML = `
+        <div class="chat-bubble-label">${labelText} <span style="color:var(--dim);margin-left:6px">${timeStr}</span></div>
+        <div class="md mono text-xs leading-relaxed">${renderMarkdown(text)}</div>
+      `;
+
+      container.appendChild(bubble);
+      state.chatBubbles.push(bubble);
+
+      // Trim old bubbles
+      while (state.chatBubbles.length > state.maxBubbles) {
+        const old = state.chatBubbles.shift();
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+      }
+
+      // Auto-scroll to bottom
+      container.scrollTop = container.scrollHeight;
+      return bubble;
+    }
+
+    function updateLastAIBubble(text) {
+      // Update the content of the last AI bubble (for streaming tokens)
+      const container = $("chatContainer");
+      const bubbles = container.querySelectorAll(".chat-bubble.ai");
+      if (bubbles.length === 0) return null;
+
+      const last = bubbles[bubbles.length - 1];
+      const contentDiv = last.querySelector(".md");
+      if (contentDiv) {
+        contentDiv.innerHTML = renderMarkdown(text);
+        container.scrollTop = container.scrollHeight;
+      }
+      return last;
+    }
+
+    function addChatStreamingPlaceholder() {
+      // Add an empty AI bubble for streaming content to fill into
+      const bubble = document.createElement("div");
+      bubble.className = "chat-bubble ai";
+      const timeStr = new Date().toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      bubble.innerHTML = `
+        <div class="chat-bubble-label">${getProfile().logPrefix} <span style="color:var(--dim);margin-left:6px">${timeStr}</span></div>
+        <div class="md mono text-xs leading-relaxed"></div>
+      `;
+      $("chatContainer").appendChild(bubble);
+      state.chatBubbles.push(bubble);
+      $("chatContainer").scrollTop = $("chatContainer").scrollHeight;
+      return bubble;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  BACKGROUND ACTIVITIES TRACKER
+    // ═══════════════════════════════════════════════════════════════════════
+    function updateBgActivity(id, action, status, detail, progress) {
+      const wrapper = $("bgPanelWrapper");
+      const panel = $("bgActivityPanel");
+      const countEl = $("bgCount");
+
+      wrapper.style.display = "block";
+
+      const icons = {
+        started: "&#9679;",
+        running: "&#9696;",
+        queued: "&#9671;",
+        completed: "&#10003;",
+        failed: "&#10007;"
+      };
+
+      let entry = state.bgActivities.get(id);
+      if (!entry) {
+        // Create new activity item
+        const el = document.createElement("div");
+        el.className = `bg-activity-item ${status}`;
+        el.innerHTML = `
+          <div class="bg-activity-icon ${status}">${icons[status] || icons.running}</div>
+          <div style="flex:1;min-width:0">
+            <div class="bg-activity-name">${action}</div>
+            <div class="bg-activity-detail">${detail || ""}</div>
+            <div class="bg-activity-progress" style="display:${progress !== undefined ? 'block' : 'none'}">
+              <div class="bg-activity-progress-fill" style="width:${progress || 0}%"></div>
+            </div>
+          </div>
+          <div class="bg-activity-status ${status}">${status.toUpperCase()}</div>
+        `;
+        panel.appendChild(el);
+        entry = { el, action };
+        state.bgActivities.set(id, entry);
+
+        // Auto-scroll panel
+        panel.scrollTop = panel.scrollHeight;
+      } else {
+        // Update existing item
+        entry.el.className = `bg-activity-item ${status}`;
+        const iconEl = entry.el.querySelector(".bg-activity-icon");
+        if (iconEl) {
+          iconEl.className = `bg-activity-icon ${status}`;
+          iconEl.innerHTML = icons[status] || icons.running;
+        }
+        const nameEl = entry.el.querySelector(".bg-activity-name");
+        if (nameEl && action) nameEl.textContent = action;
+        const detailEl = entry.el.querySelector(".bg-activity-detail");
+        if (detailEl) detailEl.textContent = detail || "";
+        const statusEl = entry.el.querySelector(".bg-activity-status");
+        if (statusEl) {
+          statusEl.className = `bg-activity-status ${status}`;
+          statusEl.textContent = status.toUpperCase();
+        }
+        if (progress !== undefined) {
+          const progressWrap = entry.el.querySelector(".bg-activity-progress");
+          const progressFill = entry.el.querySelector(".bg-activity-progress-fill");
+          if (progressWrap) progressWrap.style.display = "block";
+          if (progressFill) progressFill.style.width = progress + "%";
+        }
+      }
+
+      // Update count
+      countEl.textContent = state.bgActivities.size;
+
+      // Remove completed/failed items after a delay to keep panel clean
+      if (status === "completed" || status === "failed") {
+        setTimeout(() => {
+          if (entry.el && entry.el.parentNode) {
+            entry.el.parentNode.removeChild(entry.el);
+          }
+          state.bgActivities.delete(id);
+          countEl.textContent = state.bgActivities.size;
+          if (state.bgActivities.size === 0) {
+            wrapper.style.display = "none";
+          }
+        }, 5000);
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     //  THREE.JS 3D GLOBE
@@ -1212,6 +1714,70 @@
     // Expose to global scope for HTML onclick attributes
     window.switchVoice = switchVoice;
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  TTS ENGINE SWITCHER (Browser SpeechSynthesis vs Piper)
+    // ═══════════════════════════════════════════════════════════════════════
+    function switchTts(engine) {
+      state.ttsEngine = engine;
+      localStorage.setItem("mai-tts-engine", engine);
+
+      // Update UI
+      $("ttsBrowser").className = "voice-option" + (engine === "browser" ? " active" : "");
+      $("ttsPiper").className = "voice-option" + (engine === "piper" ? " active" : "");
+
+      // Notify backend
+      sendWS({ type: "tts_switch", engine });
+
+      const label = engine === "browser" ? "Browser SpeechSynthesis" : "Piper Neural TTS";
+      addLog(`TTS engine switched to: ${label}${engine === "piper" && !state.piperReady ? " (not available — using browser fallback)" : ""}`, "system");
+    }
+    window.switchTts = switchTts;
+
+    /**
+     * Play Piper audio from base64-encoded WAV data.
+     * Uses Web Audio API for low-latency playback.
+     */
+    function playPiperAudio(base64Audio) {
+      try {
+        // Create audio context if needed
+        if (!state.piperAudioContext) {
+          state.piperAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        const ctx = state.piperAudioContext;
+
+        // Decode base64 WAV to ArrayBuffer
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        ctx.decodeAudioData(bytes.buffer.slice(0), (buffer) => {
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+
+          source.onended = () => {
+            state.speaking = false;
+            $("core").classList.remove("speaking");
+            if (state.callActive) {
+              $("core").classList.add("call-active");
+              updateStatus("CALL ACTIVE");
+            } else {
+              updateStatus(state.listening ? "LISTENING" : "STANDBY");
+            }
+          };
+        }, (err) => {
+          console.error("[Piper] Audio decode error:", err);
+          // Fall back to browser TTS
+          addLog("Piper audio decode failed — falling back to browser TTS", "warning");
+        });
+      } catch (err) {
+        console.error("[Piper] Playback error:", err);
+      }
+    }
+
     function loadVoices() {
       if (!("speechSynthesis" in window)) return;
       const voices = speechSynthesis.getVoices();
@@ -1246,16 +1812,13 @@
 
     function speak(text, callback) {
       const cleanText = stripMarkdown(text);
-      $("response").textContent = text;
+      // Show text in chat bubble as rendered markdown
+      addChatBubble("ai", text);
+      // Also update the interim text area to show latest response
+      $("interimText").textContent = "";
       const profile = getProfile();
       addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
 
-      if (!("speechSynthesis" in window)) {
-        if (callback) callback();
-        return;
-      }
-
-      speechSynthesis.cancel();
       state.speaking = true;
       $("core").classList.remove("thinking");
       if (!state.callActive) $("core").classList.add("speaking");
@@ -1265,6 +1828,36 @@
       if (state.listening && recognition) {
         try { recognition.abort(); } catch (_) {}
       }
+
+      // Route to Piper if selected and available
+      if (state.ttsEngine === "piper" && state.piperReady) {
+        sendWS({ type: "piper_speak", text: cleanText });
+        // The piper_audio response will be handled in handleWSMessage
+        // Set a timeout to fall back to browser TTS if Piper doesn't respond
+        const piperTimeout = setTimeout(() => {
+          // Piper didn't respond — fall back to browser
+          speakWithBrowser(cleanText, callback);
+        }, 10000);
+        state._piperSpeakTimeout = piperTimeout;
+        state._piperCallback = callback;
+        return;
+      }
+
+      // Default: browser SpeechSynthesis
+      speakWithBrowser(cleanText, callback);
+    }
+
+    function speakWithBrowser(cleanText, callback) {
+      if (!("speechSynthesis" in window)) {
+        state.speaking = false;
+        $("core").classList.remove("speaking");
+        updateStatus(state.listening ? "LISTENING" : "STANDBY");
+        if (callback) callback();
+        return;
+      }
+
+      speechSynthesis.cancel();
+      const profile = getProfile();
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       if (state.voice) utterance.voice = state.voice;
@@ -1409,9 +2002,30 @@
             const typeMap = { info: "system", warn: "warning", error: "error" };
             addLog(message, typeMap[level] || "system");
 
+            // Detect action-related activity logs and show in bg panel
+            const actionMatch = message.match(/(?:Executing|Running|Starting|Processing)\s+(.+)/i);
+            if (actionMatch) {
+              updateBgActivity(
+                "log_" + Date.now(),
+                actionMatch[1].trim().slice(0, 40),
+                level === "error" ? "failed" : "running",
+                message.slice(0, 80)
+              );
+            }
+
+            // Detect completion messages
+            const completeMatch = message.match(/(?:Completed|Finished|Done|Success)\s+(.+)/i);
+            if (completeMatch) {
+              updateBgActivity(
+                "log_" + Date.now(),
+                completeMatch[1].trim().slice(0, 40),
+                "completed",
+                message.slice(0, 80)
+              );
+            }
+
             // Detect approval requests in activity log messages
             if (message.includes("Approval required") || message.includes("approval")) {
-              // Extract action name from message like "Approval required for: execute-terminal"
               const match = message.match(/Approval required for:\s*(\S+)/);
               if (match) {
                 showApproval(match[1]);
@@ -1422,13 +2036,33 @@
         }
 
         case "silent_text": {
-          // Text to display but NOT speak — for background/intermediate updates
+          // Text to display but NOT speak — shown as system bubble
           const text = msg.payload?.text || "";
           if (text) {
-            $("response").textContent = text;
+            addChatBubble("system", text, "INFO");
+            $("interimText").textContent = "";
             const profile = getProfile();
             addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
           }
+          break;
+        }
+
+        case "bg_activity": {
+          const id = msg.payload?.id || ("bg_" + Date.now());
+          const action = msg.payload?.action || "unknown";
+          const status = msg.payload?.status || "running";
+          const detail = msg.payload?.detail || "";
+          updateBgActivity(id, action, status, detail);
+          break;
+        }
+
+        case "action_progress": {
+          const id = msg.payload?.id || ("ap_" + Date.now());
+          const action = msg.payload?.action || "task";
+          const step = msg.payload?.step || "";
+          const percent = msg.payload?.percent;
+          const detail = msg.payload?.detail || "";
+          updateBgActivity(id, action, "running", step || detail, percent);
           break;
         }
 
@@ -1455,6 +2089,59 @@
             $("voiceJarvis").className = "voice-option" + (personality === "jarvis" ? " active-jarvis" : "");
             loadVoices();
             addLog(`Voice synced to ${profile.name}`, "system");
+          }
+          break;
+        }
+
+        case "piper_audio": {
+          // Piper audio received — play it
+          const audioData = msg.payload?.audio;
+          if (audioData) {
+            // Cancel the fallback timeout
+            if (state._piperSpeakTimeout) {
+              clearTimeout(state._piperSpeakTimeout);
+              state._piperSpeakTimeout = null;
+            }
+            playPiperAudio(audioData);
+          }
+          break;
+        }
+
+        case "tts_engine_status": {
+          // Server reports Piper availability
+          const engine = msg.payload?.engine;
+          const ready = msg.payload?.ready;
+          const error = msg.payload?.error;
+          if (engine === "piper") {
+            state.piperReady = ready;
+            if (ready) {
+              $("ttsSwitcher").style.display = "flex";
+              $("ttsPiper").title = "Piper Neural TTS (ready)";
+              addLog("Piper TTS engine available", "system");
+            } else {
+              $("ttsPiper").title = error ? `Piper: ${error}` : "Piper: not configured";
+              addLog(`Piper TTS: ${error || "not available"}`, "warning");
+            }
+            // Restore saved engine preference
+            const savedEngine = localStorage.getItem("mai-tts-engine");
+            if (savedEngine === "piper" && !ready) {
+              switchTts("browser");
+            } else if (savedEngine) {
+              switchTts(savedEngine);
+            }
+          }
+          break;
+        }
+
+        case "tts_engine_switch": {
+          // Sync engine switch from another client
+          const swEngine = msg.payload?.engine;
+          if (swEngine && swEngine !== state.ttsEngine) {
+            state.ttsEngine = swEngine;
+            localStorage.setItem("mai-tts-engine", swEngine);
+            $("ttsBrowser").className = "voice-option" + (swEngine === "browser" ? " active" : "");
+            $("ttsPiper").className = "voice-option" + (swEngine === "piper" ? " active" : "");
+            addLog(`TTS engine synced to: ${swEngine === "browser" ? "Browser" : "Piper"}`, "system");
           }
           break;
         }
@@ -1556,7 +2243,7 @@
             stopCallMode();
           }
           if (transcript && !state.speaking) {
-            $("response").textContent = transcript;
+            $("interimText").textContent = transcript;
           }
           break;
         }
@@ -1607,6 +2294,7 @@
       const text = input.trim();
       if (!text) return;
       addLog(`USER: ${text}`, "user");
+      addChatBubble("user", text);
       sendWS({ type: "user_input", text });
       updateStatus("PROCESSING");
       $("core").classList.remove("speaking");
@@ -1927,7 +2615,7 @@
         }
 
         if (interim && !state.speaking) {
-          $("response").textContent = `"${interim}"`;
+          $("interimText").textContent = `"${interim}"`;
         }
 
         // Ignore final results while M.A.I. is speaking to prevent echo loop

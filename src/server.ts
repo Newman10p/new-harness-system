@@ -415,6 +415,11 @@ async function main() {
   const hudServer = new HudServer(httpServer, WS_PORT);
   hudServer.wireAgentLoop(loop);
 
+  // Initialize Piper TTS if configured
+  if (process.env.TTS_ENGINE === "piper" || process.env.PIPER_MODEL) {
+    hudServer.initPiper();
+  }
+
   // Process any deferred voice call requests
   if (pendingVoiceCall) {
     hudServer.broadcast("voice_call_state", { active: pendingVoiceCall === "start", transcript: "" });

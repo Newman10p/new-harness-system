@@ -151,7 +151,12 @@ export type HudChannel =
   | "analytics_snapshot"
   | "approval_request"
   | "voice_switch"
-  | "silent_text";
+  | "silent_text"
+  | "bg_activity"
+  | "action_progress"
+  | "piper_audio"
+  | "tts_engine_status"
+  | "tts_engine_switch";
 
 export interface HudPayloads {
   jarvis_speech: { text: string };
@@ -177,6 +182,11 @@ export interface HudPayloads {
   approval_request: { action: string; detail?: string };
   voice_switch: { personality: string };
   silent_text: { text: string };
+  bg_activity: { id: string; action: string; status: "started" | "running" | "completed" | "failed" | "queued"; detail?: string; result?: string };
+  action_progress: { id: string; action: string; step: string; percent?: number; detail?: string };
+  piper_audio: { audio: string; format: string; text?: string };
+  tts_engine_status: { engine: string; ready: boolean; error?: string; info?: Record<string, unknown> };
+  tts_engine_switch: { engine: string; piperReady: boolean };
 }
 
 export type HudMessage<C extends HudChannel> = {
