@@ -1236,6 +1236,8 @@
         .replace(/^\s*\d+\.\s+/gm, "")                      // numbered lists
         .replace(/^---+$/gm, "")                               // horizontal rules
         .replace(/^\s*>\s+/gm, "")                            // blockquotes
+        .replace(/M\.A\.I\./g, "Mai")                          // correct pronunciation
+        .replace(/M\.A\.I/g, "Mai")
         .replace(/\n{2,}/g, ". ")                             // collapse multiple newlines
         .replace(/\n/g, ", ")                                  // newlines to commas
         .replace(/\s{2,}/g, " ")                               // collapse spaces
@@ -1415,6 +1417,17 @@
                 showApproval(match[1]);
               }
             }
+          }
+          break;
+        }
+
+        case "silent_text": {
+          // Text to display but NOT speak — for background/intermediate updates
+          const text = msg.payload?.text || "";
+          if (text) {
+            $("response").textContent = text;
+            const profile = getProfile();
+            addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
           }
           break;
         }

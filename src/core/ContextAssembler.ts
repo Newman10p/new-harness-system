@@ -138,8 +138,9 @@ export class ContextAssembler {
     // 6. User profile (learned preferences from UserModel)
     if (_UserModel) {
       try {
-        const userProfile = new _UserModel();
-        const profileSummary = await userProfile.getProfileSummary();
+        const userModel = new _UserModel();
+        await userModel.init();
+        const profileSummary = userModel.getProfileSummary();
         if (profileSummary) {
           sections.push("## User Profile (Learned)\n\n" + profileSummary);
         }

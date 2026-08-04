@@ -211,11 +211,12 @@ Requires approval.
 ### remember
 Store a piece of information in long-term memory.
 ```json
-{"action": "remember", "content": "User prefers dark mode", "tags": ["preference", "ui"]}
+{"action": "remember", "fact": "User prefers dark mode", "tags": ["preference", "ui"]}
 ```
-- `content` (required): Information to remember
+- `fact` (required): Information to remember
+- `category` (optional): Type — preference, fact, pattern, instruction, relationship
 - `tags` (optional): Tags for categorization and retrieval
-- `importance` (optional): Importance level 1-10 (default: 5)
+- `confidence` (optional): 0-1 confidence score (default: 0.5)
 
 ### recall
 Retrieve relevant memories matching a query.

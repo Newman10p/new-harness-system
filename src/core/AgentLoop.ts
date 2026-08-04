@@ -97,7 +97,9 @@ export class AgentLoop {
   private sessionStart = Date.now();
   private recentErrors = 0;
   private selfEngine: { reflect: (n: number) => Promise<void> } | null = null;
-  private userModel: { updateFromInteraction: (input: string, loopCount: number) => Promise<void> } | null = null;
+  private userModel: { updateFromInteraction: (params: { userMessage: string; actions: string[]; loopIterations: number; success: boolean; errors: string[] }) => Promise<void>; save: () => Promise<void>; init: () => Promise<void> } | null = null;
+  private messageQueue: string[] = [];
+  private processingQueue = false;
 
   constructor(
     llmConfig: LLMConfig,
@@ -124,7 +126,10 @@ export class AgentLoop {
       try { this.selfEngine = new SelfImprovementEngine(); } catch { /* non-fatal */ }
     }
     if (UserModel) {
-      try { this.userModel = new UserModel(); } catch { /* non-fatal */ }
+      try {
+        this.userModel = new UserModel();
+        this.userModel.init().catch(() => {});
+      } catch { /* non-fatal */ }
     }
 
     this.clients = createClients(providers);
@@ -150,7 +155,16 @@ export class AgentLoop {
    */
   async processUserMessage(input: string): Promise<void> {
     if (this.state.isRunning) {
-      this.callbacks.onError?.("Agent loop is already running — please wait.");
+      // Queue the message for processing after current loop finishes
+      this.messageQueue.push(input);
+      this.callbacks.onError?.("Queued — processing current task...");
+      this.hudEmitter("activity_log", {
+        message: `Message queued (${this.messageQueue.length} pending)`,
+        level: "info",
+      });
+      if (!this.processingQueue) {
+        this.processQueue();
+      }
       return;
     }
 
@@ -194,17 +208,58 @@ export class AgentLoop {
         ? `## User Input\n\n${input}\n\n---\n\n## Current Context\n\n${contextPayload}`
         : input;
 
-    // If tone adaptation produced an addon, inject it as a system message
+    // If tone adaptation produced an addon, APPEND to system message (never replace)
     if (toneAddon) {
-      // Remove any existing system message to re-inject with tone
-      this.state.messages = this.state.messages.filter(m => m.role !== "system");
-      this.state.messages.push({ role: "system", content: toneAddon });
+      const existingSystem = this.state.messages.find(m => m.role === "system");
+      if (existingSystem) {
+        existingSystem.content = existingSystem.content + "\n\n---\n\n" + toneAddon;
+      } else {
+        this.state.messages.push({ role: "system", content: toneAddon });
+      }
     }
 
     this.state.messages.push({ role: "user", content: userContent });
 
+    // Store for UserModel update after loop completes
+    this.currentUserInput = input;
+
     // Run the loop
     await this.runLoop();
+  }
+
+  /**
+   * Process queued messages one at a time after the current loop finishes.
+   */
+  private async processQueue(): Promise<void> {
+    if (this.processingQueue) return;
+    this.processingQueue = true;
+
+    while (this.messageQueue.length > 0) {
+      // Wait for current loop to finish
+      while (this.state.isRunning) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      const next = this.messageQueue.shift();
+      if (next) {
+        this.state.lastSpeechText = "";
+        this.currentUserInput = next;
+
+        let contextPayload = "";
+        try {
+          contextPayload = await ContextAssembler.assembleContextPayload();
+        } catch { /* non-fatal */ }
+
+        const userContent = contextPayload
+          ? `## User Input\n\n${next}\n\n---\n\n## Current Context\n\n${contextPayload}`
+          : next;
+
+        this.state.messages.push({ role: "user", content: userContent });
+        await this.runLoop();
+      }
+    }
+
+    this.processingQueue = false;
   }
 
   /**
@@ -253,6 +308,8 @@ export class AgentLoop {
   }
 
   // ─── Private: Main Loop ─────────────────────────────────────────────────
+  private currentUserInput: string = "";
+
   private async runLoop(): Promise<void> {
     this.state.isRunning = true;
     const maxLoops = MAX_LOOP_ITERATIONS;
@@ -396,7 +453,14 @@ export class AgentLoop {
       // Update user model after every interaction
       if (this.userModel) {
         try {
-          await this.userModel.updateFromInteraction(input, this.state.loopCount);
+          await this.userModel.updateFromInteraction({
+            userMessage: this.currentUserInput,
+            actions: results.map(() => "unknown"),
+            loopIterations: this.state.loopCount,
+            success: true,
+            errors: [],
+          });
+          await this.userModel.save();
         } catch { /* non-fatal */ }
       }
     }
