@@ -72,29 +72,38 @@ export class ContextAssembler {
     }
 
     // 3b. Design skill — UI design principles for web interface generation/modification
+    //    Loads agent/skills/design-system.md and extracts core sections for the system prompt.
+    //    The full design system (1463 lines) is available for reference when needed.
     try {
       const designSkill = await fs.readFile(DESIGN_SKILL_PATH, "utf-8");
       if (designSkill.trim()) {
-        // Extract just the core principles to keep system prompt size manageable
-        const sections = designSkill.split(/^## /m);
-        const coreSections = sections.filter(s =>
+        // Extract key sections to keep system prompt focused but comprehensive
+        const designSections = designSkill.split(/^## /m);
+        const coreSections = designSections.filter(s =>
           s.startsWith("Philosophy") ||
           s.startsWith("Layout System") ||
           s.startsWith("Typography") ||
           s.startsWith("Color System") ||
-          s.startsWith("Common Mistakes")
+          s.startsWith("Accessibility") ||
+          s.startsWith("Common Mistakes") ||
+          s.startsWith("Pre-Flight Checklist")
         );
         if (coreSections.length > 0) {
           const designSummary = "## UI Design Skill (Premium Frontend Architect)\n\n" +
             "When generating, evaluating, or modifying any web UI, follow these principles:\n" +
             "- Use an 8px spacing grid system with consistent design tokens\n" +
-            "- Establish clear visual hierarchy: anchor, supporting, ambient\n" +
-            "- WCAG 2.2 AA accessibility: 4.5:1 contrast, keyboard navigation, semantic HTML\n" +
-            "- Responsive-first: mobile → tablet → desktop with defined breakpoints\n" +
-            "- Subtle, purposeful motion (100-300ms micro, 200-400ms transitions)\n" +
-            "- Respect prefers-reduced-motion\n" +
-            "- shadcn/ui conventions with Tailwind CSS utility-first styling\n" +
-            "- For full design guidance, the complete design system is available in agent/skills/design-system.md\n";
+            "- Establish clear visual hierarchy: anchor (primary action), supporting (secondary), ambient (context)\n" +
+            "- WCAG 2.2 AA accessibility: 4.5:1 contrast for normal text, 3:1 for large text, keyboard navigation, semantic HTML, `:focus-visible`\n" +
+            "- Responsive-first: mobile → tablet → desktop with breakpoints at 640/768/1024/1280px\n" +
+            "- Subtle, purposeful motion (100-300ms micro-interactions, 200-400ms transitions)\n" +
+            "- Respect `prefers-reduced-motion` for all animations\n" +
+            "- shadcn/ui conventions with `cva` variants, Radix UI primitives, Tailwind CSS utility-first styling\n" +
+            "- CSS custom properties for theming (`--background`, `--foreground`, `--primary`, `--muted`, `--accent` etc.)\n" +
+            "- Generative UI: AI can generate interfaces on-the-fly via structured output → component map pattern\n" +
+            "- Empty states, onboarding flows, and loading skeletons should feel intentional, not broken\n" +
+            "- Charts, timelines, kanban boards: use structured data patterns, not hardcoded visuals\n" +
+            "\nFor the complete design system with component patterns, dashboard layouts, form design,\n" +
+            "motion specs, and pre-flight checklist, reference: `agent/skills/design-system.md`\n";
           sections.push(designSummary);
         }
       }

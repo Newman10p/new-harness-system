@@ -43,6 +43,12 @@ interface InboundFileRequest {
   show_hidden?: boolean;
 }
 
+interface InboundListFiles {
+  type: "list_files";
+  path?: string;
+  show_hidden?: boolean;
+}
+
 interface InboundVoiceCall {
   type: "voice_call";
   operation?: "start" | "stop";
@@ -85,7 +91,7 @@ interface InboundVoiceSwitch {
 
 interface InboundTtsSwitch {
   type: "tts_switch";
-  engine: "browser" | "piper";
+  engine: "browser" | "piper" | "kokoro";
 }
 
 interface InboundPiperSpeak {
@@ -93,14 +99,17 @@ interface InboundPiperSpeak {
   text: string;
 }
 
-type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak;
+type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak;
 
 export class HudServer {
   private wss: WebSocketServer;
   private clients: Set<WebSocket> = new Set();
   private agentLoop: AgentLoop | null = null;
   private piperAdapter: import("../audio/PiperTtsAdapter.js").PiperTtsAdapter | null = null;
+  private kokoroAdapter: import("../audio/KokoroTtsAdapter.js").KokoroTtsAdapter | null = null;
   private piperReady = false;
+  private kokoroReady = false;
+  private activeTtsEngine: "piper" | "kokoro" | "browser" = "browser";
 
   constructor(
     httpServer: unknown,
@@ -127,9 +136,11 @@ export class HudServer {
   }
 
   /**
-   * Initialize Piper TTS adapter if available.
+   * Initialize neural TTS adapters if available.
+   * Tries Kokoro first (higher quality), falls back to Piper.
    */
   initPiper(config?: { model?: string; bin?: string; config?: string; dataDir?: string }): void {
+    // Initialize Piper TTS adapter
     try {
       const { PiperTtsAdapter } = require("../audio/PiperTtsAdapter.js");
       this.piperAdapter = new PiperTtsAdapter({
@@ -141,24 +152,52 @@ export class HudServer {
       this.piperReady = this.piperAdapter!.isReady();
       if (this.piperReady) {
         console.log("[HUD] Piper TTS initialized");
-        // Broadcast Piper availability to all clients
-        this.broadcast("tts_engine_status", {
-          engine: "piper",
-          ready: true,
-          info: this.piperAdapter!.getInfo(),
-        } as any);
       } else {
-        console.warn("[HUD] Piper TTS configured but not ready (check model/binary)");
-        this.broadcast("tts_engine_status", {
-          engine: "piper",
-          ready: false,
-          error: "Model or binary not found",
-        } as any);
+        console.warn("[HUD] Piper TTS configured but not ready");
       }
     } catch (err) {
       console.warn(`[HUD] Piper TTS not available: ${err instanceof Error ? err.message : err}`);
       this.piperReady = false;
     }
+
+    // Initialize Kokoro TTS adapter (higher quality, preferred)
+    try {
+      const { KokoroTtsAdapter } = require("../audio/KokoroTtsAdapter.js");
+      this.kokoroAdapter = new KokoroTtsAdapter({
+        model: process.env.KOKORO_MODEL || "",
+        bin: process.env.KOKORO_BIN || "kokoro",
+        config: process.env.KOKORO_CONFIG,
+        voice: process.env.KOKORO_VOICE,
+      });
+      this.kokoroReady = this.kokoroAdapter!.isReady();
+      if (this.kokoroReady) {
+        this.activeTtsEngine = "kokoro";
+        console.log("[HUD] Kokoro TTS initialized (preferred engine)");
+      }
+    } catch (err) {
+      console.warn(`[HUD] Kokoro TTS not available: ${err instanceof Error ? err.message : err}`);
+      this.kokoroReady = false;
+    }
+
+    // Set active engine: Kokoro > Piper > Browser
+    if (this.kokoroReady) {
+      this.activeTtsEngine = "kokoro";
+    } else if (this.piperReady) {
+      this.activeTtsEngine = "piper";
+    }
+
+    // Broadcast TTS engine status to all clients
+    this.broadcast("tts_engine_status", {
+      engine: this.activeTtsEngine,
+      ready: this.kokoroReady || this.piperReady,
+      piperReady: this.piperReady,
+      kokoroReady: this.kokoroReady,
+      info: this.kokoroReady
+        ? this.kokoroAdapter!.getInfo()
+        : this.piperReady
+          ? this.piperAdapter!.getInfo()
+          : undefined,
+    } as any);
   }
 
   /**
@@ -281,8 +320,9 @@ export class HudServer {
         break;
       }
 
-      case "file_request": {
-        const dir = msg.path || process.cwd();
+      case "file_request":
+      case "list_files": {  // Alias — both types handled identically
+        const dir = path.resolve(msg.path || process.cwd()); // Resolve to absolute path
         const showHidden = msg.show_hidden === true;
         fs.promises.readdir(dir, { withFileTypes: true })
           .then(async (entries) => {
@@ -290,10 +330,11 @@ export class HudServer {
             for (const entry of entries) {
               if (entry.name.startsWith('.') && !showHidden) continue;
               try {
-                const stat = await fs.promises.stat(path.join(dir, entry.name));
+                const fullPath = path.join(dir, entry.name);
+                const stat = await fs.promises.stat(fullPath);
                 files.push({
                   name: entry.name,
-                  path: path.join(dir, entry.name),
+                  path: fullPath, // Always absolute for correct navigation
                   size: stat.size,
                   modified: stat.mtime.toISOString(),
                   type: entry.isDirectory() ? "dir" : "file",
@@ -301,10 +342,10 @@ export class HudServer {
                 });
               } catch { /* skip */ }
             }
-            this.broadcast("file_list", { files });
+            this.broadcast("file_list", { files, basePath: dir });
           })
           .catch(() => {
-            this.broadcast("file_list", { files: [] });
+            this.broadcast("file_list", { files: [], basePath: dir });
           });
         break;
       }
@@ -360,22 +401,29 @@ export class HudServer {
       case "tts_switch": {
         const ts = msg as InboundTtsSwitch;
         console.log(`[HUD] tts_switch: ${ts.engine}`);
+        // Validate the requested engine is available
+        const engine = ts.engine as "browser" | "piper" | "kokoro";
+        if (engine === "kokoro" && this.kokoroReady) {
+          this.activeTtsEngine = "kokoro";
+        } else if (engine === "piper" && this.piperReady) {
+          this.activeTtsEngine = "piper";
+        } else {
+          this.activeTtsEngine = "browser";
+        }
         // Broadcast engine switch to all clients
         this.broadcast("tts_engine_switch", {
-          engine: ts.engine,
+          engine: this.activeTtsEngine,
           piperReady: this.piperReady,
+          kokoroReady: this.kokoroReady,
         } as any);
         break;
       }
 
       case "piper_speak": {
         const ps = msg as InboundPiperSpeak;
-        if (!ps.text || !this.piperAdapter || !this.piperReady) {
-          // Piper not available — clients should fall back to browser TTS
-          break;
-        }
-        // Synthesize audio and send as base64 to requesting client
-        this.synthesizeAndBroadcastPiper(ps.text);
+        if (!ps.text) break;
+        // Use active neural TTS engine (Kokoro preferred over Piper)
+        this.synthesizeAndBroadcastNeural(ps.text);
         break;
       }
 
@@ -391,27 +439,47 @@ export class HudServer {
   }
 
   /**
-   * Synthesize text with Piper and broadcast audio to all connected clients.
-   * Audio is sent as base64-encoded WAV via the piper_audio channel.
+   * Synthesize text with the active neural TTS engine (Kokoro preferred, Piper fallback)
+   * and broadcast audio to all connected clients via piper_audio channel.
    */
-  private async synthesizeAndBroadcastPiper(text: string): Promise<void> {
-    if (!this.piperAdapter || !this.piperReady) return;
-
-    try {
-      const base64Audio = await this.piperAdapter.synthesizeToBase64(text);
-      this.broadcast("piper_audio", {
-        audio: base64Audio,
-        format: "wav",
-        text: text.slice(0, 100), // preview text for logging
-      } as any);
-    } catch (err) {
-      console.error(`[HUD] Piper synthesis failed: ${err instanceof Error ? err.message : err}`);
-      // Notify clients to fall back to browser TTS
-      this.broadcast("tts_engine_status", {
-        engine: "piper",
-        ready: false,
-        error: `Synthesis failed: ${err instanceof Error ? err.message : "unknown"}`,
-      } as any);
+  private async synthesizeAndBroadcastNeural(text: string): Promise<void> {
+    // Try Kokoro first (higher quality)
+    if (this.kokoroAdapter && this.kokoroReady) {
+      try {
+        const base64Audio = await this.kokoroAdapter.synthesizeToBase64(text);
+        this.broadcast("piper_audio", {
+          audio: base64Audio,
+          format: "wav",
+          text: text.slice(0, 100),
+          engine: "kokoro",
+        } as any);
+        return;
+      } catch (err) {
+        console.error(`[HUD] Kokoro synthesis failed, falling back: ${err instanceof Error ? err.message : err}`);
+      }
     }
+
+    // Fallback to Piper
+    if (this.piperAdapter && this.piperReady) {
+      try {
+        const base64Audio = await this.piperAdapter.synthesizeToBase64(text);
+        this.broadcast("piper_audio", {
+          audio: base64Audio,
+          format: "wav",
+          text: text.slice(0, 100),
+          engine: "piper",
+        } as any);
+        return;
+      } catch (err) {
+        console.error(`[HUD] Piper synthesis failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    // Neither engine available — notify clients to use browser TTS
+    this.broadcast("tts_engine_status", {
+      engine: "browser",
+      ready: false,
+      error: "No neural TTS engine available",
+    } as any);
   }
 }

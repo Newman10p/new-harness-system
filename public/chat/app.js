@@ -263,6 +263,134 @@
         showTyping(true);
         break;
 
+      // ── Voice & TTS Channels ──
+      case 'bg_activity':
+        // Background activity notifications — show as system status indicators
+        if (payload && (payload.status === 'started' || payload.status === 'running')) {
+          // Mai is working — set speaking flag to buffer voice input
+          maiSpeaking = true;
+          addMessage({
+            role: 'system',
+            text: payload.detail || `Working on ${payload.action}...`,
+            timestamp: timestamp || Date.now(),
+            badge: payload.action,
+          });
+        } else if (payload && (payload.status === 'completed' || payload.status === 'failed')) {
+          // Mai finished — allow voice through, flush any buffered input
+          maiSpeaking = false;
+          addMessage({
+            role: 'system',
+            text: payload.status === 'completed'
+              ? `Done: ${payload.action}`
+              : `Failed: ${payload.action}${payload.result ? ' — ' + payload.result : ''}`,
+            timestamp: timestamp || Date.now(),
+            badge: payload.action,
+          });
+          // Flush any voice input captured while Mai was busy
+          setTimeout(flushVoiceBuffer, 500);
+        }
+        break;
+
+      case 'action_progress':
+        // Action progress updates — show compact progress indicator
+        if (payload) {
+          const progressText = payload.detail || `${payload.action}: ${payload.step}`;
+          const progressEl = $('#action-progress-bar');
+          if (progressEl) {
+            progressEl.style.display = 'flex';
+            progressEl.querySelector('.progress-text').textContent = progressText;
+            if (payload.percent != null) {
+              progressEl.querySelector('.progress-fill').style.width = payload.percent + '%';
+            }
+          } else {
+            addMessage({
+              role: 'system',
+              text: progressText,
+              timestamp: timestamp || Date.now(),
+            });
+          }
+        }
+        break;
+
+      case 'piper_audio':
+        // Piper neural TTS audio — play via AudioContext
+        if (payload && payload.audio) {
+          try {
+            const binaryStr = atob(payload.audio);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            const audioBlob = new Blob([bytes], { type: payload.format === 'wav' ? 'audio/wav' : 'audio/mp3' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            // Set speaking flag during playback so mic input is buffered
+            maiSpeaking = true;
+            audio.onended = () => {
+              maiSpeaking = false;
+              URL.revokeObjectURL(audioUrl);
+              setTimeout(flushVoiceBuffer, 300);
+            };
+            audio.onerror = () => {
+              maiSpeaking = false;
+              URL.revokeObjectURL(audioUrl);
+            };
+            audio.play().catch(() => {
+              maiSpeaking = false;
+              URL.revokeObjectURL(audioUrl);
+            });
+          } catch (err) {
+            maiSpeaking = false;
+            console.warn('Piper audio playback failed:', err);
+          }
+        }
+        break;
+
+      case 'voice_switch':
+        // Voice personality switch — update UI state
+        if (payload) {
+          const personalityEl = $('#voice-personality');
+          if (personalityEl) personalityEl.textContent = payload.personality || 'jarvis';
+          addMessage({
+            role: 'system',
+            text: `Voice personality switched to ${payload.personality || 'default'}`,
+            timestamp: timestamp || Date.now(),
+          });
+        }
+        break;
+
+      case 'tts_engine_status':
+        // TTS engine availability status
+        if (payload) {
+          const ttsEl = $('#tts-status');
+          if (ttsEl) {
+            ttsEl.textContent = payload.ready ? `${payload.engine} ready` : `${payload.engine} unavailable`;
+            ttsEl.className = 'tts-badge ' + (payload.ready ? 'ready' : 'unavailable');
+          }
+        }
+        break;
+
+      case 'tts_engine_switch':
+        // TTS engine switch notification
+        if (payload) {
+          addMessage({
+            role: 'system',
+            text: `TTS engine switched to ${payload.engine}${payload.piperReady ? '' : ' (Piper not available)'}`,
+            timestamp: timestamp || Date.now(),
+          });
+        }
+        break;
+
+      case 'silent_text':
+        // Silent text — show as subtle system hint (don't speak via TTS)
+        if (payload && payload.text) {
+          addMessage({
+            role: 'system',
+            text: payload.text,
+            timestamp: timestamp || Date.now(),
+            silent: true,
+          });
+        }
+        break;
+
       default:
         // Unknown channel — display if it has text content
         if (payload && typeof payload === 'object' && payload.text) {
@@ -452,6 +580,12 @@
   }
 
   // ─── Voice Input ──────────────────────────────────────────────────────────
+  // Voice state: tracks whether Mai is speaking so we buffer mic input instead of dropping it.
+  let maiSpeaking = false;
+  let voiceBuffer = [];         // Buffered voice transcripts while Mai is speaking
+  let voiceRestartTimer = null;  // Timer to auto-restart recognition after TTS
+  let voiceWantsContinuous = false; // Whether user wants persistent listening
+
   function startVoice() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -465,24 +599,46 @@
     }
 
     recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true;   // Keep listening across results
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onresult = (event) => {
       let transcript = '';
+      let isFinal = false;
       for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) isFinal = true;
       }
       messageInput.value = transcript;
       autoResizeInput();
+
+      // If Mai is currently speaking, buffer the transcript for later
+      if (maiSpeaking && isFinal && transcript.trim()) {
+        voiceBuffer.push(transcript.trim());
+        addMessage({ role: 'system', text: 'Voice captured while busy — queued for processing.' });
+      }
     };
 
     recognition.onend = () => {
+      // If Mai is speaking, auto-restart recognition to keep mic open
+      // (browser kills recognition when TTS audio plays)
+      if (maiSpeaking || voiceWantsContinuous) {
+        scheduleVoiceRestart();
+        return;
+      }
       stopVoice();
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      // Handle "no-speech" and "aborted" gracefully — don't kill voice if Mai is busy
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        if (maiSpeaking || voiceWantsContinuous) {
+          scheduleVoiceRestart();
+          return;
+        }
+      }
+      console.warn('Voice error:', event.error);
       stopVoice();
     };
 
@@ -491,13 +647,59 @@
     document.body.classList.add('voice-active');
   }
 
+  /** Schedule a restart of voice recognition with exponential backoff */
+  function scheduleVoiceRestart() {
+    if (voiceRestartTimer) return;
+    voiceRestartTimer = setTimeout(() => {
+      voiceRestartTimer = null;
+      if (isRecording || maiSpeaking || voiceWantsContinuous) {
+        try {
+          // Abort old recognition if it still exists
+          if (recognition) {
+            try { recognition.abort(); } catch {}
+            recognition = null;
+          }
+          isRecording = false; // Reset so startVoice can run
+          startVoice();
+        } catch {
+          isRecording = false;
+        }
+      }
+    }, 300); // 300ms delay — fast enough to feel seamless
+  }
+
+  /** Stop voice recognition entirely */
   function stopVoice() {
+    if (voiceRestartTimer) {
+      clearTimeout(voiceRestartTimer);
+      voiceRestartTimer = null;
+    }
     if (recognition) {
-      try { recognition.stop(); } catch {}
+      try { recognition.abort(); } catch {}
       recognition = null;
     }
     isRecording = false;
     document.body.classList.remove('voice-active');
+  }
+
+  /**
+   * Process buffered voice messages after Mai finishes speaking/acting.
+   * Sends each buffered transcript as a user message.
+   */
+  function flushVoiceBuffer() {
+    if (voiceBuffer.length === 0) return;
+    const buffered = voiceBuffer.splice(0); // Take all buffered items
+    buffered.forEach(text => {
+      if (text.trim()) {
+        wsSend({ type: 'user_input', text: text.trim() });
+        addMessage({
+          role: 'user',
+          text: text.trim(),
+          timestamp: Date.now(),
+          source: 'voice-buffered',
+        });
+      }
+    });
   }
 
   // ─── File Attachment ──────────────────────────────────────────────────────

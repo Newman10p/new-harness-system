@@ -50,9 +50,13 @@ export interface ModelSectionConfig {
 export type AudioMode = "builtIn" | "custom" | "disabled";
 
 export interface AudioSttConfig {
-  backend?: string;
+  backend?: "whisper" | "moonshine" | string;
   enabled?: boolean;
   modelPath?: string;
+  modelDir?: string;     // Moonshine: model directory
+  language?: string;     // Moonshine: language code (default: "en")
+  sampleRate?: number;  // Moonshine: audio sample rate (default: 16000)
+  maxDuration?: number; // Moonshine: max audio seconds (default: 30)
 }
 
 export interface AudioWakeWordConfig {
@@ -63,10 +67,17 @@ export interface AudioWakeWordConfig {
 }
 
 export interface AudioTtsConfig {
-  backend?: string;
+  backend?: "http" | "piper" | "kokoro" | string;
   enabled?: boolean;
   endpoint?: string;
   apiKey?: string;
+  modelPath?: string;    // Kokoro/Piper: path to .onnx model
+  binPath?: string;      // Kokoro: path to binary or "onnx"
+  configPath?: string;  // Kokoro: path to model config JSON
+  voice?: string;        // Kokoro: voice pack name
+  speakerId?: number;   // Kokoro/Piper: speaker ID
+  speed?: number;       // Kokoro: speed factor (0.5–2.0)
+  noiseScale?: number;  // Kokoro/Piper: noise scale (0.0–1.0)
 }
 
 export interface AudioCustomConfig {
