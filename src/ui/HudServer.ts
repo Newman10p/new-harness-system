@@ -45,7 +45,8 @@ interface InboundFileRequest {
 
 interface InboundVoiceCall {
   type: "voice_call";
-  operation: "start" | "stop";
+  operation?: "start" | "stop";
+  active?: boolean; // Legacy: frontend used this before protocol fix
 }
 
 interface InboundFileRead {
@@ -309,7 +310,9 @@ export class HudServer {
       }
 
       case "voice_call": {
-        this.broadcast("voice_call_state", { active: msg.operation === "start", transcript: "" });
+        // Support both `operation` (canonical) and `active` (legacy) fields
+        const isStart = msg.operation === "start" || msg.active === true;
+        this.broadcast("voice_call_state", { active: isStart, transcript: "" });
         break;
       }
 
@@ -377,7 +380,12 @@ export class HudServer {
       }
 
       default: {
-        console.warn(`[HUD] Unknown message type: ${(msg as { type: string }).type}`);
+        const unknownType = (msg as { type: string }).type;
+        console.warn(`[HUD] Unknown message type: ${unknownType}`);
+        // Send error feedback to the client so they know the message was ignored
+        try {
+          _ws.send(JSON.stringify({ channel: "activity_log", payload: { message: `Unknown message type: ${unknownType}`, level: "warn" }, timestamp: Date.now() }));
+        } catch { /* send failed, ignore */ }
       }
     }
   }

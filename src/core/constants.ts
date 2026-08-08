@@ -8,6 +8,7 @@ export const AGENT_DIR = path.join(PROJECT_ROOT, "agent");
 export const IDENTITY_PATH = path.join(AGENT_DIR, "identity.md");
 export const POLICY_PATH = path.join(AGENT_DIR, "policy.md");
 export const TOOLS_CATALOG_PATH = path.join(AGENT_DIR, "tools", "catalog.md");
+export const DESIGN_SKILL_PATH = path.join(AGENT_DIR, "skills", "design-system.md");
 export const CONTEXT_PATH = path.join(PROJECT_ROOT, "memory", "context.md");
 export const INBOX_PATH = path.join(PROJECT_ROOT, "state", "inbox.md");
 export const WORKFLOWS_DIR = path.join(PROJECT_ROOT, "workflows");

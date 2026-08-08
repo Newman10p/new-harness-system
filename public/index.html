@@ -1824,10 +1824,8 @@
       if (!state.callActive) $("core").classList.add("speaking");
       updateStatus("SPEAKING");
 
-      // Pause speech recognition while speaking to prevent echo
-      if (state.listening && recognition) {
-        try { recognition.abort(); } catch (_) {}
-      }
+      // Mute recognition input while speaking to prevent echo, but keep stream alive
+      state._wasMutedForSpeech = true;
 
       // Route to Piper if selected and available
       if (state.ttsEngine === "piper" && state.piperReady) {
@@ -1868,6 +1866,7 @@
 
       const finished = () => {
         state.speaking = false;
+        state._wasMutedForSpeech = false;
         $("core").classList.remove("speaking");
         if (state.callActive) {
           $("core").classList.add("call-active");
@@ -1875,9 +1874,12 @@
         } else {
           updateStatus(state.listening ? "LISTENING" : "STANDBY");
         }
-        // Resume speech recognition after speaking
-        if (state.listening && recognition) {
-          setTimeout(() => { try { recognition.start(); } catch (_) {} }, 200);
+        // Process any voice input that was buffered during speech
+        if (state._voiceBuffer && state._voiceBuffer.length > 0) {
+          const buffered = state._voiceBuffer.join(" ");
+          state._voiceBuffer = [];
+          processCommand(buffered);
+          $("commandInput").value = "";
         }
         if (callback) callback();
       };
@@ -2354,10 +2356,10 @@
     function toggleCallMode() {
       if (state.callActive) {
         stopCallMode();
-        sendWS({ type: "voice_call", active: false });
+        sendWS({ type: "voice_call", operation: "stop" });
       } else {
         startCallMode();
-        sendWS({ type: "voice_call", active: true });
+        sendWS({ type: "voice_call", operation: "start" });
         speak("Voice call link established. I'm listening.");
       }
     }
@@ -2518,7 +2520,7 @@
       container.querySelectorAll(".breadcrumb-item").forEach(el => {
         el.addEventListener("click", () => {
           state.currentPath = el.dataset.path;
-          sendWS({ type: "list_files", path: state.currentPath });
+          sendWS({ type: "file_request", path: state.currentPath });
           renderBreadcrumbs();
         });
       });
@@ -2569,10 +2571,10 @@
           const path = el.dataset.path;
           if (type === "directory" || type === "folder") {
             state.currentPath = path || (state.currentPath === "/" ? "/" + name : state.currentPath + "/" + name);
-            sendWS({ type: "list_files", path: state.currentPath });
+            sendWS({ type: "file_request", path: state.currentPath });
             renderBreadcrumbs();
           } else {
-            sendWS({ type: "read-file", path: path || name });
+            sendWS({ type: "file_read", path: path || name });
             addLog(`Reading file: ${name}`, "action");
           }
         });
@@ -2614,14 +2616,19 @@
           else interim += text;
         }
 
-        if (interim && !state.speaking) {
+        if (interim && !state._wasMutedForSpeech) {
           $("interimText").textContent = `"${interim}"`;
         }
 
-        // Ignore final results while M.A.I. is speaking to prevent echo loop
-        if (finalText.trim() && !state.speaking) {
-          processCommand(finalText.trim());
-          $("commandInput").value = "";
+        // Buffer final results while M.A.I. is speaking instead of discarding them
+        if (finalText.trim()) {
+          if (state._wasMutedForSpeech) {
+            if (!state._voiceBuffer) state._voiceBuffer = [];
+            state._voiceBuffer.push(finalText.trim());
+          } else {
+            processCommand(finalText.trim());
+            $("commandInput").value = "";
+          }
         }
       };
 

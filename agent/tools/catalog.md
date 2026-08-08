@@ -1,6 +1,6 @@
 ---
 name: M.A.I. Tools Catalog
-version: 5.0.0
+version: 5.1.0
 total_actions: 50
 ---
 

@@ -17,6 +17,7 @@ import {
   TOOLS_CATALOG_PATH,
   CONTEXT_PATH,
   INBOX_PATH,
+  DESIGN_SKILL_PATH,
 } from "./constants.js";
 import type { PolicyConfig } from "../types/index.js";
 
@@ -68,6 +69,37 @@ export class ContextAssembler {
       }
     } catch {
       // No catalog — actions will still be registered
+    }
+
+    // 3b. Design skill — UI design principles for web interface generation/modification
+    try {
+      const designSkill = await fs.readFile(DESIGN_SKILL_PATH, "utf-8");
+      if (designSkill.trim()) {
+        // Extract just the core principles to keep system prompt size manageable
+        const sections = designSkill.split(/^## /m);
+        const coreSections = sections.filter(s =>
+          s.startsWith("Philosophy") ||
+          s.startsWith("Layout System") ||
+          s.startsWith("Typography") ||
+          s.startsWith("Color System") ||
+          s.startsWith("Common Mistakes")
+        );
+        if (coreSections.length > 0) {
+          const designSummary = "## UI Design Skill (Premium Frontend Architect)\n\n" +
+            "When generating, evaluating, or modifying any web UI, follow these principles:\n" +
+            "- Use an 8px spacing grid system with consistent design tokens\n" +
+            "- Establish clear visual hierarchy: anchor, supporting, ambient\n" +
+            "- WCAG 2.2 AA accessibility: 4.5:1 contrast, keyboard navigation, semantic HTML\n" +
+            "- Responsive-first: mobile → tablet → desktop with defined breakpoints\n" +
+            "- Subtle, purposeful motion (100-300ms micro, 200-400ms transitions)\n" +
+            "- Respect prefers-reduced-motion\n" +
+            "- shadcn/ui conventions with Tailwind CSS utility-first styling\n" +
+            "- For full design guidance, the complete design system is available in agent/skills/design-system.md\n";
+          sections.push(designSummary);
+        }
+      }
+    } catch {
+      // Design skill file not yet available — non-fatal
     }
 
     // 4. Dynamic policy reminder — inject current deny/allow/approval rules

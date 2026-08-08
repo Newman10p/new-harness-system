@@ -164,6 +164,10 @@ export class AgentLoop {
     if (this.state.isRunning) {
       // Queue the message for processing after current loop finishes
       this.messageQueue.push(input);
+      // Acknowledge to HUD so the user knows Mai heard them
+      this.hudEmitter("silent_text", {
+        text: `Message queued (${this.messageQueue.length} pending) — I'll get to it shortly.`,
+      });
       this.callbacks.onError?.("Queued — processing current task...");
       this.hudEmitter("activity_log", {
         message: `Message queued (${this.messageQueue.length} pending)`,
@@ -431,6 +435,15 @@ export class AgentLoop {
 
         // ─── Phase 4: ENFORCE + Phase 5: EXECUTE + Phase 6: STREAM ──
         const results: string[] = [];
+
+        // Emit a brief status message before executing actions so the user
+        // knows Mai is working and voice input during actions is buffered
+        if (parsed.actions.length > 0) {
+          const actionNames = parsed.actions.map(a => a.action).join(", ");
+          this.hudEmitter("silent_text", {
+            text: `Working on ${parsed.actions.length > 1 ? `those ${parsed.actions.length} tasks` : actionNames}...`,
+          });
+        }
 
         for (const action of parsed.actions) {
           const decision = this.policyEngine.validateAction(
