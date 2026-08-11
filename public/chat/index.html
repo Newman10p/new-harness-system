@@ -3,176 +3,269 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#0a0f1a">
+  <meta name="theme-color" content="#0a0a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MAI">
-  <meta name="description" content="M.A.I. Chat - Multiple Array Intelligence">
-  <title>M.A.I. Chat</title>
+  <meta name="description" content="M.A.I. — Multiple Array Intelligence">
+  <title>M.A.I.</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app">
-    <!-- ─── Header ────────────────────────────────────────────────────────── -->
-    <header class="chat-header">
-      <div class="header-left">
-        <div class="logo">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-            <circle cx="14" cy="14" r="12" stroke="#00d4ff" stroke-width="1.5" opacity="0.6"/>
-            <circle cx="14" cy="14" r="8" stroke="#00d4ff" stroke-width="1" opacity="0.4"/>
-            <circle cx="14" cy="14" r="4" fill="#00d4ff" opacity="0.8"/>
-          </svg>
-          <span class="logo-text">M.A.I.</span>
-        </div>
-      </div>
-      <div class="header-center">
-        <div id="connection-status" class="connection-status disconnected">
-          <span class="status-dot"></span>
-          <span class="status-text">Disconnected</span>
-        </div>
-      </div>
-      <div class="header-right">
-        <button id="btn-search" class="icon-btn" aria-label="Search conversations" title="Search">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
-        <button id="btn-settings" class="icon-btn" aria-label="Settings" title="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-        </button>
-      </div>
-      <!-- Status indicators -->
-      <div id="status-bar" class="status-bar"></div>
-      <div id="threat-indicator" class="threat-indicator green" title="System secure"></div>
-      <div id="connection-status" class="connection-dot disconnected" title="Connecting..."></div>
-      <div id="health-indicator" class="health-indicator green" title="System healthy"></div>
-      <div id="tunnel-status" class="tunnel-status" style="display:none"></div>
-      <div id="analytics-bar" class="analytics-bar" style="display:none"></div>
-      <div id="ambient-indicator" class="ambient-indicator" style="display:none">🎤</div>
-      <div id="voice-call-ui" class="voice-call-ui" style="display:none">
-        <span class="call-status">Listening...</span>
-      </div>
-    </header>
+  <div id="app" class="main-wrapper">
+    <!-- ─── Sidebar Overlay (mobile) ────────────────────────────────────── -->
+    <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
 
-    <!-- ─── Search Bar (hidden by default) ─────────────────────────────────── -->
-    <div id="search-bar" class="search-bar hidden">
-      <div class="search-bar-inner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input id="search-input" type="text" placeholder="Search conversations..." autocomplete="off">
-        <button id="search-clear" class="icon-btn small" aria-label="Clear search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
+    <!-- ─── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside id="sidebar" class="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <div class="brand-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="var(--accent)" stroke-width="1.5" opacity="0.5"/>
+              <circle cx="12" cy="12" r="6" stroke="var(--accent)" stroke-width="1" opacity="0.35"/>
+              <circle cx="12" cy="12" r="3" fill="var(--accent)" opacity="0.9"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-name">M.A.I.</span>
+            <span class="brand-sub" id="header-subtitle">Agentic AI</span>
+          </div>
+        </div>
+        <button id="sidebar-close" class="icon-btn sidebar-close-btn" aria-label="Close sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <div id="search-results" class="search-results"></div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active" data-panel="chat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span>Chat</span>
+          <kbd class="sidebar-kbd">1</kbd>
+        </button>
+        <button class="sidebar-item" data-panel="dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Dashboard</span>
+          <kbd class="sidebar-kbd">2</kbd>
+        </button>
+        <button class="sidebar-item" data-panel="files">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          <span>Files</span>
+          <kbd class="sidebar-kbd">3</kbd>
+        </button>
+        <button class="sidebar-item" data-panel="devices">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>Devices</span>
+          <kbd class="sidebar-kbd">4</kbd>
+        </button>
+      </nav>
+
+      <!-- Divider -->
+      <div class="sidebar-divider"></div>
+
+      <!-- Status Section -->
+      <div class="sidebar-status">
+        <div class="sidebar-status-row" id="sidebar-conn">
+          <span class="spip disconnected"></span>
+          <span class="sval">Disconnected</span>
+        </div>
+        <div class="sidebar-status-row" id="health-indicator" style="display:none">
+          <span class="spip green"></span>
+          <span class="sval">Healthy</span>
+        </div>
+        <div class="sidebar-status-row" id="tts-status" style="display:none">
+          <span class="spip green"></span>
+          <span class="sval">Browser TTS</span>
+        </div>
+        <div class="sidebar-status-row" id="voice-personality" style="display:none">
+          <span class="spip cyan"></span>
+          <span class="sval">Jarvis</span>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="sidebar-divider"></div>
+
+      <!-- Actions -->
+      <div class="sidebar-actions">
+        <button class="sidebar-item" data-action="settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          <span>Settings</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ─── Main Content ───────────────────────────────────────────────── -->
+    <div class="main-content">
+      <!-- Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <h1 class="header-title" id="header-subtitle">M.A.I.</h1>
+        </div>
+        <div class="header-center">
+          <!-- Action Progress Bar -->
+          <div id="action-progress-bar" class="action-progress-bar" style="display:none">
+            <div class="hprogress-fill" style="width:0%"></div>
+            <span class="hprogress-text">Working...</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <button id="btn-search" class="icon-btn" aria-label="Search" title="Search (Ctrl+K)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <div class="header-voice-group">
+            <div id="ambient-indicator" class="ambient-indicator" style="display:none"></div>
+            <button id="btn-voice" class="icon-btn voice-btn" aria-label="Voice" title="Voice Input">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Search Bar -->
+      <div id="search-bar" class="search-bar hidden">
+        <div class="search-bar-inner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="search-input" type="text" placeholder="Search messages..." autocomplete="off">
+          <button id="search-clear" class="icon-btn small" aria-label="Clear search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="search-results" class="search-results"></div>
+      </div>
+
+      <!-- Chat Panel -->
+      <main id="message-area" class="message-area" role="log" aria-label="Chat messages" aria-live="polite">
+        <div id="message-list" class="message-list"></div>
+        <div id="typing-indicator" class="typing-indicator hidden">
+          <div class="typing-avatar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="3" fill="var(--accent)" opacity="0.9"/>
+            </svg>
+          </div>
+          <div class="typing-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        </div>
+        <div id="scroll-anchor"></div>
+      </main>
+
+      <!-- Dashboard Panel -->
+      <div id="dashboard-panel" class="panel-view hidden">
+        <div class="panel-header">
+          <h2>System Dashboard</h2>
+          <p class="panel-subtitle">Real-time system metrics and status</p>
+        </div>
+        <div class="dashboard-grid">
+          <div class="dash-card">
+            <div class="dash-card-label">CPU Usage</div>
+            <div class="dash-card-value" id="dash-cpu">—</div>
+            <div class="dash-card-bar"><div class="dash-card-fill" id="dash-cpu-bar" style="width:0%"></div></div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-label">Memory</div>
+            <div class="dash-card-value" id="dash-mem">—</div>
+            <div class="dash-card-bar"><div class="dash-card-fill" id="dash-mem-bar" style="width:0%"></div></div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-label">Threat Level</div>
+            <div class="dash-card-value" id="dash-threat">—</div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-label">Health</div>
+            <div class="dash-card-value" id="dash-health">—</div>
+          </div>
+          <div class="dash-card wide">
+            <div class="dash-card-label">Active Connections</div>
+            <div class="dash-card-value" id="dash-conn">—</div>
+          </div>
+          <div class="dash-card wide">
+            <div class="dash-card-label">Tunnel Status</div>
+            <div class="dash-card-value" id="dash-tunnel" style="font-size:13px">—</div>
+          </div>
+          <div class="dash-card wide">
+            <div class="dash-card-label">Analytics</div>
+            <div class="dash-card-value" id="dash-analytics" style="font-size:13px">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Files Panel -->
+      <div id="files-panel" class="panel-view hidden">
+        <div class="panel-header">
+          <h2>Files</h2>
+          <p class="panel-subtitle">Workspace files on M.A.I.</p>
+        </div>
+        <div id="files-list" class="panel-list">
+          <div class="panel-empty">Connect to M.A.I. to browse files.</div>
+        </div>
+      </div>
+
+      <!-- Devices Panel -->
+      <div id="devices-panel" class="panel-view hidden">
+        <div class="panel-header">
+          <h2>Devices</h2>
+          <p class="panel-subtitle">Connected via M.A.I. gateway</p>
+        </div>
+        <div id="devices-list" class="panel-list">
+          <div class="panel-empty">No devices connected.</div>
+        </div>
+      </div>
+
+      <!-- File Preview -->
+      <div id="file-preview" class="file-preview hidden">
+        <div class="file-preview-inner">
+          <img id="preview-image" src="" alt="Preview" class="preview-image hidden">
+          <div class="file-preview-info">
+            <span id="preview-filename" class="preview-filename"></span>
+            <span id="preview-size" class="preview-size"></span>
+          </div>
+          <button id="preview-remove" class="icon-btn small" aria-label="Remove attachment">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <div class="input-area-inner">
+          <button id="btn-attach" class="icon-btn" aria-label="Attach file" title="Attach">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <div class="input-wrapper">
+            <textarea id="message-input" placeholder="Message M.A.I...." rows="1" aria-label="Message input"></textarea>
+          </div>
+          <button id="btn-send" class="send-btn" aria-label="Send" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- ─── Message Area ──────────────────────────────────────────────────── -->
-    <main id="message-area" class="message-area" role="log" aria-label="Chat messages" aria-live="polite">
-      <div id="message-list" class="message-list">
-        <!-- Messages rendered here by JS -->
-      </div>
-      <div id="typing-indicator" class="typing-indicator hidden">
-        <div class="typing-avatar">
-          <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="14" r="4" fill="#00d4ff" opacity="0.8"/>
-          </svg>
+    <!-- ─── Command Palette ────────────────────────────────────────────── -->
+    <div id="cmd-palette" class="cmd-palette" aria-hidden="true" role="dialog">
+      <div class="cmd-palette-backdrop"></div>
+      <div class="cmd-palette-content">
+        <div class="cmd-palette-input-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="cmd-input" type="text" placeholder="Type a command..." autocomplete="off" aria-label="Command palette">
         </div>
-        <div class="typing-dots">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-        </div>
-      </div>
-      <div id="scroll-anchor"></div>
-    </main>
-
-    <!-- ─── File Preview ───────────────────────────────────────────────────── -->
-    <div id="file-preview" class="file-preview hidden">
-      <div class="file-preview-inner">
-        <img id="preview-image" src="" alt="Preview" class="preview-image hidden">
-        <div class="file-preview-info">
-          <span id="preview-filename" class="preview-filename"></span>
-          <span id="preview-size" class="preview-size"></span>
-        </div>
-        <button id="preview-remove" class="icon-btn small" aria-label="Remove attachment">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div id="cmd-results" class="cmd-results"></div>
       </div>
     </div>
 
-    <!-- ─── Input Area ────────────────────────────────────────────────────── -->
-    <div class="input-area">
-      <div class="input-area-inner">
-        <button id="btn-attach" class="icon-btn" aria-label="Attach file" title="Attach">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
-          </svg>
-        </button>
-        <div class="input-wrapper">
-          <textarea id="message-input" placeholder="Message M.A.I...." rows="1" aria-label="Message input"></textarea>
-        </div>
-        <button id="btn-voice" class="icon-btn" aria-label="Voice input" title="Voice">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-            <path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-          </svg>
-        </button>
-        <button id="btn-send" class="send-btn" aria-label="Send message" title="Send">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <!-- ─── Bottom Navigation ─────────────────────────────────────────────── -->
-    <nav class="bottom-nav">
-      <button class="nav-tab active" data-tab="chat" aria-label="Chat">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-        </svg>
-        <span>Chat</span>
-      </button>
-      <button class="nav-tab" data-tab="files" aria-label="Files">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/>
-        </svg>
-        <span>Files</span>
-      </button>
-      <button class="nav-tab" data-tab="devices" aria-label="Devices">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
-        <span>Devices</span>
-      </button>
-      <button class="nav-tab" data-tab="settings" aria-label="Settings">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-        <span>Settings</span>
-      </button>
-    </nav>
-
-    <!-- ─── Settings Panel (slide-in) ──────────────────────────────────────── -->
+    <!-- ─── Settings Panel ──────────────────────────────────────────────── -->
     <div id="settings-panel" class="settings-panel hidden">
       <div class="settings-backdrop"></div>
       <div class="settings-content">
         <div class="settings-header">
           <h2>Settings</h2>
           <button id="settings-close" class="icon-btn" aria-label="Close settings">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
         <div class="settings-body">
@@ -180,10 +273,7 @@
             <h3>Appearance</h3>
             <div class="setting-item">
               <label for="setting-theme">Theme</label>
-              <select id="setting-theme">
-                <option value="dark" selected>Dark</option>
-                <option value="light">Light</option>
-              </select>
+              <select id="setting-theme"><option value="dark" selected>Dark</option><option value="light">Light</option></select>
             </div>
           </div>
           <div class="setting-group">
@@ -211,28 +301,6 @@
             <p class="setting-hint">Stores last 500 messages locally</p>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- ─── Files Panel ───────────────────────────────────────────────────── -->
-    <div id="files-panel" class="panel-view hidden">
-      <div class="panel-header">
-        <h2>Files</h2>
-        <p class="panel-subtitle">Files available on M.A.I. workspace</p>
-      </div>
-      <div id="files-list" class="panel-list">
-        <div class="panel-empty">No files loaded. Connect to M.A.I. to browse files.</div>
-      </div>
-    </div>
-
-    <!-- ─── Devices Panel ─────────────────────────────────────────────────── -->
-    <div id="devices-panel" class="panel-view hidden">
-      <div class="panel-header">
-        <h2>Devices</h2>
-        <p class="panel-subtitle">Connected devices via M.A.I. gateway</p>
-      </div>
-      <div id="devices-list" class="panel-list">
-        <div class="panel-empty">No devices connected.</div>
       </div>
     </div>
   </div>
