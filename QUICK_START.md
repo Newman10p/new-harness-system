@@ -1,4 +1,4 @@
-# Quick Start: Installing Jarvis AI Harness
+# Quick Start: M.A.I. Harness
 
 ## 30-Second Install
 
@@ -7,184 +7,149 @@
 git clone https://github.com/Newman10p/new-harness-system
 cd new-harness-system
 
-# Install globally
-npm install && npm run build && npm install -g .
+# Install and build
+npm install && npm run build
 
 # Verify
-jarvis --help
+npm run cli -- --help
 ```
 
-**Done!** You can now use `jarvis` from anywhere on your device.
+**Done!** You're ready to configure and run.
 
 ## First-Time Setup
 
+### 1. Configure Your LLM
+
 ```bash
-# Run the interactive setup wizard
-jarvis init
-
-# You'll be asked about:
-# - Assistant name
-# - Text or voice mode
-# - Audio backends (optional)
-# - Wake-word setup (optional)
-# - Auto-start (optional)
-# - Obsidian vault (optional)
-# - Sandbox settings
-
-# List available skills
-jarvis list-skills
-
-# Try running a skill
-jarvis run-skill --skill ./skills/sample-note-skill.yml
+cp .env.example .env
 ```
+
+Edit `.env` with your provider:
+
+**Local Ollama (free, recommended):**
+```
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=ollama
+LLM_MODEL=llama3.2
+LLM_PROVIDER=ollama
+```
+
+**OpenAI:**
+```
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=sk-your-key-here
+LLM_MODEL=gpt-4o-mini
+LLM_PROVIDER=openai
+```
+
+### 2. Run M.A.I.
+
+**Server mode** (HUD + API + Chat PWA):
+```bash
+npx tsx src/server.ts
+# Or after build:
+npm start
+```
+
+**CLI mode** (terminal REPL):
+```bash
+npx tsx src/index.ts
+# Or after build:
+npm run cli
+```
+
+### 3. Open the HUD
+
+- **HUD Console:** http://localhost:3000
+- **Chat PWA:** http://localhost:3000/chat/
+- **API Status:** http://localhost:3000/api/status
+
+## Installation Options
+
+| Method | Install | Run | Best For |
+|--------|---------|-----|----------|
+| **Source + tsx** | `npm install` | `npx tsx src/server.ts` | Development |
+| **Built** | `npm install && npm run build` | `npm start` / `npm run cli` | Daily use |
+| **Global** | `npm install -g .` | `npx mai --help` | System-wide access |
+| **Dev link** | `npm link` | `npx mai --help` | Live editing |
 
 ## Common Commands
 
 ```bash
-# Setup wizard (run anytime to reconfigure)
-jarvis init
+# Build
+npm run build
 
-# List available skills
-jarvis list-skills
+# Server mode (HUD + WebSocket + API)
+npm start
 
-# Run a skill with variables
-jarvis run-skill --skill path/to/skill.yml --name "Value" --other-var "Another Value"
+# CLI REPL mode
+npm run cli
 
-# Speech to text
-jarvis listen --file input.wav --out transcript.txt
-
-# Text to speech
-jarvis speak --text "Hello world" --out output.wav
-
-# View vault
-jarvis inspect-vault
-
-# Create a note
-jarvis create-note --title "My Note" --filename note.md --content "Content here"
-
-# Get help
-jarvis --help
+# Watch mode (auto-recompile on changes)
+npm run dev
 ```
 
-## Installation Options
+## What You Get Out of the Box
 
-### Option 1: Global Install (Recommended)
+- **49 action primitives** across 6 groups (core, intelligence, device control, extended, integration, web/vision)
+- **Browser control** — Chrome/Brave automation via CDP (no Puppeteer needed)
+- **Email access** — IMAP/SMTP with zero external deps (Gmail, Outlook, custom)
+- **Web search & scraping** — Live Google search, page content extraction
+- **Voice pipeline** — Kokoro TTS, Piper TTS, Moonshine STT, Whisper STT with auto-fallback
+- **4-tier sandbox** — native, process, docker, firejail isolation
+- **Multi-device gateway** — SMS, Telegram, WhatsApp, SIP, Webhook
+- **Iron Man HUD** — WebSocket-powered real-time dashboard
+- **Chat PWA** — Installable progressive web app
+- **Markdown-first config** — Edit personality, policy, tools without recompiling
 
-Install as a system-wide command:
+## Enable Browser Control
 
 ```bash
-# From source
-git clone https://github.com/Newman10p/new-harness-system
-cd new-harness-system
-npm install && npm run build && npm install -g .
-
-# From npm (when published)
-npm install -g jarvis-harness
+# Launch Chrome with remote debugging
+google-chrome --remote-debugging-port=9222
 ```
 
-Use from anywhere:
-```bash
-jarvis init
-jarvis list-skills
-```
+M.A.I. auto-discovers it. Then ask: "Search Google for the latest TypeScript release"
 
-### Option 2: Local Development
+## Enable Email
 
-Keep it in a folder for development:
-
-```bash
-git clone https://github.com/Newman10p/new-harness-system
-cd new-harness-system
-npm install && npm run build
-```
-
-Use with:
-```bash
-npm run cli -- init
-npm run cli -- list-skills
-```
-
-### Option 3: Development Link
-
-Install globally while editing source code:
-
-```bash
-git clone https://github.com/Newman10p/new-harness-system
-cd new-harness-system
-npm install && npm run build && npm link
-
-# Edit code, rebuild, and changes are live:
-npm run dev          # In terminal 1
-jarvis command       # In terminal 2
-```
-
-## Configuration Files
-
-After running `jarvis init`, you'll have:
-
-- **`harness.config.json`** - Your settings (settings.json)
-- **`.env`** - Your secrets (git-ignored)
-
-### Example harness.config.json
-
+Add to `harness.config.json`:
 ```json
 {
-  "name": "Jarvis",
-  "mode": "text+voice",
-  "ollama": {
-    "baseUrl": "http://localhost:11434"
-  },
-  "audio": {
-    "stt": {"backend": "whisper", "endpoint": "..."},
-    "tts": {"backend": "http", "endpoint": "..."},
-    "wakeWord": {"enabled": false}
-  },
-  "vaultPath": "/path/to/your/vault",
-  "permissions": {"sandboxByDefault": true}
+  "email": {
+    "enabled": true,
+    "accounts": [{
+      "label": "Gmail",
+      "host": "imap.gmail.com",
+      "port": 993,
+      "smtpHost": "smtp.gmail.com",
+      "smtpPort": 465,
+      "username": "you@gmail.com",
+      "password": "your-app-password"
+    }]
+  }
 }
-```
-
-### Example .env
-
-```
-PICOVOICE_ACCESS_KEY=your_key_here
 ```
 
 ## Troubleshooting
 
-**"jarvis: command not found"**
+**"Cannot connect to LLM"**
 ```bash
-# Make sure it's installed globally
-npm install -g .
+# Check Ollama is running
+curl http://localhost:11434/api/tags
 ```
 
-**"Error: Project not built"**
+**"Project not built"**
 ```bash
-# Build the project
 npm run build
-```
-
-**Need help?**
-```bash
-# See all commands
-jarvis --help
-
-# Reset configuration
-rm harness.config.json .env
-jarvis init
 ```
 
 ## Next Steps
 
-1. **[Full Installation Guide](INSTALLATION.md)** - Detailed setup instructions
-2. **[Development Guide](DEVELOPMENT.md)** - Contributing and customizing
-3. **[Main README](README.md)** - Features and overview
+1. **[Full Installation Guide](INSTALLATION.md)** — Detailed setup including voice, browser, email, and gateway channels
+2. **[README.md](README.md)** — Architecture, all 49 actions, and feature overview
+3. **[Development Guide](DEVELOPMENT.md)** — Contributing and customizing
 
 ## Support
 
-- **GitHub Issues**: https://github.com/Newman10p/new-harness-system/issues
-- **Documentation**: See README.md and other .md files
-
----
-
-**Happy coding!** 🚀
+- **GitHub Issues:** https://github.com/Newman10p/new-harness-system/issues

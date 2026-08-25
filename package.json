@@ -1,7 +1,7 @@
 {
   "name": "mai-harness",
   "version": "2.0.0",
-  "description": "M.A.I. (Multiple Array Intelligence) — Markdown-First agentic AI harness with OpenAI-compatible LLM, YAML policy firewall, 12 primitives, and Iron Man-style WebSocket HUD.",
+  "description": "M.A.I. (Multiple Array Intelligence) - Markdown-First agentic AI harness with 49 primitives, CDP browser control, IMAP/SMTP email, voice pipeline, 4-tier sandbox, multi-provider LLM, and Iron Man-style WebSocket HUD.",
   "bin": {
     "mai": "./bin/mai.js"
   },
