@@ -133,6 +133,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     const args: string[] = [
       "--model", this.model,
       "--config", this.config,
+      "--output", "-",
     ];
 
     if (this.dataDir) {
