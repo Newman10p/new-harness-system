@@ -895,6 +895,16 @@
             <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 0 0 2 0v-3.08A7 7 0 0 0 19 11Z"/>
           </svg>
         </button>
+
+        <!-- Settings Button -->
+        <button id="settingsBtn" onclick="openSettings()"
+          class="holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
+          aria-label="Settings">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -2790,5 +2800,433 @@
 
   })();
   </script>
+  <!-- ═══ ONBOARDING WIZARD MODAL ═══ -->
+  <div id="onboardingModal" class="modal-overlay" style="display:none">
+    <div class="modal-panel" style="max-width:580px;width:90%">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="display text-lg tracking-widest text-cyan-300">SETUP WIZARD</h2>
+        <div class="flex items-center gap-2">
+          <div id="onboardStepIndicator" class="mono text-xs text-cyan-600">1 / 4</div>
+          <button onclick="closeOnboarding()" class="text-cyan-600 hover:text-cyan-300 text-xl">&times;</button>
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div class="w-full h-1 rounded-full bg-cyan-900/30 mb-6"><div id="onboardProgress" class="h-1 rounded-full bg-cyan-400 transition-all" style="width:25%"></div></div>
+
+      <!-- Step 1: Name & Identity -->
+      <div class="onboard-step" data-step="1">
+        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">ASSISTANT NAME</label>
+        <input id="ob_name" type="text" value="Mai" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="What should I call you?"></div>
+        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">INTERACTION MODE</label>
+          <div class="flex gap-3">
+            <label class="flex-1 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20 has-[:checked]:border-cyan-400"><input type="radio" name="ob_mode" value="text" class="hidden" checked><span class="display text-sm text-cyan-200 block">Text Only</span><span class="text-xs text-cyan-600">Chat-based</span></label>
+            <label class="flex-1 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20 has-[:checked]:border-cyan-400"><input type="radio" name="ob_mode" value="voice" class="hidden"><span class="display text-sm text-cyan-200 block">Voice + Text</span><span class="text-xs text-cyan-600">Full voice</span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Audio Setup -->
+      <div class="onboard-step" data-step="2" style="display:none">
+        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TEXT-TO-SPEECH ENGINE</label>
+          <select id="ob_tts" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
+            <option value="browser">Browser (built-in)</option>
+            <option value="http">HTTP Endpoint</option>
+            <option value="piper">Piper (neural, local)</option>
+            <option value="kokoro">Kokoro (neural, local)</option>
+          </select>
+        </div>
+        <div id="ob_tts_http_fields" class="mb-4" style="display:none"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS ENDPOINT URL</label>
+          <input id="ob_tts_endpoint" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="http://localhost:5002/api/tts"></div>
+        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">SPEECH-TO-TEXT ENGINE</label>
+          <select id="ob_stt" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
+            <option value="browser">Browser (built-in)</option>
+            <option value="whisper">Whisper (local)</option>
+            <option value="moonshine">Moonshine (local)</option>
+            <option value="disabled">Disabled</option>
+          </select>
+        </div>
+        <div class="glass rounded-lg p-3 border border-cyan-700/20">
+          <div class="flex items-center gap-2 mb-1"><span class="text-xs text-cyan-500">TIP</span></div>
+          <p class="text-xs text-cyan-600">Browser TTS/STT works immediately. Neural engines (Piper, Kokoro, Whisper, Moonshine) require local installation. You can always change this later in Settings.</p>
+        </div>
+      </div>
+
+      <!-- Step 3: Browser & Email -->
+      <div class="onboard-step" data-step="3" style="display:none">
+        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">BROWSER CONTROL</label>
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20">
+            <input type="checkbox" id="ob_browser" checked class="accent-cyan-400 w-4 h-4">
+            <div><span class="display text-sm text-cyan-200 block">Enable browser control</span><span class="text-xs text-cyan-600">Access Chrome/Brave tabs, Google search, screenshots</span></div>
+          </label>
+          <p class="text-xs text-cyan-700 mt-2 ml-1">Launch Chrome with: <code class="bg-cyan-950/50 px-1 rounded">google-chrome --remote-debugging-port=9222</code></p>
+        </div>
+        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">EMAIL ACCESS (Optional)</label>
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20">
+            <input type="checkbox" id="ob_email_enable" class="accent-cyan-400 w-4 h-4">
+            <div><span class="display text-sm text-cyan-200 block">Enable email access</span><span class="text-xs text-cyan-600">Read, search, and send emails via IMAP/SMTP</span></div>
+          </label>
+        </div>
+        <div id="ob_email_fields" style="display:none" class="space-y-3">
+          <input id="ob_email_label" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="Account label (e.g. Gmail)">
+          <input id="ob_email_imap" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="IMAP host (e.g. imap.gmail.com)">
+          <input id="ob_email_smtp" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="SMTP host (e.g. smtp.gmail.com)">
+          <input id="ob_email_user" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="Email address / username">
+          <input id="ob_email_pass" type="password" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="App password (not account password)">
+        </div>
+      </div>
+
+      <!-- Step 4: Confirm -->
+      <div class="onboard-step" data-step="4" style="display:none">
+        <div class="text-center mb-6">
+          <div class="display text-2xl tracking-widest text-cyan-300 mb-2">SETUP COMPLETE</div>
+          <p class="text-sm text-cyan-500">Your M.A.I. instance is configured. You can always adjust settings later.</p>
+        </div>
+        <div id="ob_summary" class="glass rounded-lg p-4 border border-cyan-700/20 space-y-2 mono text-sm text-cyan-400"></div>
+      </div>
+
+      <!-- Navigation buttons -->
+      <div class="flex justify-between mt-6">
+        <button id="ob_back" onclick="onboardBack()" class="glass rounded-lg px-5 py-2.5 text-sm text-cyan-400 border border-cyan-700/30 hover:border-cyan-400 transition" style="visibility:hidden">Back</button>
+        <button id="ob_next" onclick="onboardNext()" class="glass rounded-lg px-5 py-2.5 text-sm text-cyan-200 bg-cyan-800/30 border border-cyan-400/40 hover:bg-cyan-700/30 transition">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SETTINGS MODAL ═══ -->
+  <div id="settingsModal" class="modal-overlay" style="display:none">
+    <div class="modal-panel" style="max-width:640px;width:92%;max-height:85vh;overflow-y:auto">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="display text-lg tracking-widest text-cyan-300">SETTINGS</h2>
+        <button onclick="closeSettings()" class="text-cyan-600 hover:text-cyan-300 text-xl">&times;</button>
+      </div>
+
+      <!-- Settings tabs -->
+      <div class="flex gap-2 mb-5 flex-wrap">
+        <button class="settings-tab active" data-tab="general" onclick="switchSettingsTab('general')">General</button>
+        <button class="settings-tab" data-tab="voice" onclick="switchSettingsTab('voice')">Voice</button>
+        <button class="settings-tab" data-tab="browser" onclick="switchSettingsTab('browser')">Browser</button>
+        <button class="settings-tab" data-tab="email" onclick="switchSettingsTab('email')">Email</button>
+        <button class="settings-tab" data-tab="system" onclick="switchSettingsTab('system')">System</button>
+      </div>
+
+      <!-- General Tab -->
+      <div class="settings-content" data-tab="general">
+        <div class="space-y-4">
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">ASSISTANT NAME</label>
+            <input id="set_name" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400"></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">MODEL PROVIDER</label>
+            <select id="set_provider" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
+              <option value="ollama-cloud">Ollama Cloud</option>
+              <option value="ollama">Ollama Local</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">VAULT PATH</label>
+            <input id="set_vault" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400"></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">PERMISSIONS</label>
+            <div class="space-y-2">
+              <label class="flex items-center gap-3"><input type="checkbox" id="set_confirm" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Require confirmation for risky actions</span></label>
+              <label class="flex items-center gap-3"><input type="checkbox" id="set_terminal" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Allow terminal access</span></label>
+              <label class="flex items-center gap-3"><input type="checkbox" id="set_network" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Allow network access</span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voice Tab -->
+      <div class="settings-content" data-tab="voice" style="display:none">
+        <div class="space-y-4">
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS ENGINE</label>
+            <select id="set_tts_backend" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" onchange="toggleTtsFields()">
+              <option value="browser">Browser (built-in)</option>
+              <option value="http">HTTP Endpoint</option>
+              <option value="piper">Piper (neural)</option>
+              <option value="kokoro">Kokoro (neural)</option>
+              <option value="disabled">Disabled</option>
+            </select></div>
+          <div id="set_tts_http_wrap" style="display:none"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS ENDPOINT</label>
+            <input id="set_tts_endpoint" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="http://..."></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">STT ENGINE</label>
+            <select id="set_stt_backend" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
+              <option value="browser">Browser (built-in)</option>
+              <option value="whisper">Whisper</option>
+              <option value="moonshine">Moonshine</option>
+              <option value="disabled">Disabled</option>
+            </select></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS VOICE</label>
+            <input id="set_tts_voice" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="default"></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS SPEED</label>
+            <input id="set_tts_speed" type="range" min="0.5" max="2" step="0.1" value="1.0" class="w-full accent-cyan-400"><div class="flex justify-between text-xs text-cyan-600"><span>0.5x</span><span id="speedVal">1.0x</span><span>2.0x</span></div></div>
+          <div id="audioStatusPanel" class="glass rounded-lg p-3 border border-cyan-700/20 mono text-xs text-cyan-500 space-y-1"></div>
+        </div>
+      </div>
+
+      <!-- Browser Tab -->
+      <div class="settings-content" data-tab="browser" style="display:none">
+        <div class="space-y-4">
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_enabled" checked class="accent-cyan-400 w-4 h-4"><div><span class="display text-sm text-cyan-200 block">Enable browser control</span><span class="text-xs text-cyan-600">Control Chrome/Brave via CDP</span></div></label>
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_autodiscover" checked class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Auto-discover running browsers</span></label>
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_autochrome" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Auto-launch Chrome</span></label>
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_autobrave" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Auto-launch Brave</span></label>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">CDP PORTS</label>
+            <input id="set_browser_ports" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="9222, 9223, 9224"></div>
+          <div class="glass rounded-lg p-3 border border-cyan-700/20"><p class="text-xs text-cyan-600">To connect: <code class="bg-cyan-950/50 px-1 rounded">google-chrome --remote-debugging-port=9222</code> or <code class="bg-cyan-950/50 px-1 rounded">brave --remote-debugging-port=9222</code></p></div>
+        </div>
+      </div>
+
+      <!-- Email Tab -->
+      <div class="settings-content" data-tab="email" style="display:none">
+        <div class="space-y-4">
+          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_email_enabled" class="accent-cyan-400 w-4 h-4"><div><span class="display text-sm text-cyan-200 block">Enable email access</span><span class="text-xs text-cyan-600">IMAP/SMTP email reading and sending</span></div></label>
+          <div id="emailAccountsList" class="space-y-3"></div>
+          <button onclick="addEmailAccountUI()" class="w-full glass rounded-lg p-3 text-sm text-cyan-400 border border-dashed border-cyan-700/30 hover:border-cyan-400 transition">+ Add Email Account</button>
+          <div class="glass rounded-lg p-3 border border-cyan-700/20"><p class="text-xs text-cyan-600">Gmail requires an <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-cyan-400 underline">App Password</a>. Outlook uses your account password with 2FA app passwords.</p></div>
+        </div>
+      </div>
+
+      <!-- System Tab -->
+      <div class="settings-content" data-tab="system" style="display:none">
+        <div class="space-y-4">
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">SANDBOX TIER</label>
+            <select id="set_sandbox_tier" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
+              <option value="native">Native (no isolation)</option>
+              <option value="process">Process isolation</option>
+              <option value="docker">Docker container</option>
+              <option value="firejail">Firejail sandbox</option>
+            </select></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">GATEWAY PORT</label>
+            <input id="set_gateway_port" type="number" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" value="3096"></div>
+          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">ONBOARDING</label>
+            <button onclick="restartOnboarding()" class="glass rounded-lg px-5 py-2.5 text-sm text-cyan-400 border border-cyan-700/30 hover:border-cyan-400 transition">Run Setup Wizard Again</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save button -->
+      <div class="flex justify-end mt-6 pt-4 border-t border-cyan-700/20">
+        <button onclick="saveSettings()" class="glass rounded-lg px-6 py-2.5 text-sm text-cyan-200 bg-cyan-800/30 border border-cyan-400/40 hover:bg-cyan-700/30 transition">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL STYLES ═══ -->
+  <style>
+    .modal-overlay { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); }
+    .modal-panel { background:rgba(2,15,35,0.95); border:1px solid rgba(0,212,255,0.2); border-radius:12px; padding:28px; backdrop-filter:blur(20px); box-shadow:0 0 40px rgba(0,212,255,0.08), 0 20px 60px rgba(0,0,0,0.5); }
+    .settings-tab { padding:6px 14px; border-radius:8px; font-size:13px; color:var(--dim); border:1px solid transparent; cursor:pointer; transition:all 0.2s; font-family:Rajdhani,sans-serif; }
+    .settings-tab.active { color:var(--primary); border-color:rgba(0,212,255,0.3); background:rgba(0,212,255,0.08); }
+    .settings-tab:hover:not(.active) { color:var(--text); }
+    input[type="text"], input[type="password"], input[type="number"], select { background:rgba(0,20,50,0.5); }
+    input[type="range"] { background:transparent; }
+    .email-account-card { background:rgba(0,20,50,0.4); border:1px solid rgba(0,212,255,0.15); border-radius:8px; padding:12px; }
+  </style>
+
+  <!-- ═══ ONBOARDING + SETTINGS JS ═══ -->
+  <script>
+    let onboardStep = 1;
+    const totalSteps = 4;
+    let currentConfig = {};
+
+    // Check onboarding on load
+    fetch('/api/onboarding/status').then(r=>r.json()).then(data => {
+      if (data.isFirstRun) {
+        openOnboarding();
+      }
+    }).catch(() => {});
+
+    // Load config for settings
+    function loadConfigForSettings() {
+      fetch('/api/config').then(r=>r.json()).then(cfg => {
+        currentConfig = cfg;
+        // Populate general
+        document.getElementById('set_name').value = cfg.assistantName || '';
+        document.getElementById('set_provider').value = cfg.modelProvider || 'ollama-cloud';
+        document.getElementById('set_vault').value = cfg.vaultPath || './vault';
+        document.getElementById('set_confirm').checked = cfg.permissions?.requireConfirmation ?? true;
+        document.getElementById('set_terminal').checked = cfg.permissions?.allowTerminalAccess ?? false;
+        document.getElementById('set_network').checked = cfg.permissions?.allowNetworkAccess ?? false;
+        // Voice
+        document.getElementById('set_tts_backend').value = cfg.audio?.tts?.backend || 'browser';
+        document.getElementById('set_tts_endpoint').value = '';
+        document.getElementById('set_stt_backend').value = cfg.audio?.stt?.backend || 'browser';
+        document.getElementById('set_tts_voice').value = cfg.audio?.tts?.voice || '';
+        document.getElementById('set_tts_speed').value = cfg.audio?.tts?.speed || 1.0;
+        document.getElementById('speedVal').textContent = (cfg.audio?.tts?.speed || 1.0).toFixed(1) + 'x';
+        toggleTtsFields();
+        // Browser
+        document.getElementById('set_browser_enabled').checked = cfg.browserControl?.enabled !== false;
+        document.getElementById('set_browser_autodiscover').checked = cfg.browserControl?.autoDiscover !== false;
+        document.getElementById('set_browser_ports').value = (cfg.browserControl?.defaultPorts || [9222,9223,9224]).join(', ');
+        // Email
+        document.getElementById('set_email_enabled').checked = cfg.email?.enabled !== false;
+        // System
+        document.getElementById('set_sandbox_tier').value = cfg.sandbox?.defaultTier || 'native';
+        document.getElementById('set_gateway_port').value = cfg.gateway?.port || 3096;
+        // Audio status
+        loadAudioStatus();
+      }).catch(() => {});
+    }
+
+    function loadAudioStatus() {
+      fetch('/api/audio/status').then(r=>r.json()).then(s => {
+        const panel = document.getElementById('audioStatusPanel');
+        panel.innerHTML = `<div class="flex justify-between"><span>Mode:</span><span class="text-cyan-300">${s.mode}</span></div>`
+          + `<div class="flex justify-between"><span>STT:</span><span class="${s.stt?.enabled ? 'text-emerald-400' : 'text-red-400'}">${s.stt?.backend || 'none'} ${s.stt?.enabled ? '(active)' : '(off)'}</span></div>`
+          + `<div class="flex justify-between"><span>TTS:</span><span class="${s.tts?.enabled ? 'text-emerald-400' : 'text-red-400'}">${s.tts?.backend || 'none'} ${s.tts?.enabled ? '(active)' : '(off)'}</span></div>`
+          + (s.tts_kokoro_available ? `<div class="flex justify-between"><span>Kokoro:</span><span class="text-emerald-400">${s.tts_kokoro_model}</span></div>` : '')
+          + (s.tts_piper_available ? `<div class="flex justify-between"><span>Piper:</span><span class="text-emerald-400">${s.tts_piper_model}</span></div>` : '');
+      }).catch(() => {});
+    }
+
+    // Onboarding functions
+    function openOnboarding() { document.getElementById('onboardingModal').style.display = 'flex'; }
+    function closeOnboarding() { document.getElementById('onboardingModal').style.display = 'none'; }
+
+    function onboardNext() {
+      if (onboardStep < totalSteps) {
+        if (onboardStep === 1 && !document.getElementById('ob_name').value.trim()) {
+          document.getElementById('ob_name').style.borderColor = 'var(--danger)';
+          return;
+        }
+        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'none';
+        onboardStep++;
+        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'block';
+        document.getElementById('ob_back').style.visibility = 'visible';
+        document.getElementById('onboardProgress').style.width = (onboardStep / totalSteps * 100) + '%';
+        document.getElementById('onboardStepIndicator').textContent = `${onboardStep} / ${totalSteps}`;
+        if (onboardStep === totalSteps) buildSummary();
+        if (onboardStep === totalSteps) {
+          document.getElementById('ob_next').textContent = 'Finish & Save';
+          document.getElementById('ob_next').onclick = finishOnboarding;
+        }
+      }
+    }
+
+    function onboardBack() {
+      if (onboardStep > 1) {
+        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'none';
+        onboardStep--;
+        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'block';
+        document.getElementById('ob_back').style.visibility = onboardStep === 1 ? 'hidden' : 'visible';
+        document.getElementById('ob_next').textContent = 'Next';
+        document.getElementById('ob_next').onclick = onboardNext;
+        document.getElementById('onboardProgress').style.width = (onboardStep / totalSteps * 100) + '%';
+        document.getElementById('onboardStepIndicator').textContent = `${onboardStep} / ${totalSteps}`;
+      }
+    }
+
+    function buildSummary() {
+      const name = document.getElementById('ob_name').value;
+      const mode = document.querySelector('input[name="ob_mode"]:checked').value;
+      const tts = document.getElementById('ob_tts').value;
+      const stt = document.getElementById('ob_stt').value;
+      const browser = document.getElementById('ob_browser').checked;
+      const email = document.getElementById('ob_email_enable').checked;
+      document.getElementById('ob_summary').innerHTML = `
+        <div class="flex justify-between"><span>Name:</span><span class="text-cyan-200">${name}</span></div>
+        <div class="flex justify-between"><span>Mode:</span><span class="text-cyan-200">${mode === 'voice' ? 'Voice + Text' : 'Text Only'}</span></div>
+        <div class="flex justify-between"><span>TTS:</span><span class="text-cyan-200">${tts}</span></div>
+        <div class="flex justify-between"><span>STT:</span><span class="text-cyan-200">${stt}</span></div>
+        <div class="flex justify-between"><span>Browser:</span><span class="${browser ? 'text-emerald-400' : 'text-red-400'}">${browser ? 'Enabled' : 'Disabled'}</span></div>
+        <div class="flex justify-between"><span>Email:</span><span class="${email ? 'text-emerald-400' : 'text-red-400'}">${email ? 'Configured' : 'Skip'}</span></div>`;
+    }
+
+    function finishOnboarding() {
+      const updates: any = {
+        assistantName: document.getElementById('ob_name').value,
+        audio: {
+          mode: document.querySelector('input[name="ob_mode"]:checked').value === 'voice' ? 'builtIn' : 'builtIn',
+          tts: { enabled: true, backend: document.getElementById('ob_tts').value, endpoint: document.getElementById('ob_tts_endpoint').value || undefined },
+          stt: { enabled: document.getElementById('ob_stt').value !== 'disabled', backend: document.getElementById('ob_stt').value === 'browser' ? 'whisper' : document.getElementById('ob_stt').value }
+        },
+        browserControl: { enabled: document.getElementById('ob_browser').checked, autoDiscover: true }
+      };
+      if (document.getElementById('ob_email_enable').checked) {
+        updates.email = {
+          enabled: true,
+          accounts: [{
+            label: document.getElementById('ob_email_label').value || 'Email',
+            imapHost: document.getElementById('ob_email_imap').value,
+            smtpHost: document.getElementById('ob_email_smtp').value,
+            username: document.getElementById('ob_email_user').value,
+            password: document.getElementById('ob_email_pass').value
+          }]
+        };
+      }
+      fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
+        .then(r => r.json()).then(() => { closeOnboarding(); addLog('Onboarding complete! Settings saved.', 'success'); })
+        .catch(e => { addLog('Failed to save: ' + e.message, 'error'); });
+    }
+
+    // Settings functions
+    function openSettings() { loadConfigForSettings(); document.getElementById('settingsModal').style.display = 'flex'; }
+    function closeSettings() { document.getElementById('settingsModal').style.display = 'none'; }
+
+    function switchSettingsTab(tab) {
+      document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      document.querySelectorAll('.settings-content').forEach(c => c.style.display = c.dataset.tab === tab ? 'block' : 'none');
+    }
+
+    function toggleTtsFields() {
+      const backend = document.getElementById('set_tts_backend').value;
+      document.getElementById('set_tts_http_wrap').style.display = backend === 'http' ? 'block' : 'none';
+    }
+
+    document.getElementById('set_tts_speed').addEventListener('input', function() {
+      document.getElementById('speedVal').textContent = parseFloat(this.value).toFixed(1) + 'x';
+    });
+
+    function saveSettings() {
+      const updates: any = {
+        assistantName: document.getElementById('set_name').value,
+        modelProvider: document.getElementById('set_provider').value,
+        vaultPath: document.getElementById('set_vault').value,
+        permissions: {
+          requireConfirmation: document.getElementById('set_confirm').checked,
+          allowTerminalAccess: document.getElementById('set_terminal').checked,
+          allowNetworkAccess: document.getElementById('set_network').checked
+        },
+        audio: {
+          mode: 'builtIn',
+          tts: {
+            enabled: document.getElementById('set_tts_backend').value !== 'disabled',
+            backend: document.getElementById('set_tts_backend').value === 'disabled' ? 'browser' : document.getElementById('set_tts_backend').value,
+            endpoint: document.getElementById('set_tts_endpoint').value || undefined,
+            voice: document.getElementById('set_tts_voice').value || undefined,
+            speed: parseFloat(document.getElementById('set_tts_speed').value)
+          },
+          stt: {
+            enabled: document.getElementById('set_stt_backend').value !== 'disabled',
+            backend: document.getElementById('set_stt_backend').value === 'browser' ? 'whisper' : document.getElementById('set_stt_backend').value
+          }
+        },
+        browserControl: {
+          enabled: document.getElementById('set_browser_enabled').checked,
+          autoDiscover: document.getElementById('set_browser_autodiscover').checked,
+          autoLaunchChrome: document.getElementById('set_browser_autochrome').checked,
+          autoLaunchBrave: document.getElementById('set_browser_autobrave').checked,
+          defaultPorts: document.getElementById('set_browser_ports').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+        },
+        email: { enabled: document.getElementById('set_email_enabled').checked },
+        sandbox: { defaultTier: document.getElementById('set_sandbox_tier').value },
+        gateway: { port: parseInt(document.getElementById('set_gateway_port').value) || 3096 }
+      };
+      fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
+        .then(r => r.json()).then(d => { closeSettings(); addLog('Settings saved. ' + (d.message || ''), 'success'); })
+        .catch(e => { addLog('Save failed: ' + e.message, 'error'); });
+    }
+
+    function restartOnboarding() { closeSettings(); onboardStep = 1; document.querySelectorAll('.onboard-step').forEach((s,i) => s.style.display = i === 0 ? 'block' : 'none'); document.getElementById('ob_back').style.visibility = 'hidden'; document.getElementById('ob_next').textContent = 'Next'; document.getElementById('ob_next').onclick = onboardNext; document.getElementById('onboardProgress').style.width = '25%'; document.getElementById('onboardStepIndicator').textContent = '1 / 4'; openOnboarding(); }
+
+    // TTS endpoint toggle for onboarding
+    document.getElementById('ob_tts').addEventListener('change', function() {
+      document.getElementById('ob_tts_http_fields').style.display = this.value === 'http' ? 'block' : 'none';
+    });
+    // Email fields toggle for onboarding
+    document.getElementById('ob_email_enable').addEventListener('change', function() {
+      document.getElementById('ob_email_fields').style.display = this.checked ? 'block' : 'none';
+    });
+  </script>
+
 </body>
 </html>

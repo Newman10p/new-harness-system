@@ -3,5 +3,5 @@ export interface SpeechToTextAdapter {
 }
 
 export interface TextToSpeechAdapter {
-  synthesize(text: string, options?: { voice?: string; rate?: number }): Promise<Buffer>;
+  synthesize(text: string, options?: Record<string, unknown>): Promise<Buffer>;
 }

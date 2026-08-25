@@ -17,6 +17,7 @@
 //   PIPER_MODEL=/home/user/.local/share/piper-voices/en-us-lessac-medium.onnx
 //   PIPER_CONFIG=/home/user/.local/share/piper-voices/en-us-lessac-medium.onnx.json
 
+import { TextToSpeechAdapter } from "./AudioAdapter";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -42,7 +43,7 @@ export interface PiperConfig {
   lengthScale?: number;
 }
 
-export class PiperTtsAdapter {
+export class PiperTtsAdapter implements TextToSpeechAdapter {
   readonly name = "piper";
   private bin: string;
   private model: string;

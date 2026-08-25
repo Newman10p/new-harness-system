@@ -23,6 +23,7 @@
 //
 // Fallback: Falls back to PiperTtsAdapter if Kokoro binary/model unavailable.
 
+import { TextToSpeechAdapter } from "./AudioAdapter";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -47,7 +48,7 @@ export interface KokoroConfig {
   noiseScale?: number;
 }
 
-export class KokoroTtsAdapter {
+export class KokoroTtsAdapter implements TextToSpeechAdapter {
   readonly name = "kokoro";
   private bin: string;
   private model: string;
@@ -273,7 +274,7 @@ export class KokoroTtsAdapter {
       const output = results["audio"] || results["waveform"] || results[Object.keys(results)[0]];
       if (output && output.data) {
         // Convert float32 audio to int16 WAV
-        return this.float32ToWav(output.data as Float32Array, output.data.length);
+        return this.float32ToWav(output.data as Float32Array, 24000);
       }
 
       throw new Error("No audio output tensor found in model results");
