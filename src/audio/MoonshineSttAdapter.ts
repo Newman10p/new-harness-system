@@ -97,7 +97,7 @@ export class MoonshineSttAdapter {
 
     try {
       // Check onnxruntime availability
-      // @ts-expect-error — optional dependency
+      // @ts-ignore — optional dependency
       const ort: any = await import("onnxruntime-node");
 
       if (!existsSync(this.modelPath)) {
@@ -177,7 +177,7 @@ export class MoonshineSttAdapter {
   private async runInference(audio: Float32Array): Promise<string> {
     if (!this.model) throw new Error("Model not loaded");
 
-    // @ts-expect-error — optional dependency
+    // @ts-ignore — optional dependency
     const ort: any = await import("onnxruntime-node");
 
     // Create input tensor: shape [1, num_samples]

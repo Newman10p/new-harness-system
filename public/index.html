@@ -2120,23 +2120,28 @@
         }
 
         case "tts_engine_status": {
-          // Server reports Piper availability
+          // Server reports neural TTS availability (Piper or Kokoro)
           const engine = msg.payload?.engine;
           const ready = msg.payload?.ready;
           const error = msg.payload?.error;
-          if (engine === "piper") {
+          if (engine === "piper" || engine === "kokoro") {
             state.piperReady = ready;
             if (ready) {
               $("ttsSwitcher").style.display = "flex";
-              $("ttsPiper").title = "Piper Neural TTS (ready)";
-              addLog("Piper TTS engine available", "system");
+              const label = engine === "kokoro" ? "Kokoro Neural TTS (ready)" : "Piper Neural TTS (ready)";
+              $("ttsPiper").title = label;
+              // Update the PIPER label if engine is Kokoro
+              if (engine === "kokoro") {
+                $("ttsPiper").textContent = "KOKORO";
+              }
+              addLog(`${engine.charAt(0).toUpperCase() + engine.slice(1)} TTS engine available`, "system");
             } else {
-              $("ttsPiper").title = error ? `Piper: ${error}` : "Piper: not configured";
-              addLog(`Piper TTS: ${error || "not available"}`, "warning");
+              $("ttsPiper").title = error ? `${engine}: ${error}` : `${engine}: not configured`;
+              addLog(`${engine.charAt(0).toUpperCase() + engine.slice(1)} TTS: ${error || "not available"}`, "warning");
             }
             // Restore saved engine preference
             const savedEngine = localStorage.getItem("mai-tts-engine");
-            if (savedEngine === "piper" && !ready) {
+            if (savedEngine === engine && !ready) {
               switchTts("browser");
             } else if (savedEngine) {
               switchTts(savedEngine);
@@ -2642,13 +2647,33 @@
         }
       };
 
+      let _lastRecognitionError = "";
       recognition.onerror = event => {
+        _lastRecognitionError = event.error;
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          // Microphone permission denied — stop listening and don't auto-restart
+          state.listening = false;
+          state._permissionDenied = true;
+          $("micBtn").classList.remove("active");
+          addLog("Microphone access denied. Allow mic permission in browser settings.", "warning");
+          if (state.callActive) {
+            state.callActive = false;
+            updateStatus("STANDBY");
+            addLog("Voice call ended — mic permission required", "warning");
+          }
+          return;
+        }
         if (!["no-speech", "aborted"].includes(event.error)) {
           addLog(`Recognition error: ${event.error}`, "error");
         }
       };
 
       recognition.onend = () => {
+        // Don't restart if permission was denied or recognition unavailable
+        if (_lastRecognitionError === "not-allowed" || _lastRecognitionError === "service-not-allowed") {
+          _lastRecognitionError = "";
+          return;
+        }
         if (state.listening || state.callActive) {
           try { recognition.start(); } catch (_) {}
         }
@@ -2658,6 +2683,11 @@
     function toggleListening() {
       if (!recognition) {
         speak("Voice recognition is unavailable. Please use the command console.");
+        return;
+      }
+
+      if (state._permissionDenied) {
+        addLog("Microphone permission was denied. Grant access in browser settings and reload.", "warning");
         return;
       }
 

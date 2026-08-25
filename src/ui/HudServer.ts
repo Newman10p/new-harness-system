@@ -271,6 +271,20 @@ export class HudServer {
       level: "green",
     });
 
+    // Resend TTS engine status so newly connected clients see the switcher
+    if (this.piperReady || this.kokoroReady) {
+      this.broadcast("tts_engine_status", {
+        engine: this.activeTtsEngine,
+        ready: true,
+        piperReady: this.piperReady,
+        kokoroReady: this.kokoroReady,
+        info: this.kokoroReady
+          ? this.kokoroAdapter!.getInfo()
+          : this.piperReady
+            ? this.piperAdapter!.getInfo()
+            : undefined,
+      } as any);
+    }
     ws.on("message", (data) => {
       this.handleInbound(ws, data);
     });
