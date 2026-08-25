@@ -57,7 +57,9 @@ export type ActionName =
   | "search-conversations"
   | "web-search"
   | "web-scrape"
-  | "analyze-image";
+  | "analyze-image"
+  | "sandbox-execute"
+  | "device-control";
 
 export interface Action {
   action: ActionName;
@@ -159,7 +161,10 @@ export type HudChannel =
   | "action_progress"
   | "piper_audio"
   | "tts_engine_status"
-  | "tts_engine_switch";
+  | "tts_engine_switch"
+  | "sandbox_output"
+  | "sandbox_session_event"
+  | "device_event";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -198,6 +203,9 @@ export interface HudPayloads {
   piper_audio: { audio: string; format: string; text?: string };
   tts_engine_status: { engine: string; ready: boolean; error?: string; info?: Record<string, unknown> };
   tts_engine_switch: { engine: string; piperReady: boolean };
+  sandbox_output: { sessionId: string; commandId: string; stream: "stdout" | "stderr"; chunk: string };
+  sandbox_session_event: { event: "created" | "destroyed" | "config_changed"; sessionId: string; name: string; detail?: string };
+  device_event: { event: "discovered" | "removed" | "state_change"; deviceId: string; name: string; capability?: string; value?: unknown };
 }
 
 export type HudMessage<C extends HudChannel> = {

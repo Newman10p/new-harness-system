@@ -35,6 +35,8 @@ require_approval:
   - "self-repair"
   - "rollback"
   - "adaptive-config"
+  - "sandbox-execute"
+  - "device-control"
 untrusted_content_sources:
   - "web-search"
   - "web-scrape"
@@ -104,6 +106,8 @@ untrusted_content_sources:
 | rollback | Approval | Can revert system state |
 | web-search | Auto | Read-only web search |
 | web-scrape | Auto | Read-only web page fetch |
+| sandbox-execute | Approval | Isolated command execution |
+| device-control | Approval | Device discovery and control |
 
 ## Self-Modification Safety
 

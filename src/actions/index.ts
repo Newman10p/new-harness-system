@@ -101,6 +101,8 @@ const advancedPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("dry-run", "dry-run.js"),
   tryLoadPrimitive("run-macro", "run-macro.js"),
   tryLoadPrimitive("search-conversations", "search-conversations.js"),
+  tryLoadPrimitive("sandbox-execute", "sandbox-execute.js"),
+  tryLoadPrimitive("device-control", "device-control.js"),
 ];
 
 // Re-export scheduler functions for the server to wire up

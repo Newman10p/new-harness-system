@@ -59,6 +59,13 @@ try { const mod = _require("./network/TunnelManager.js"); _TunnelManager = mod; 
 let _AnalyticsEngine: { getAnalyticsEngine: () => { initialize: () => Promise<void>; recordEvent: (event: Record<string, unknown>) => void; getRealtimeStats: () => Record<string, unknown>; shutdown: () => Promise<void> } } | null = null;
 try { const mod = _require("./analytics/AnalyticsEngine.js"); _AnalyticsEngine = mod; } catch { /* not yet created */ }
 
+// Sandbox & Device Control (new unified system)
+let _SandboxManager: { getSandboxManager: () => { initialize: () => Promise<void>; getStats: () => Record<string, unknown>; shutdown: () => Promise<void> } } | null = null;
+try { const mod = _require("./sandbox2/SandboxManager.js"); _SandboxManager = mod; } catch { /* not yet compiled */ }
+
+let _DeviceControlManager: { getDeviceControlManager: () => { initialize: () => Promise<void>; getStats: () => Record<string, unknown>; shutdown: () => Promise<void>; on: (event: string, handler: (...args: any[]) => void) => void } } | null = null;
+try { const mod = _require("./sandbox2/DeviceControlManager.js"); _DeviceControlManager = mod; } catch { /* not yet compiled */ }
+
 // ─── Configuration ────────────────────────────────────────────────────────
 const HTTP_PORT = parseInt(process.env.HTTP_PORT ?? "3000", 10);
 const WS_PORT = parseInt(process.env.WS_PORT ?? "8080", 10);
@@ -604,6 +611,50 @@ async function main() {
     }
   }
 
+  // 11h. SandboxManager — unified command sandbox (if available)
+  let sandboxManager: { shutdown: () => Promise<void> } | null = null;
+  if (_SandboxManager) {
+    try {
+      sandboxManager = _SandboxManager.getSandboxManager();
+      await sandboxManager.initialize();
+      const sandboxStats = (sandboxManager as any).getStats();
+      console.log(`[Sandbox] Initialized. Tiers: [${(sandboxStats.availableTiers as string[]).join(", ")}]`);
+    } catch (err) {
+      console.warn(`[Sandbox] Failed to initialize: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // 11i. DeviceControlManager — device discovery & control (if available)
+  let deviceControlManager: { shutdown: () => Promise<void> } | null = null;
+  if (_DeviceControlManager) {
+    try {
+      deviceControlManager = _DeviceControlManager.getDeviceControlManager();
+      await deviceControlManager.initialize();
+      const devStats = (deviceControlManager as any).getStats();
+      console.log(`[DeviceControl] Initialized. ${devStats.totalDevices} devices across ${devStats.adaptersCount} adapters`);
+
+      // Wire device events to HUD
+      (deviceControlManager as any).on("device_discovered", (device: any) => {
+        hudServer.broadcast("device_event" as any, {
+          event: "discovered",
+          deviceId: device.id,
+          name: device.name,
+        });
+      });
+      (deviceControlManager as any).on("device_state_change", (deviceId: string, capability: string, value: unknown) => {
+        hudServer.broadcast("device_event" as any, {
+          event: "state_change",
+          deviceId,
+          name: capability,
+          capability,
+          value,
+        });
+      });
+    } catch (err) {
+      console.warn(`[DeviceControl] Failed to initialize: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   // 12. Log startup complete
   await audit({
     type: "llm_call",
@@ -623,6 +674,9 @@ async function main() {
     });
     registry.shutdown();
     hudServer.shutdown();
+    // Shutdown sandbox & device control
+    if (sandboxManager) try { await sandboxManager.shutdown(); } catch { /* non-fatal */ }
+    if (deviceControlManager) try { await deviceControlManager.shutdown(); } catch { /* non-fatal */ }
     // Shutdown lazy-loaded subsystems (non-blocking)
     if (eventMesh) try { await eventMesh.shutdown(); } catch { /* non-fatal */ }
     httpServer.close();

@@ -1,7 +1,7 @@
 ---
 name: M.A.I. Tools Catalog
-version: 5.1.0
-total_actions: 50
+version: 5.2.0
+total_actions: 52
 ---
 
 # M.A.I. Tools Catalog
@@ -438,4 +438,110 @@ Or with base64:
 
 **When to use**: When you need to understand what's in a screenshot or image — reading UI content, identifying visual elements, checking screen state, describing images. Pairs well with `screenshot-capture` for a "see and understand" workflow.
 
-**Configuration**: Uses `VISION_MODEL` (default: `gpt-4o-mini`), `VISION_BASE_URL`, and `VISION_API_KEY` env vars. Falls back to `LLM_BASE_URL` / `LLM_API_KEY` if vision-specific vars are not set.
+## Sandbox & Device Control
+
+### sandbox-execute
+Unified sandbox execution system. Create persistent isolated sessions with their own working directory and environment, then run commands within them. Supports 4 isolation tiers: `native` (restricted env, lightest), `process` (spawn with memory limits), `docker` (full container isolation), `firejail` (Linux namespace isolation). Every command is validated against 25+ dangerous patterns and analyzed for side effects before execution.
+
+**Operations:**
+
+Create a sandbox session:
+```json
+{"action": "sandbox-execute", "operation": "create-session", "name": "build-env", "tier": "docker", "timeout": 60000, "memory": 512, "network": true}
+```
+- `name` (required): Session name (e.g. "build-env", "test-run", "install-deps")
+- `tier` (optional): Isolation level — `native` (default), `process`, `docker`, `firejail`
+- `timeout` (optional): Per-command timeout in ms (default: 30000)
+- `memory` (optional): Memory limit in MB (default: 256)
+- `network` (optional): Allow network access (default: false)
+- `session_ttl` (optional): Session idle timeout in ms (default: 1800000 = 30min)
+
+Execute a command in a session:
+```json
+{"action": "sandbox-execute", "operation": "execute", "session_id": "abc123", "command": "npm install && npm test"}
+```
+- `session_id` (required): Session ID from create-session
+- `command` (required): Shell command to execute
+
+List active sessions:
+```json
+{"action": "sandbox-execute", "operation": "list-sessions"}
+```
+
+Get session details:
+```json
+{"action": "sandbox-execute", "operation": "session-info", "session_id": "abc123"}
+```
+
+Destroy a session:
+```json
+{"action": "sandbox-execute", "operation": "destroy-session", "session_id": "abc123"}
+```
+
+Replay a command from history:
+```json
+{"action": "sandbox-execute", "operation": "replay", "session_id": "abc123", "history_index": 0}
+```
+
+Update session config:
+```json
+{"action": "sandbox-execute", "operation": "update-config", "session_id": "abc123", "tier": "docker", "timeout": 120000}
+```
+
+Get sandbox statistics:
+```json
+{"action": "sandbox-execute", "operation": "stats"}
+```
+
+**Returns**: Session objects with command history, resource usage, risk scores. Command results include stdout, stderr, exit code, duration, risk score, and side effect analysis.
+
+**When to use**: When you need to run potentially unsafe commands in isolation. Use `create-session` first, then `execute` commands within it. Choose `docker` tier for maximum isolation, `native` for speed. Sessions persist with their own working directory — ideal for multi-step build processes, package installations, or running tests.
+
+### device-control
+Discover, list, search, and control devices. Automatically discovers local system info, display settings, audio devices, USB peripherals, and network services. Supports platform-specific control (Linux, macOS, Windows) for display brightness, volume, media playback, and service management.
+
+**Operations:**
+
+Discover all devices:
+```json
+{"action": "device-control", "operation": "discover"}
+```
+
+List devices (optionally filter by protocol):
+```json
+{"action": "device-control", "operation": "list", "protocol": "audio"}
+```
+- `protocol` (optional): Filter by protocol — `local`, `display`, `audio`, `usb`, `network-service`, `bluetooth`, `ssh`, `mqtt`, `home-assistant`
+
+Control a device capability:
+```json
+{"action": "device-control", "operation": "control", "device_id": "audio-primary", "capability": "volume", "ctrl_action": "set", "value": 75}
+```
+- `device_id` (required): Device ID from list/search
+- `capability` (required): Capability name (e.g. "volume", "brightness", "muted", "play_pause")
+- `ctrl_action` (required): `set`, `get`, `toggle`, or `trigger`
+- `value` (optional): Value to set (number for volume/brightness, boolean for toggle)
+
+Get device state:
+```json
+{"action": "device-control", "operation": "get-state", "device_id": "audio-primary", "capability": "volume"}
+```
+
+Search devices by name or capability:
+```json
+{"action": "device-control", "operation": "search", "query": "brightness"}
+```
+
+Get detailed device info:
+```json
+{"action": "device-control", "operation": "device-info", "device_id": "display-primary"}
+```
+
+Get device control statistics:
+```json
+{"action": "device-control", "operation": "stats"}
+```
+
+**Returns**: Device objects with id, name, protocol, status, capabilities (typed: switch/slider/sensor/button/toggle/select with current values, ranges, options), and metadata.
+
+**When to use**: When you need to interact with hardware — change volume, adjust screen brightness, discover connected devices, restart services, or control smart home devices (via Home Assistant/MQTT adapters). Always `list` or `search` first to find device IDs, then `control` to send commands.

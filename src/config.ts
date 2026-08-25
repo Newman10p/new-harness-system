@@ -149,6 +149,29 @@ export interface SecurityConfig {
   logActions?: boolean;
 }
 
+// ===== Sandbox Config =====
+export interface SandboxSystemConfig {
+  enabled?: boolean;
+  defaultTier?: "native" | "process" | "docker" | "firejail";
+  defaultTimeoutMs?: number;
+  defaultMemoryMb?: number;
+  sessionTtlMs?: number;
+  basePath?: string;
+}
+
+// ===== Device Control Config =====
+export interface DeviceControlSystemConfig {
+  enabled?: boolean;
+  autoDiscover?: boolean;
+  scanIntervalMs?: number;
+  homeAssistantUrl?: string;
+  homeAssistantToken?: string;
+  mqttBrokerUrl?: string;
+  mqttUsername?: string;
+  mqttPassword?: string;
+  sshHosts?: Array<{ host: string; port?: number; user?: string; keyPath?: string }>;
+}
+
 // ===== Main Config =====
 export interface HarnessConfig {
   model: string;
@@ -170,6 +193,8 @@ export interface HarnessConfig {
   tools?: ToolsConfig;
   policy?: PolicyConfig;
   security?: SecurityConfig;
+  sandbox?: SandboxSystemConfig;
+  deviceControl?: DeviceControlSystemConfig;
 }
 
 // ===== Defaults =====
@@ -292,6 +317,18 @@ const defaultConfig: HarnessConfig = {
     alertOnFrequentTerminal: true,
     logActions: true
   },
+  sandbox: {
+    enabled: true,
+    defaultTier: "native",
+    defaultTimeoutMs: 30_000,
+    defaultMemoryMb: 256,
+    sessionTtlMs: 30 * 60 * 1000,
+  },
+  deviceControl: {
+    enabled: true,
+    autoDiscover: true,
+    scanIntervalMs: 0,
+  },
   gateway: {
     enabled: true,
     port: 3096
@@ -353,6 +390,14 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
       security: {
         ...defaultConfig.security,
         ...(parsed.security ?? {})
+      },
+      sandbox: {
+        ...defaultConfig.sandbox!,
+        ...(parsed.sandbox ?? {})
+      },
+      deviceControl: {
+        ...defaultConfig.deviceControl!,
+        ...(parsed.deviceControl ?? {})
       },
       gateway: {
         ...defaultConfig.gateway,
