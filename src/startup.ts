@@ -7,6 +7,9 @@ import { printBanner } from "./ui/banner";
 import { spawn } from "node:child_process";
 import { Orchestrator } from "./core/orchestrator";
 import { UIGateway } from "./ui/gateway";
+import { getSandboxManager } from "./sandbox2/SandboxManager";
+import { getDeviceControlManager } from "./sandbox2/DeviceControlManager";
+import type { HarnessConfig } from "./config";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -22,6 +25,50 @@ async function main(): Promise<void> {
 
   if (config.audio?.stt?.enabled && config.audio?.tts?.enabled) {
     console.log("Audio adapters initialized.");
+  }
+
+  // ─── Initialize Sandbox System ────────────────────────────────────
+  if (config.sandbox?.enabled !== false) {
+    try {
+      const sandboxManager = getSandboxManager(config.sandbox?.basePath);
+      await sandboxManager.initialize();
+      const stats = sandboxManager.getStats();
+      console.log(
+        `[Sandbox] Ready. Tiers: [${stats.availableTiers.join(", ")}] ` +
+        `Docker: ${stats.dockerAvailable} Firejail: ${stats.firejailAvailable}`
+      );
+    } catch (err) {
+      console.warn("[Sandbox] Initialization failed:", err instanceof Error ? err.message : err);
+    }
+  } else {
+    console.log("[Sandbox] Disabled by configuration.");
+  }
+
+  // ─── Initialize Device Control System ────────────────────────────
+  if (config.deviceControl?.enabled !== false) {
+    try {
+      const deviceManager = getDeviceControlManager({
+        enabled: true,
+        autoDiscover: config.deviceControl?.autoDiscover ?? true,
+        scanIntervalMs: config.deviceControl?.scanIntervalMs ?? 0,
+        homeAssistantUrl: config.deviceControl?.homeAssistantUrl,
+        homeAssistantToken: config.deviceControl?.homeAssistantToken,
+        mqttBrokerUrl: config.deviceControl?.mqttBrokerUrl,
+        mqttUsername: config.deviceControl?.mqttUsername,
+        mqttPassword: config.deviceControl?.mqttPassword,
+        sshHosts: config.deviceControl?.sshHosts,
+      });
+      await deviceManager.initialize();
+      const devStats = deviceManager.getStats();
+      console.log(
+        `[DeviceControl] Ready. ${devStats.totalDevices} devices across ` +
+        `${devStats.adaptersCount} adapters. Protocols: [${devStats.protocols.join(", ")}]`
+      );
+    } catch (err) {
+      console.warn("[DeviceControl] Initialization failed:", err instanceof Error ? err.message : err);
+    }
+  } else {
+    console.log("[DeviceControl] Disabled by configuration.");
   }
 
   // Initialize orchestrator for gateway
@@ -55,6 +102,16 @@ async function main(): Promise<void> {
     console.error("Wake word listener error:", error);
     console.log("Continuing without wake word detection.");
   }
+
+  // ─── Graceful Shutdown ─────────────────────────────────────────────
+  const shutdown = async () => {
+    console.log("\n[MAI] Shutting down...");
+    try { getSandboxManager().shutdown(); } catch {}
+    try { getDeviceControlManager().shutdown(); } catch {}
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((error) => {

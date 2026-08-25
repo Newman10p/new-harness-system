@@ -10,7 +10,7 @@ interface EffectPattern {
   regex: RegExp;
   category: SideEffectCategory;
   description: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: "low" | "medium" | "high" | "critical" | ((m: RegExpMatchArray) => "low" | "medium" | "high" | "critical");
   extractTargets: (match: RegExpMatchArray) => string[];
 }
 
@@ -44,7 +44,7 @@ const PATTERNS: EffectPattern[] = [
       }
       if (flags.includes("r")) return "high";
       return "medium";
-    } as any,
+    },
     extractTargets: (m) => (m[2] ?? "").split(/\s+/).filter(Boolean),
   },
   {

@@ -5,23 +5,16 @@
 // list-adapters, device-info.
 
 import type { Action, ActionContext, ActionResult, HudChannel } from "../../types/index.js";
+import { getDeviceControlManager } from "../../sandbox2/DeviceControlManager.js";
+import type { DeviceControlManager } from "../../sandbox2/DeviceControlManager.js";
 
-// Runtime import — sandbox2 is not in tsconfig includes, loaded via createRequire
-const { createRequire } = await import("node:module");
-const require = createRequire(import.meta.url);
+let _manager: DeviceControlManager | null = null;
 
-let _DeviceControlManager: any = null;
-
-function getManager() {
-  if (!_DeviceControlManager) {
-    try {
-      const mod = require("../../sandbox2/DeviceControlManager.js");
-      _DeviceControlManager = mod.getDeviceControlManager();
-    } catch {
-      return null;
-    }
+function getManager(): DeviceControlManager {
+  if (!_manager) {
+    _manager = getDeviceControlManager();
   }
-  return _DeviceControlManager;
+  return _manager;
 }
 
 export async function deviceControl(
@@ -29,9 +22,6 @@ export async function deviceControl(
   ctx: ActionContext
 ): Promise<ActionResult> {
   const manager = getManager();
-  if (!manager) {
-    return { ok: false, error: "DeviceControlManager not available. Ensure sandbox2/ is compiled." };
-  }
 
   const operation = String(action.operation ?? "list").toLowerCase();
 
@@ -60,15 +50,26 @@ export async function deviceControl(
 
 // ─── Operation Handlers ──────────────────────────────────────────────
 
-async function discoverDevices(ctx: ActionContext, manager: any): Promise<ActionResult> {
+async function discoverDevices(ctx: ActionContext, manager: DeviceControlManager): Promise<ActionResult> {
   try {
     const results = await manager.discoverAll();
-    const totalNew = results.reduce((sum: number, r: any) => sum + r.newDevices.length, 0);
+    const totalNew = results.reduce((sum, r) => sum + r.newDevices.length, 0);
 
     ctx.emitHud("activity_log" as HudChannel, {
       message: `Device discovery complete: ${totalNew} devices found across ${results.length} adapters`,
       level: "info",
     } as never);
+
+    // Emit individual device_discovered events for HUD
+    for (const result of results) {
+      for (const device of result.newDevices) {
+        ctx.emitHud("device_event" as HudChannel, {
+          event: "discovered",
+          deviceId: device.id,
+          name: device.name,
+        } as never);
+      }
+    }
 
     await ctx.audit({
       type: "action_executed",
@@ -82,7 +83,7 @@ async function discoverDevices(ctx: ActionContext, manager: any): Promise<Action
       data: {
         totalDevices: manager.listDevices().length,
         adaptersScanned: results.length,
-        results: results.map((r: any) => ({
+        results: results.map((r) => ({
           adapter: r.adapterId,
           protocol: r.protocol,
           found: r.devicesFound,
@@ -96,22 +97,22 @@ async function discoverDevices(ctx: ActionContext, manager: any): Promise<Action
   }
 }
 
-function listDevices(action: Action, manager: any): ActionResult {
+function listDevices(action: Action, manager: DeviceControlManager): ActionResult {
   const protocol = action.protocol ? String(action.protocol) : null;
   let devices = manager.listDevices();
 
   if (protocol) {
-    devices = devices.filter((d: any) => d.protocol === protocol);
+    devices = devices.filter((d) => d.protocol === protocol);
   }
 
   return {
     ok: true,
-    data: devices.map((d: any) => ({
+    data: devices.map((d) => ({
       id: d.id,
       name: d.name,
       protocol: d.protocol,
       status: d.status,
-      capabilities: d.capabilities.map((c: any) => ({
+      capabilities: d.capabilities.map((c) => ({
         name: c.name,
         type: c.type,
         value: c.value,
@@ -125,7 +126,7 @@ function listDevices(action: Action, manager: any): ActionResult {
   };
 }
 
-async function controlDevice(action: Action, ctx: ActionContext, manager: any): Promise<ActionResult> {
+async function controlDevice(action: Action, ctx: ActionContext, manager: DeviceControlManager): Promise<ActionResult> {
   const deviceId = String(action.device_id ?? "");
   const capability = String(action.capability ?? "");
   const ctrlAction = String(action.ctrl_action ?? "set");
@@ -142,8 +143,19 @@ async function controlDevice(action: Action, ctx: ActionContext, manager: any): 
     deviceId,
     capability,
     action: ctrlAction as any,
-    value,
+    value: value as string | number | boolean | undefined,
   });
+
+  // Emit device state change to HUD
+  if (result.success) {
+    ctx.emitHud("device_event" as HudChannel, {
+      event: "state_change",
+      deviceId,
+      name: deviceId,
+      capability,
+      value: result.value as string | number | boolean | undefined,
+    } as never);
+  }
 
   ctx.emitHud("activity_log" as HudChannel, {
     message: `Device ${deviceId} → ${capability} ${ctrlAction}: ${result.success ? "OK" : result.error}`,
@@ -172,7 +184,7 @@ async function controlDevice(action: Action, ctx: ActionContext, manager: any): 
   };
 }
 
-async function getState(action: Action, manager: any): Promise<ActionResult> {
+async function getState(action: Action, manager: DeviceControlManager): Promise<ActionResult> {
   const deviceId = String(action.device_id ?? "");
   const capability = String(action.capability ?? "");
 
@@ -183,7 +195,7 @@ async function getState(action: Action, manager: any): Promise<ActionResult> {
   return { ok: true, data: { deviceId, capability, value } };
 }
 
-function searchDevices(action: Action, manager: any): ActionResult {
+function searchDevices(action: Action, manager: DeviceControlManager): ActionResult {
   const query = String(action.query ?? "");
   if (!query) return { ok: false, error: 'Missing required field: "query"' };
 
@@ -193,18 +205,18 @@ function searchDevices(action: Action, manager: any): ActionResult {
     data: {
       query,
       count: devices.length,
-      devices: devices.map((d: any) => ({
+      devices: devices.map((d) => ({
         id: d.id,
         name: d.name,
         protocol: d.protocol,
         status: d.status,
-        capabilities: d.capabilities.map((c: any) => c.name),
+        capabilities: d.capabilities.map((c) => c.name),
       })),
     },
   };
 }
 
-function deviceInfo(action: Action, manager: any): ActionResult {
+function deviceInfo(action: Action, manager: DeviceControlManager): ActionResult {
   const deviceId = String(action.device_id ?? "");
   if (!deviceId) return { ok: false, error: 'Missing required field: "device_id"' };
 
@@ -227,6 +239,6 @@ function deviceInfo(action: Action, manager: any): ActionResult {
   };
 }
 
-function getStats(manager: any): ActionResult {
+function getStats(manager: DeviceControlManager): ActionResult {
   return { ok: true, data: manager.getStats() };
 }

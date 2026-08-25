@@ -23,8 +23,16 @@
     "src/ui/**/*",
     "src/auth/**/*",
     "src/gateway/**/*",
+    "src/sandbox/**/*",
+    "src/sandbox2/**/*",
+    "src/config/**/*",
+    "src/harness/**/*",
+    "src/registry/**/*",
+    "src/policy/**/*",
     "src/server.ts",
-    "src/index.ts"
+    "src/index.ts",
+    "src/config.ts",
+    "src/startup.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,36 +1,20 @@
-// ─── sandbox-execute ────────────────────────────────────────────────
+// ─── sandbox-execute ────────────────────────────────────────
 // Unified sandbox execution primitive.
 // Creates/manages sandbox sessions and executes commands within them.
 // Supports operations: create-session, execute, list-sessions, destroy-session,
 // session-info, replay, update-config, stats.
 
 import type { Action, ActionContext, ActionResult, HudChannel } from "../../types/index.js";
-
-// Runtime import — sandbox2 is not in tsconfig includes, loaded via createRequire
-const { createRequire } = await import("node:module");
-const require = createRequire(import.meta.url);
-
-let _SandboxManager: any = null;
-
-function getManager() {
-  if (!_SandboxManager) {
-    try {
-      const mod = require("../../sandbox2/SandboxManager.js");
-      _SandboxManager = mod.getSandboxManager();
-    } catch {
-      return null;
-    }
-  }
-  return _SandboxManager;
-}
+import { getSandboxManager } from "../../sandbox2/SandboxManager.js";
+import type { SandboxManager, CommandResult } from "../../sandbox2/SandboxManager.js";
 
 export async function sandboxExecute(
   action: Action,
   ctx: ActionContext
 ): Promise<ActionResult> {
-  const manager = getManager();
+  const manager = getSandboxManager();
   if (!manager) {
-    return { ok: false, error: "SandboxManager not available. Ensure sandbox2/ is compiled." };
+    return { ok: false, error: "SandboxManager not available." };
   }
 
   const operation = String(action.operation ?? "execute").toLowerCase();
@@ -59,7 +43,7 @@ export async function sandboxExecute(
 
 // ─── Operation Handlers ──────────────────────────────────────────────
 
-async function createSession(action: Action, ctx: ActionContext, manager: any): Promise<ActionResult> {
+async function createSession(action: Action, ctx: ActionContext, manager: SandboxManager): Promise<ActionResult> {
   const name = String(action.name ?? "default");
   const tier = String(action.tier ?? "native");
   const timeout = Number(action.timeout ?? 30_000);
@@ -81,9 +65,11 @@ async function createSession(action: Action, ctx: ActionContext, manager: any): 
       sessionTtlMs: sessionTtl,
     });
 
-    ctx.emitHud("activity_log" as HudChannel, {
-      message: `Sandbox session created: ${session.name} [${session.config.tier}]`,
-      level: "info",
+    ctx.emitHud("sandbox_session_event" as HudChannel, {
+      event: "created",
+      sessionId: session.id,
+      name: session.name,
+      detail: `[${session.config.tier}] timeout=${timeout}ms mem=${memory}MB network=${network}`,
     } as never);
 
     await ctx.audit({
@@ -99,7 +85,7 @@ async function createSession(action: Action, ctx: ActionContext, manager: any): 
   }
 }
 
-async function executeCommand(action: Action, ctx: ActionContext, manager: any): Promise<ActionResult> {
+async function executeCommand(action: Action, ctx: ActionContext, manager: SandboxManager): Promise<ActionResult> {
   const sessionId = String(action.session_id ?? "");
   const command = String(action.command ?? "");
 
@@ -116,8 +102,8 @@ async function executeCommand(action: Action, ctx: ActionContext, manager: any):
       ctx.emitHud("sandbox_output" as HudChannel, {
         sessionId: sid,
         commandId: cid,
-        stream,
-        chunk: chunk.slice(-500), // last 500 chars
+        stream: stream as "stdout" | "stderr",
+        chunk: chunk.slice(-500),
       } as never);
     }
   });
@@ -163,11 +149,11 @@ async function executeCommand(action: Action, ctx: ActionContext, manager: any):
   }
 }
 
-function listSessions(manager: any): ActionResult {
+function listSessions(manager: SandboxManager): ActionResult {
   const sessions = manager.listSessions();
   return {
     ok: true,
-    data: sessions.map((s: any) => ({
+    data: sessions.map((s) => ({
       id: s.id,
       name: s.name,
       tier: s.config.tier,
@@ -180,13 +166,23 @@ function listSessions(manager: any): ActionResult {
   };
 }
 
-async function destroySession(action: Action, ctx: ActionContext, manager: any): Promise<ActionResult> {
+async function destroySession(action: Action, ctx: ActionContext, manager: SandboxManager): Promise<ActionResult> {
   const sessionId = String(action.session_id ?? "");
   if (!sessionId) {
     return { ok: false, error: 'Missing required field: "session_id"' };
   }
 
+  const session = manager.getSession(sessionId);
   const destroyed = await manager.destroySession(sessionId);
+
+  if (session) {
+    ctx.emitHud("sandbox_session_event" as HudChannel, {
+      event: "destroyed",
+      sessionId,
+      name: session.name,
+    } as never);
+  }
+
   await ctx.audit({
     type: "action_executed",
     action: "sandbox-execute",
@@ -197,7 +193,7 @@ async function destroySession(action: Action, ctx: ActionContext, manager: any):
   return { ok: destroyed, data: { destroyed, sessionId } };
 }
 
-function sessionInfo(action: Action, manager: any): ActionResult {
+function sessionInfo(action: Action, manager: SandboxManager): ActionResult {
   const sessionId = String(action.session_id ?? "");
   const session = manager.getSession(sessionId);
   if (!session) {
@@ -206,7 +202,7 @@ function sessionInfo(action: Action, manager: any): ActionResult {
   return { ok: true, data: serializeSession(session) };
 }
 
-async function replayCommand(action: Action, ctx: ActionContext, manager: any): Promise<ActionResult> {
+async function replayCommand(action: Action, ctx: ActionContext, manager: SandboxManager): Promise<ActionResult> {
   const sessionId = String(action.session_id ?? "");
   const historyIndex = Number(action.history_index ?? 0);
 
@@ -229,7 +225,7 @@ async function replayCommand(action: Action, ctx: ActionContext, manager: any): 
   }
 }
 
-function updateConfig(action: Action, manager: any): ActionResult {
+function updateConfig(action: Action, manager: SandboxManager): ActionResult {
   const sessionId = String(action.session_id ?? "");
   const updates: Record<string, unknown> = {};
 
@@ -242,7 +238,7 @@ function updateConfig(action: Action, manager: any): ActionResult {
   return { ok: updated, data: { updated, sessionId, updates } };
 }
 
-function getStats(manager: any): ActionResult {
+function getStats(manager: SandboxManager): ActionResult {
   return { ok: true, data: manager.getStats() };
 }
 

@@ -745,12 +745,12 @@ export class SandboxManager {
     return tiers;
   }
 
-  private makeErrorResult(command: string, error: string, tier: IsolationTier): CommandResult {
+  private makeErrorResult(command: string, error: string, tier: string): CommandResult {
     return {
       id: crypto.randomBytes(4).toString("hex"),
       command, sessionId: "", success: false,
       stdout: "", stderr: error, exitCode: 1,
-      durationMs: 0, timedOut: false, tier,
+      durationMs: 0, timedOut: false, tier: tier as IsolationTier,
       sideEffects: null, timestamp: Date.now(),
     };
   }
