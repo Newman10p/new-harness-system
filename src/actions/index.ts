@@ -103,6 +103,7 @@ const advancedPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("search-conversations", "search-conversations.js"),
   tryLoadPrimitive("sandbox-execute", "sandbox-execute.js"),
   tryLoadPrimitive("device-control", "device-control.js"),
+  tryLoadPrimitive("ui-adapt", "ui-adapt.js"),
 ];
 
 // Re-export scheduler functions for the server to wire up

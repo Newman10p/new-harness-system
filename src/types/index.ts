@@ -59,7 +59,8 @@ export type ActionName =
   | "web-scrape"
   | "analyze-image"
   | "sandbox-execute"
-  | "device-control";
+  | "device-control"
+  | "ui-adapt";
 
 export interface Action {
   action: ActionName;
@@ -82,6 +83,7 @@ export interface PolicyConfig {
   deny_commands?: string[];
   allow_network?: string[];
   require_approval?: string[];
+  auto_approve?: string[];
 }
 
 export type PolicyDecision =
@@ -164,7 +166,8 @@ export type HudChannel =
   | "tts_engine_switch"
   | "sandbox_output"
   | "sandbox_session_event"
-  | "device_event";
+  | "device_event"
+  | "ui_patch";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -206,6 +209,7 @@ export interface HudPayloads {
   sandbox_output: { sessionId: string; commandId: string; stream: "stdout" | "stderr"; chunk: string };
   sandbox_session_event: { event: "created" | "destroyed" | "config_changed"; sessionId: string; name: string; detail?: string };
   device_event: { event: "discovered" | "removed" | "state_change"; deviceId: string; name: string; capability?: string; value?: unknown };
+  ui_patch: { type: "css" | "theme" | "layout" | "widget" | "script"; selector?: string; css?: string; variables?: Record<string, string>; html?: string; js?: string; id?: string; description?: string };
 }
 
 export type HudMessage<C extends HudChannel> = {

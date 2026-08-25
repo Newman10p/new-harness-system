@@ -382,6 +382,141 @@ const TOOL_DEFINITIONS: ToolFunctionSchema[] = [
       "Run a self-diagnostic check on all M.A.I. subsystems (LLM, policy, actions, memory, proactive engine).",
     parameters: { type: "object", properties: {} },
   },
+
+  // ── Sandbox ──────────────────────────────────────────────────────────────
+  {
+    name: "sandbox-execute",
+    description:
+      "Execute a command in an isolated sandbox environment. Supports session management (create/destroy), command execution with streaming output, and resource limits. Auto-approved — no confirmation needed.",
+    parameters: {
+      type: "object",
+      properties: {
+        operation: {
+          type: "string",
+          description: "Operation: create-session, execute, list-sessions, destroy-session, session-info, replay, update-config, stats.",
+          enum: ["create-session", "execute", "list-sessions", "destroy-session", "session-info", "replay", "update-config", "stats"],
+        },
+        session_id: {
+          type: "string",
+          description: "Session ID (required for execute, destroy, info, replay, update-config).",
+        },
+        command: {
+          type: "string",
+          description: "Shell command to execute (required for execute operation).",
+        },
+        name: {
+          type: "string",
+          description: "Session name (for create-session).",
+        },
+        tier: {
+          type: "string",
+          description: "Isolation tier: native (lightest), process, docker, firejail (strongest).",
+          enum: ["native", "process", "docker", "firejail"],
+        },
+        timeout: {
+          type: "number",
+          description: "Command timeout in ms (default: 30000).",
+        },
+        memory: {
+          type: "number",
+          description: "Memory limit in MB (default: 256).",
+        },
+        network: {
+          type: "boolean",
+          description: "Allow network access in the session (default: false).",
+        },
+      },
+      required: ["operation"],
+    },
+  },
+
+  // ── Device Control ──────────────────────────────────────────────────────
+  {
+    name: "device-control",
+    description:
+      "Discover, list, and control devices (display brightness, audio volume, smart home, USB, network services). Auto-approved — no confirmation needed.",
+    parameters: {
+      type: "object",
+      properties: {
+        operation: {
+          type: "string",
+          description: "Operation: discover, list, control, get-state, search, device-info, stats.",
+          enum: ["discover", "list", "control", "get-state", "search", "device-info", "stats"],
+        },
+        device_id: {
+          type: "string",
+          description: "Device ID (required for control, get-state, device-info).",
+        },
+        capability: {
+          type: "string",
+          description: "Capability name (e.g., brightness, volume, muted). Required for control and get-state.",
+        },
+        ctrl_action: {
+          type: "string",
+          description: "Control action: set, get, toggle, trigger.",
+          enum: ["set", "get", "toggle", "trigger"],
+        },
+        value: {
+          description: "Value to set (number for slider, boolean for toggle, string for text).",
+        },
+        protocol: {
+          type: "string",
+          description: "Filter devices by protocol (for list operation).",
+        },
+        query: {
+          type: "string",
+          description: "Search query (for search operation).",
+        },
+      },
+      required: ["operation"],
+    },
+  },
+
+  // ── UI Adaptation ────────────────────────────────────────────────────────
+  {
+    name: "ui-adapt",
+    description:
+      "Self-adapt the web UI in real-time. Send CSS patches, theme changes, layout directives, widget injections, or safe DOM scripts. Auto-approved — no confirmation needed. The UI client applies patches instantly via WebSocket.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          description: "Patch type: css (inject styles), theme (CSS variables), layout (show/hide/reorder), widget (inject HTML), script (safe DOM manipulation).",
+          enum: ["css", "theme", "layout", "widget", "script"],
+        },
+        css: {
+          type: "string",
+          description: "CSS rules to inject. Optionally scoped by selector.",
+        },
+        selector: {
+          type: "string",
+          description: "CSS selector to scope the patch (e.g., '.chat-container' or '#hud-panel').",
+        },
+        variables: {
+          type: "object",
+          description: "CSS custom properties to set (e.g., { '--mai-primary': '#00ff88', '--mai-bg': '#0a0a0f' }).",
+        },
+        html: {
+          type: "string",
+          description: "HTML to inject into a widget slot.",
+        },
+        js: {
+          type: "string",
+          description: "Safe DOM script (no eval, no fetch, no external URLs). For animations, toggles, transitions.",
+        },
+        id: {
+          type: "string",
+          description: "Unique patch ID for tracking and potential rollback.",
+        },
+        description: {
+          type: "string",
+          description: "Human-readable description of what this patch does.",
+        },
+      },
+      required: ["type"],
+    },
+  },
 ];
 
 // ─── Cache ────────────────────────────────────────────────────────────────────

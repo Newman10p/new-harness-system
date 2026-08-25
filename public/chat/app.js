@@ -288,8 +288,90 @@
       case 'silent_text':
         if (payload && payload.text) addMessage({ role: 'system', text: payload.text, timestamp: timestamp || Date.now(), silent: true });
         break;
+      case 'sandbox_output':
+        if (payload) {
+          const termEl = document.querySelector('#sandbox-terminal-output');
+          if (termEl) { termEl.value += payload.chunk; termEl.scrollTop = termEl.scrollHeight; }
+        }
+        break;
+      case 'sandbox_session_event':
+        if (payload) addMessage({ role: 'system', text: 'Sandbox ' + payload.event + ': ' + payload.name + (payload.detail ? ' (' + payload.detail + ')' : ''), timestamp: timestamp || Date.now() });
+        break;
+      case 'device_event':
+        if (payload) {
+          const devText = 'Device ' + payload.event + ': ' + payload.name + (payload.capability ? ' → ' + payload.capability : '');
+          addMessage({ role: 'system', text: devText, timestamp: timestamp || Date.now() });
+        }
+        break;
+      case 'ui_patch':
+        if (payload) applyUIPatch(payload);
+        break;
       default:
         if (payload && typeof payload === 'object' && payload.text) addMessage({ role: 'assistant', text: payload.text, timestamp: timestamp || Date.now() });
+    }
+  }
+
+  // ─── UI Patch Engine ───────────────────────────────────────────────
+  let uiPatchLog = [];
+  function applyUIPatch(patch) {
+    try {
+      const id = patch.id || ('patch_' + uiPatchLog.length);
+      switch (patch.type) {
+        case 'css': {
+          const style = document.createElement('style');
+          style.id = 'mai-patch-' + id;
+          style.textContent = patch.selector ? (patch.selector + ' { ' + patch.css + ' }') : patch.css;
+          document.head.appendChild(style);
+          uiPatchLog.push({ id, type: 'css', selector: patch.selector });
+          break;
+        }
+        case 'theme': {
+          if (patch.variables) {
+            Object.entries(patch.variables).forEach(function(kv) {
+              document.documentElement.style.setProperty(kv[0], kv[1]);
+            });
+          }
+          if (patch.css) {
+            const style = document.createElement('style');
+            style.id = 'mai-theme-' + id;
+            style.textContent = ':root { ' + patch.css + ' }';
+            document.head.appendChild(style);
+          }
+          uiPatchLog.push({ id, type: 'theme', vars: Object.keys(patch.variables || {}) });
+          break;
+        }
+        case 'layout': {
+          if (patch.css) {
+            const style = document.createElement('style');
+            style.id = 'mai-layout-' + id;
+            style.textContent = patch.css;
+            document.head.appendChild(style);
+          }
+          uiPatchLog.push({ id, type: 'layout' });
+          break;
+        }
+        case 'widget': {
+          if (patch.html) {
+            const container = document.getElementById('widget-slot') || document.body;
+            const wrapper = document.createElement('div');
+            wrapper.id = 'mai-widget-' + id;
+            wrapper.innerHTML = patch.html;
+            container.appendChild(wrapper);
+          }
+          uiPatchLog.push({ id, type: 'widget' });
+          break;
+        }
+        case 'script': {
+          if (patch.js) {
+            const fn = new Function(patch.js);
+            fn();
+          }
+          uiPatchLog.push({ id, type: 'script' });
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn('[ui_patch] Failed:', err);
     }
   }
   // ─── Generative UI Engine ─────────────────────────────────────────────
