@@ -1780,8 +1780,11 @@
           };
         }, (err) => {
           console.error("[Piper] Audio decode error:", err);
-          // Fall back to browser TTS
-          addLog("Piper audio decode failed — falling back to browser TTS", "warning");
+          // Log first bytes of received data for debugging
+          const headerHint = bytes.length > 12
+            ? `Header: ${String.fromCharCode(...bytes.slice(0, 4))} (expected RIFF)`
+            : `Data too short: ${bytes.length} bytes`;
+          addLog(`Piper audio decode failed — ${headerHint}`, "warning");
         });
       } catch (err) {
         console.error("[Piper] Playback error:", err);

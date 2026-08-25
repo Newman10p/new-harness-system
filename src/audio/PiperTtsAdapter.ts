@@ -115,7 +115,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
 
   /**
    * Synthesize text to WAV audio buffer.
-   * Piper outputs raw WAV to stdout when --output-raw is used.
+   * Piper outputs a complete WAV file to stdout (with RIFF header).
    * Returns a Node.js Buffer containing the WAV data.
    */
   async synthesize(text: string, options?: { speakerId?: number; noiseScale?: number; lengthScale?: number }): Promise<Buffer> {
@@ -133,7 +133,6 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     const args: string[] = [
       "--model", this.model,
       "--config", this.config,
-      "--output-raw",
     ];
 
     if (this.dataDir) {
