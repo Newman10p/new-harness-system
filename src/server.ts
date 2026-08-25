@@ -442,9 +442,27 @@ async function main() {
   const hudServer = new HudServer(httpServer, WS_PORT);
   hudServer.wireAgentLoop(loop);
 
-  // Initialize Piper TTS if configured
-  if (process.env.TTS_ENGINE === "piper" || process.env.PIPER_MODEL) {
-    hudServer.initPiper();
+  // Initialize neural TTS if configured (env vars or harness.config.json)
+  const ttsEngine = process.env.TTS_ENGINE;
+  const piperModel = process.env.PIPER_MODEL;
+  let harnessConfig: Record<string, any> = {};
+  try {
+    const configPath = path.join(process.cwd(), "harness.config.json");
+    if (fs.existsSync(configPath)) {
+      harnessConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch { /* config parse failed — non-fatal */ }
+
+  const configTtsBackend = harnessConfig?.audio?.tts?.backend;
+  const configPiper = harnessConfig?.audio?.tts?.piper;
+
+  if (ttsEngine === "piper" || ttsEngine === "kokoro" || piperModel || configTtsBackend === "piper" || configTtsBackend === "kokoro") {
+    hudServer.initPiper({
+      model: configPiper?.model,
+      bin: configPiper?.bin,
+      config: configPiper?.config,
+      dataDir: configPiper?.dataDir,
+    });
   }
 
   // Process any deferred voice call requests

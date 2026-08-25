@@ -469,7 +469,12 @@ export class HudServer {
         } as any);
         return;
       } catch (err) {
-        console.error(`[HUD] Kokoro synthesis failed, falling back: ${err instanceof Error ? err.message : err}`);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[HUD] Kokoro synthesis failed, falling back: ${errMsg}`);
+        this.broadcast("activity_log", {
+          message: `Kokoro TTS failed: ${errMsg}`,
+          level: "warn",
+        });
       }
     }
 
@@ -485,7 +490,12 @@ export class HudServer {
         } as any);
         return;
       } catch (err) {
-        console.error(`[HUD] Piper synthesis failed: ${err instanceof Error ? err.message : err}`);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[HUD] Piper synthesis failed: ${errMsg}`);
+        this.broadcast("activity_log", {
+          message: `Piper TTS failed: ${errMsg}`,
+          level: "warn",
+        });
       }
     }
 

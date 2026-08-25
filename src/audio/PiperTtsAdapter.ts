@@ -156,6 +156,14 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
       throw new Error("Piper produced no audio output");
     }
 
+    // Validate output is a valid WAV file (must start with RIFF header)
+    if (result.stdout.length < 12 || result.stdout.toString("ascii", 0, 4) !== "RIFF") {
+      // Piper outputted a text error instead of audio — log it for debugging
+      const textOutput = result.stdout.toString("utf-8").trim();
+      const errorMsg = textOutput.length > 200 ? textOutput.slice(0, 200) + "..." : textOutput;
+      throw new Error(`Piper output is not WAV (no RIFF header). Output: ${errorMsg}`);
+    }
+
     return result.stdout;
   }
 
@@ -252,7 +260,10 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
         },
         (error, stdout, stderr) => {
           if (error) {
-            reject(new Error(`Piper exec error: ${error.message}`));
+            // Include stderr in error message for debugging
+            const stderrText = (stderr as Buffer).toString("utf-8").trim();
+            const detail = stderrText ? `: ${stderrText}` : `: ${error.message}`;
+            reject(new Error(`Piper exec error${detail}`));
             return;
           }
           resolve({
