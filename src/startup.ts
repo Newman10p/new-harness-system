@@ -9,6 +9,8 @@ import { Orchestrator } from "./core/orchestrator";
 import { UIGateway } from "./ui/gateway";
 import { getSandboxManager } from "./sandbox2/SandboxManager";
 import { getDeviceControlManager } from "./sandbox2/DeviceControlManager";
+import { getBrowserControlManager } from "./sandbox2/BrowserControlManager";
+import { getEmailManager } from "./sandbox2/EmailManager";
 import type { HarnessConfig } from "./config";
 
 async function main(): Promise<void> {
@@ -71,6 +73,64 @@ async function main(): Promise<void> {
     console.log("[DeviceControl] Disabled by configuration.");
   }
 
+  // ─── Initialize Browser Control System ──────────────────────────
+  if (config.browserControl?.enabled !== false) {
+    try {
+      const browserManager = getBrowserControlManager({
+        autoDiscover: config.browserControl?.autoDiscover ?? true,
+        defaultPorts: config.browserControl?.defaultPorts,
+        autoLaunchChrome: config.browserControl?.autoLaunchChrome,
+        autoLaunchBrave: config.browserControl?.autoLaunchBrave,
+        headless: config.browserControl?.headless,
+        screenshotDir: config.browserControl?.screenshotDir,
+        navigationTimeoutMs: config.browserControl?.navigationTimeoutMs,
+        chromePath: config.browserControl?.chromePath,
+        bravePath: config.browserControl?.bravePath,
+      });
+      await browserManager.initialize();
+      const bStats = browserManager.getStats();
+      console.log(
+        `[BrowserControl] Ready. ${bStats.connectedBrowsers}/${bStats.totalBrowsers} browser(s) connected. ` +
+        `Browsers: [${bStats.browserNames.join(", ") || "none"}]`
+      );
+    } catch (err) {
+      console.warn("[BrowserControl] Initialization failed:", err instanceof Error ? err.message : err);
+    }
+  } else {
+    console.log("[BrowserControl] Disabled by configuration.");
+  }
+
+  // ─── Initialize Email System ─────────────────────────────────────
+  if (config.email?.enabled !== false) {
+    try {
+      const emailAccounts = (config.email?.accounts || []).map(a => ({
+        id: a.id || `email_${a.label.toLowerCase().replace(/\s+/g, '_')}`,
+        label: a.label,
+        imapHost: a.imapHost,
+        imapPort: a.imapPort || 993,
+        smtpHost: a.smtpHost,
+        smtpPort: a.smtpPort || 465,
+        username: a.username,
+        password: a.password || "",
+        tls: a.tls !== false,
+      }));
+      const emailManager = getEmailManager({
+        enabled: true,
+        accounts: emailAccounts,
+        maxMessagesPerFetch: config.email?.maxMessagesPerFetch,
+      });
+      await emailManager.initialize();
+      const eStats = emailManager.getStats();
+      console.log(
+        `[EmailManager] Ready. ${eStats.connectedAccounts}/${eStats.totalAccounts} account(s) connected.`
+      );
+    } catch (err) {
+      console.warn("[EmailManager] Initialization failed:", err instanceof Error ? err.message : err);
+    }
+  } else {
+    console.log("[EmailManager] Disabled by configuration.");
+  }
+
   // Initialize orchestrator for gateway
   const orchestrator = new Orchestrator(config);
 
@@ -108,6 +168,8 @@ async function main(): Promise<void> {
     console.log("\n[MAI] Shutting down...");
     try { getSandboxManager().shutdown(); } catch {}
     try { getDeviceControlManager().shutdown(); } catch {}
+    try { getBrowserControlManager().shutdown(); } catch {}
+    try { getEmailManager().shutdown(); } catch {}
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

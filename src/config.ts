@@ -172,6 +172,39 @@ export interface DeviceControlSystemConfig {
   sshHosts?: Array<{ host: string; port?: number; user?: string; keyPath?: string }>;
 }
 
+// ===== Browser Control Config =====
+export interface BrowserControlSystemConfig {
+  enabled?: boolean;
+  autoDiscover?: boolean;
+  defaultPorts?: number[];
+  autoLaunchChrome?: boolean;
+  autoLaunchBrave?: boolean;
+  headless?: boolean;
+  screenshotDir?: string;
+  navigationTimeoutMs?: number;
+  chromePath?: string;
+  bravePath?: string;
+}
+
+// ===== Email Control Config =====
+export interface EmailAccountConfig {
+  id?: string;
+  label: string;
+  imapHost: string;
+  imapPort?: number;
+  smtpHost: string;
+  smtpPort?: number;
+  username: string;
+  password?: string;
+  tls?: boolean;
+}
+
+export interface EmailControlSystemConfig {
+  enabled?: boolean;
+  accounts?: EmailAccountConfig[];
+  maxMessagesPerFetch?: number;
+}
+
 // ===== Main Config =====
 export interface HarnessConfig {
   model: string;
@@ -195,6 +228,8 @@ export interface HarnessConfig {
   security?: SecurityConfig;
   sandbox?: SandboxSystemConfig;
   deviceControl?: DeviceControlSystemConfig;
+  browserControl?: BrowserControlSystemConfig;
+  email?: EmailControlSystemConfig;
 }
 
 // ===== Defaults =====
@@ -329,6 +364,21 @@ const defaultConfig: HarnessConfig = {
     autoDiscover: true,
     scanIntervalMs: 0,
   },
+  browserControl: {
+    enabled: true,
+    autoDiscover: true,
+    defaultPorts: [9222, 9223, 9224],
+    autoLaunchChrome: false,
+    autoLaunchBrave: false,
+    headless: false,
+    screenshotDir: "./vault/browser-screenshots",
+    navigationTimeoutMs: 15000,
+  },
+  email: {
+    enabled: true,
+    accounts: [],
+    maxMessagesPerFetch: 20,
+  },
   gateway: {
     enabled: true,
     port: 3096
@@ -398,6 +448,14 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
       deviceControl: {
         ...defaultConfig.deviceControl!,
         ...(parsed.deviceControl ?? {})
+      },
+      browserControl: {
+        ...defaultConfig.browserControl!,
+        ...(parsed.browserControl ?? {})
+      },
+      email: {
+        ...defaultConfig.email!,
+        ...(parsed.email ?? {})
       },
       gateway: {
         ...defaultConfig.gateway,

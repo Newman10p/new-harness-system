@@ -106,6 +106,12 @@ const advancedPrimitives: LazyPrimitive[] = [
   tryLoadPrimitive("ui-adapt", "ui-adapt.js"),
 ];
 
+// Browser, email, and live search primitives — lazy loaded
+const integrationPrimitives: LazyPrimitive[] = [
+  tryLoadPrimitive("browser-control", "browser-control.js"),
+  tryLoadPrimitive("email-access", "email-access.js"),
+];
+
 // Re-export scheduler functions for the server to wire up
 export { setTaskRunner, listTasks, shutdownScheduler };
 
@@ -165,6 +171,13 @@ export class ActionRegistry {
 
     // Register web primitives (gracefully skip if not yet created)
     for (const prim of webPrimitives) {
+      if (prim) {
+        this.register(prim.name, prim.exec);
+      }
+    }
+
+    // Register browser/email/integration primitives
+    for (const prim of integrationPrimitives) {
       if (prim) {
         this.register(prim.name, prim.exec);
       }

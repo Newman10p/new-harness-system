@@ -33,6 +33,8 @@ const SANDBOXED_ACTIONS: string[] = [
   "device-control",
   "dry-run",
   "ui-adapt",
+  "browser-control",
+  "email-access",
 ];
 
 // Fallback policy: strict deny-all when policy.md is missing or malformed
@@ -40,7 +42,7 @@ const FALLBACK_POLICY: PolicyConfig = {
   deny_commands: ["rm -rf", "format", "mkfs", "dd if=", "shutdown", "reboot", ":(){ :|:& };:"],
   allow_network: [],
   require_approval: ["execute-terminal", "write-file", "http-request"],
-  auto_approve: ["sandbox-execute", "device-control", "ui-adapt", "dry-run"],
+  auto_approve: ["sandbox-execute", "device-control", "ui-adapt", "dry-run", "browser-control", "email-access"],
 };
 
 export class PolicyEngine {

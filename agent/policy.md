@@ -24,6 +24,14 @@ allow_network:
   - "duckduckgo.com"
   - "api.tavily.com"
   - "html.duckduckgo.com"
+  - "www.google.com"
+  - "google.com"
+  - "mail.google.com"
+  - "imap.gmail.com"
+  - "smtp.gmail.com"
+  - "outlook.live.com"
+  - "imap-mail.outlook.com"
+  - "smtp-mail.outlook.com"
 require_approval:
   - "execute-terminal"
   - "write-file"
@@ -35,8 +43,13 @@ require_approval:
   - "self-repair"
   - "rollback"
   - "adaptive-config"
+auto_approve:
   - "sandbox-execute"
   - "device-control"
+  - "ui-adapt"
+  - "dry-run"
+  - "browser-control"
+  - "email-access"
 untrusted_content_sources:
   - "web-search"
   - "web-scrape"
@@ -45,6 +58,8 @@ untrusted_content_sources:
   - "GitHub"
   - "RSS"
   - "email"
+  - "browser-control"
+  - "email-access"
 ---
 
 # M.A.I. Security Policy
@@ -106,8 +121,10 @@ untrusted_content_sources:
 | rollback | Approval | Can revert system state |
 | web-search | Auto | Read-only web search |
 | web-scrape | Auto | Read-only web page fetch |
-| sandbox-execute | Approval | Isolated command execution |
-| device-control | Approval | Device discovery and control |
+| sandbox-execute | Auto | Isolated command execution |
+| device-control | Auto | Device discovery and control |
+| browser-control | Auto | Browser tab management via CDP |
+| email-access | Auto | Email reading and sending via IMAP/SMTP |
 
 ## Self-Modification Safety
 

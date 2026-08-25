@@ -22,5 +22,18 @@
   "permissions": {
     "allowSandboxedSkills": true,
     "allowedExternalCommands": []
+  },
+  "browserControl": {
+    "enabled": true,
+    "autoDiscover": true,
+    "defaultPorts": [9222, 9223, 9224],
+    "autoLaunchChrome": false,
+    "autoLaunchBrave": false,
+    "headless": false,
+    "screenshotDir": "./vault/browser-screenshots"
+  },
+  "email": {
+    "enabled": true,
+    "accounts": [],
+    "maxMessagesPerFetch": 20
   }
-}

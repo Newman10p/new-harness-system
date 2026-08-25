@@ -60,7 +60,9 @@ export type ActionName =
   | "analyze-image"
   | "sandbox-execute"
   | "device-control"
-  | "ui-adapt";
+  | "ui-adapt"
+  | "browser-control"
+  | "email-access";
 
 export interface Action {
   action: ActionName;
@@ -167,7 +169,9 @@ export type HudChannel =
   | "sandbox_output"
   | "sandbox_session_event"
   | "device_event"
-  | "ui_patch";
+  | "ui_patch"
+  | "browser_event"
+  | "email_event";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -210,6 +214,8 @@ export interface HudPayloads {
   sandbox_session_event: { event: "created" | "destroyed" | "config_changed"; sessionId: string; name: string; detail?: string };
   device_event: { event: "discovered" | "removed" | "state_change"; deviceId: string; name: string; capability?: string; value?: unknown };
   ui_patch: { type: "css" | "theme" | "layout" | "widget" | "script"; selector?: string; css?: string; variables?: Record<string, string>; html?: string; js?: string; id?: string; description?: string };
+  browser_event: { event: "discovered" | "tab_opened" | "tab_closed" | "navigated" | "screenshot" | "search_performed"; browserId?: string; tabId?: string; url?: string; title?: string; detail?: string };
+  email_event: { event: "connected" | "disconnected" | "new_mail" | "mail_fetched" | "mail_sent"; accountId?: string; folder?: string; uid?: string; subject?: string; detail?: string };
 }
 
 export type HudMessage<C extends HudChannel> = {
