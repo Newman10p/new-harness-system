@@ -342,10 +342,10 @@ export class HudServer {
                 });
               } catch { /* skip */ }
             }
-            this.broadcast("file_list", { files, basePath: dir });
+            this.broadcast("file_list", { files: files as any, basePath: dir } as any);
           })
           .catch(() => {
-            this.broadcast("file_list", { files: [], basePath: dir });
+            this.broadcast("file_list", { files: [], basePath: dir } as any);
           });
         break;
       }

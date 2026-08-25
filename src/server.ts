@@ -28,8 +28,8 @@ import {
 import type { LLMConfig, InboxEvent, AuditEntry } from "./types/index.js";
 
 // Lazy-load intelligence engines (files may not exist yet)
-const _require = createRequire(import.meta.url);
-let _ProactiveEngine: { new (): { checkProactiveConditions: (opts: Record<string, unknown>) => Promise<void> } } | null = null;
+const _require = createRequire(__filename);
+let _ProactiveEngine: { new (): { checkProactiveConditions: (opts: Record<string, unknown>) => Promise<void>; setActionCallback?: (cb: (actionText: string) => Promise<void>) => void } } | null = null;
 try {
   const mod = _require("./core/ProactiveEngine.js");
   _ProactiveEngine = mod.ProactiveEngine ?? mod.default ?? null;
@@ -60,10 +60,10 @@ let _AnalyticsEngine: { getAnalyticsEngine: () => { initialize: () => Promise<vo
 try { const mod = _require("./analytics/AnalyticsEngine.js"); _AnalyticsEngine = mod; } catch { /* not yet created */ }
 
 // Sandbox & Device Control (new unified system)
-let _SandboxManager: { getSandboxManager: () => { initialize: () => Promise<void>; getStats: () => Record<string, unknown>; shutdown: () => Promise<void> } } | null = null;
+let _SandboxManager: { getSandboxManager: () => { initialize?: () => Promise<void>; getStats: () => Record<string, unknown>; shutdown: () => Promise<void> } } | null = null;
 try { const mod = _require("./sandbox2/SandboxManager.js"); _SandboxManager = mod; } catch { /* not yet compiled */ }
 
-let _DeviceControlManager: { getDeviceControlManager: () => { initialize: () => Promise<void>; getStats: () => Record<string, unknown>; shutdown: () => Promise<void>; on: (event: string, handler: (...args: any[]) => void) => void } } | null = null;
+let _DeviceControlManager: { getDeviceControlManager: () => { initialize?: () => Promise<void>; getStats: () => Record<string, unknown>; shutdown: () => Promise<void>; on: (event: string, handler: (...args: any[]) => void) => void } } | null = null;
 try { const mod = _require("./sandbox2/DeviceControlManager.js"); _DeviceControlManager = mod; } catch { /* not yet compiled */ }
 
 // ─── Configuration ────────────────────────────────────────────────────────
@@ -457,12 +457,14 @@ async function main() {
   if (_ProactiveEngine) {
     try {
       const proactiveEngine = new _ProactiveEngine();
-      proactiveEngine.setActionCallback(async (actionText: string) => {
-        console.log(`[Proactive] Triggering action: ${actionText.slice(0, 80)}`);
-        loop.processUserMessage(actionText).catch((err) => {
-          console.error(`[Proactive] Action failed: ${err instanceof Error ? err.message : err}`);
+      if (proactiveEngine.setActionCallback) {
+        proactiveEngine.setActionCallback(async (actionText: string) => {
+          console.log(`[Proactive] Triggering action: ${actionText.slice(0, 80)}`);
+          loop.processUserMessage(actionText).catch((err) => {
+            console.error(`[Proactive] Action failed: ${err instanceof Error ? err.message : err}`);
+          });
         });
-      });
+      }
       setInterval(async () => {
         try {
           const cpu = await getCpuUsage();
@@ -612,11 +614,11 @@ async function main() {
   }
 
   // 11h. SandboxManager — unified command sandbox (if available)
-  let sandboxManager: { shutdown: () => Promise<void> } | null = null;
+  let sandboxManager: { shutdown: () => Promise<void>; initialize?: () => Promise<void> } | null = null;
   if (_SandboxManager) {
     try {
       sandboxManager = _SandboxManager.getSandboxManager();
-      await sandboxManager.initialize();
+      if (sandboxManager.initialize) await sandboxManager.initialize();
       const sandboxStats = (sandboxManager as any).getStats();
       console.log(`[Sandbox] Initialized. Tiers: [${(sandboxStats.availableTiers as string[]).join(", ")}]`);
     } catch (err) {
@@ -625,11 +627,11 @@ async function main() {
   }
 
   // 11i. DeviceControlManager — device discovery & control (if available)
-  let deviceControlManager: { shutdown: () => Promise<void> } | null = null;
+  let deviceControlManager: { shutdown: () => Promise<void>; initialize?: () => Promise<void>; on?: (event: string, handler: (...args: any[]) => void) => void } | null = null;
   if (_DeviceControlManager) {
     try {
       deviceControlManager = _DeviceControlManager.getDeviceControlManager();
-      await deviceControlManager.initialize();
+      if (deviceControlManager.initialize) await deviceControlManager.initialize();
       const devStats = (deviceControlManager as any).getStats();
       console.log(`[DeviceControl] Initialized. ${devStats.totalDevices} devices across ${devStats.adaptersCount} adapters`);
 

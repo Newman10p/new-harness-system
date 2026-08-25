@@ -22,6 +22,7 @@ export class WhisperSttAdapter implements SpeechToTextAdapter {
     }
 
     try {
+      // @ts-expect-error — optional dependency
       const whisperModule = await import("@pr0gramm/fluester");
       const whisper = (whisperModule as any)?.default ?? (whisperModule as any);
       if (whisper) {

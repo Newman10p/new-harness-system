@@ -32,7 +32,7 @@ import { loadProviders, createClients, callWithFallback, streamWithProvider, str
 import { getToolSchemas } from "./ToolSchema.js";
 
 // Lazy-load intelligence engines (files may not exist yet)
-const _require = createRequire(import.meta.url);
+const _require = createRequire(__filename);
 
 function tryLoadEngine<T>(modPath: string, className: string): T | null {
   try {
@@ -54,8 +54,10 @@ const SelfImprovementEngine = tryLoadEngine<{ new (): { reflect: (n: number) => 
 );
 const UserModel = tryLoadEngine<{
   new (): {
-    updateFromInteraction: (input: string, loopCount: number) => Promise<void>;
+    updateFromInteraction: (params: { userMessage: string; actions: string[]; loopIterations: number; success: boolean; errors: string[]; }) => Promise<void>;
     getProfileSummary: () => Promise<string | null>;
+    init?: () => Promise<void>;
+    save?: () => Promise<void>;
   };
 }>("./UserModel.js", "UserModel");
 
@@ -98,7 +100,7 @@ export class AgentLoop {
   private sessionStart = Date.now();
   private recentErrors = 0;
   private selfEngine: { reflect: (n: number) => Promise<void> } | null = null;
-  private userModel: { updateFromInteraction: (params: { userMessage: string; actions: string[]; loopIterations: number; success: boolean; errors: string[] }) => Promise<void>; save: () => Promise<void>; init: () => Promise<void> } | null = null;
+  private userModel: { updateFromInteraction: (params: { userMessage: string; actions: string[]; loopIterations: number; success: boolean; errors: string[] }) => Promise<void>; save?: () => Promise<void>; init?: () => Promise<void> } | null = null;
   private messageQueue: string[] = [];
   private processingQueue = false;
   /** When true, native tool-calling is used for providers that support it. */
@@ -131,7 +133,7 @@ export class AgentLoop {
     if (UserModel) {
       try {
         this.userModel = new UserModel();
-        this.userModel.init().catch(() => {});
+        if (this.userModel?.init) this.userModel.init().catch(() => {});
       } catch { /* non-fatal */ }
     }
 
@@ -540,12 +542,12 @@ export class AgentLoop {
         try {
           await this.userModel.updateFromInteraction({
             userMessage: this.currentUserInput,
-            actions: results.map(() => "unknown"),
+            actions: this.state.messages.map(() => "unknown"),
             loopIterations: this.state.loopCount,
             success: true,
             errors: [],
           });
-          await this.userModel.save();
+          if (this.userModel.save) await this.userModel.save();
         } catch { /* non-fatal */ }
       }
     }

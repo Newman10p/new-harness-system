@@ -15,10 +15,9 @@ import type {
 import { ACTION_TIMEOUT_MS } from "../core/constants.js";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const _req = createRequire(__filename);
+const __dirname = path.dirname(__filename);
 
 import { executeTerminal } from "./primitives/execute-terminal.js";
 import { readFile } from "./primitives/read-file.js";
@@ -53,7 +52,7 @@ type LazyPrimitive = { name: ActionName; exec: PrimitiveExecutor } | null;
 
 function tryLoadPrimitive(name: string, moduleName: string): LazyPrimitive {
   try {
-    const mod = require(path.join(__dirname, "primitives", moduleName));
+    const mod = _req(path.join(__dirname, "primitives", moduleName));
     // Handle both named export and default export
     const exec = mod.default ?? Object.values(mod)[0];
     if (typeof exec === "function") {

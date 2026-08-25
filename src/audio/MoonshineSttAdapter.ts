@@ -41,7 +41,7 @@ export interface MoonshineConfig {
 }
 
 interface MoonshineModel {
-  session: import("onnxruntime-node").InferenceSession;
+  session: any;
   sampleRate: number;
   language: string;
 }
@@ -97,7 +97,8 @@ export class MoonshineSttAdapter {
 
     try {
       // Check onnxruntime availability
-      const ort = await import("onnxruntime-node");
+      // @ts-expect-error — optional dependency
+      const ort: any = await import("onnxruntime-node");
 
       if (!existsSync(this.modelPath)) {
         this.ready = false;
@@ -163,7 +164,7 @@ export class MoonshineSttAdapter {
     }
 
     // Resample if needed
-    if (this.model.sampleRate !== this.sampleRate) {
+    if (this.model && this.model.sampleRate && this.model.sampleRate !== this.sampleRate) {
       audioData = this.resample(audioData, this.sampleRate, this.model.sampleRate);
     }
 
@@ -176,7 +177,8 @@ export class MoonshineSttAdapter {
   private async runInference(audio: Float32Array): Promise<string> {
     if (!this.model) throw new Error("Model not loaded");
 
-    const ort = await import("onnxruntime-node");
+    // @ts-expect-error — optional dependency
+    const ort: any = await import("onnxruntime-node");
 
     // Create input tensor: shape [1, num_samples]
     const inputTensor = new ort.Tensor("float32", audio, [1, audio.length]);

@@ -1,5 +1,5 @@
 {
-  "assistantName": "Jarvis",
+  "assistantName": "Mai",
   "model": "llama2",
   "ollama": {
     "endpoint": "http://127.0.0.1:11434",
@@ -7,14 +7,18 @@
   },
   "audio": {
     "stt": {
-      "backend": "whisper",
+      "backend": "moonshine",
       "enabled": true,
-      "modelPath": "base"
+      "modelPath": "models/moonshine/base",
+      "sampleRate": 16000,
+      "channels": 1
     },
     "tts": {
-      "backend": "http",
-      "enabled": false,
-      "endpoint": "http://localhost:5002/api/tts"
+      "backend": "piper",
+      "enabled": true,
+      "piper": {
+        "model": "/home/deadman/piper-models/en_US-lessac-medium.onnx"
+      }
     }
   },
   "vaultPath": "./vault",
@@ -34,6 +38,19 @@
   },
   "email": {
     "enabled": true,
-    "accounts": [],
-    "maxMessagesPerFetch": 20
+    "accounts": [
+      {
+        "id": "gmail-main",
+        "label": "Gmail",
+        "host": "imap.gmail.com",
+        "port": 993,
+        "smtpHost": "smtp.gmail.com",
+        "smtpPort": 465,
+        "username": "bulega.farid@lightacademy.ac.ug",
+        "password": "Farid.b10",
+        "tls": true
+      }
+    ],
+    "maxMessagesPerFetch": 200
   }
+}

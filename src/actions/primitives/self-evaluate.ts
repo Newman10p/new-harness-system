@@ -170,7 +170,7 @@ export async function selfEvaluate(
 
     // Sort failures by count
     const commonFailures = Array.from(failureMap.entries())
-      .map(([action, info]) => ({ action, ...info }))
+      .map(([action, info]) => ({ action, count: info.count, last_detail: info.lastDetail }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
@@ -232,7 +232,7 @@ export async function selfEvaluate(
       "",
       "## Failures",
       commonFailures.length > 0
-        ? commonFailures.map((f) => `- **${f.action}**: ${f.count} failures — ${f.lastDetail}`).join("\n")
+        ? commonFailures.map((f) => `- **${f.action}**: ${f.count} failures — ${f.last_detail}`).join("\n")
         : "None",
       "",
       "## Recommendations",

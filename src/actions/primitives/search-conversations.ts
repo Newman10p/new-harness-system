@@ -26,8 +26,8 @@ export async function searchConversations(
 
   try {
     const { createRequire } = await import("node:module");
-    const require = createRequire(import.meta.url);
-    const indexMod = require("../../memory/ConversationIndex.js");
+    const _req = createRequire(__filename);
+    const indexMod = _req("../../memory/ConversationIndex.js");
     const ConversationIndex = indexMod.ConversationIndex ?? indexMod.default;
 
     if (!ConversationIndex || typeof ConversationIndex !== "function") {

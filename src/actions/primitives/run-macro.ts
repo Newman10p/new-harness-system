@@ -23,8 +23,8 @@ export async function runMacro(
 
   try {
     const { createRequire } = await import("node:module");
-    const require = createRequire(import.meta.url);
-    const macroMod = require("../../macros/MacroEngine.js");
+    const _req = createRequire(__filename);
+    const macroMod = _req("../../macros/MacroEngine.js");
     const MacroEngine = macroMod.MacroEngine ?? macroMod.default;
 
     if (!MacroEngine || typeof MacroEngine !== "function") {

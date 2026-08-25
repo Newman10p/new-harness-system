@@ -226,7 +226,7 @@ export class SandboxRunner {
         wouldSucceed: false,
         output: `[BLOCKED] ${blockResult.reason}`,
         sideEffects: [],
-        warnings: [blockResult.reason],
+        warnings: [blockResult.reason ?? "blocked by policy"],
         duration: Date.now() - startTime,
       };
     }

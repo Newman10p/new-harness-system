@@ -22,7 +22,7 @@ import {
 import type { PolicyConfig } from "../types/index.js";
 
 // Lazy-load UserModel (file may not exist yet)
-const _require = createRequire(import.meta.url);
+const _require = createRequire(__filename);
 let _UserModel: { new (): { getProfileSummary: () => Promise<string | null> } } | null = null;
 try {
   const mod = _require("./UserModel.js");
@@ -194,8 +194,7 @@ export class ContextAssembler {
     if (_UserModel) {
       try {
         const userModel = new _UserModel();
-        await userModel.init();
-        const profileSummary = userModel.getProfileSummary();
+        const profileSummary = await userModel.getProfileSummary();
         if (profileSummary) {
           sections.push("## User Profile (Learned)\n\n" + profileSummary);
         }

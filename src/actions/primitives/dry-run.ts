@@ -26,8 +26,8 @@ export async function dryRun(
   // Try to load SandboxRunner for full simulation
   try {
     const { createRequire } = await import("node:module");
-    const require = createRequire(import.meta.url);
-    const sandboxMod = require("../../sandbox/SandboxRunner.js");
+    const _req = createRequire(__filename);
+    const sandboxMod = _req("../../sandbox/SandboxRunner.js");
     const getSandboxRunner = sandboxMod.getSandboxRunner ?? sandboxMod.default;
 
     if (typeof getSandboxRunner === "function") {
@@ -48,8 +48,8 @@ export async function dryRun(
   // Fallback: Static analysis via SideEffectAnalyzer
   try {
     const { createRequire } = await import("node:module");
-    const require = createRequire(import.meta.url);
-    const analyzerMod = require("../../sandbox/SideEffectAnalyzer.js");
+    const _req = createRequire(__filename);
+    const analyzerMod = _req("../../sandbox/SideEffectAnalyzer.js");
     const analyzeSideEffects = analyzerMod.analyzeSideEffects ?? analyzerMod.default;
 
     if (typeof analyzeSideEffects === "function") {

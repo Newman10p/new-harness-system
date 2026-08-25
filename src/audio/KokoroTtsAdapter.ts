@@ -116,6 +116,7 @@ export class KokoroTtsAdapter implements TextToSpeechAdapter {
     try {
       if (this.bin === "onnx") {
         // ONNX runtime mode — check if onnxruntime-node is available
+        // @ts-expect-error — optional dependency
         await import("onnxruntime-node");
         this.ready = true;
         return { ready: true };
@@ -257,7 +258,8 @@ export class KokoroTtsAdapter implements TextToSpeechAdapter {
     speakerId?: number;
   }): Promise<Buffer> {
     try {
-      const ort = await import("onnxruntime-node");
+      // @ts-expect-error — optional dependency
+      const ort: any = await import("onnxruntime-node");
       const session = await ort.InferenceSession.create(this.model);
 
       // Tokenize text (simplified — real implementation uses phonemizer)
