@@ -436,8 +436,9 @@ export class HudServer {
       case "piper_speak": {
         const ps = msg as InboundPiperSpeak;
         if (!ps.text) break;
+        const reqId = (ps as any).id ?? Date.now();
         // Use active neural TTS engine (Kokoro preferred over Piper)
-        this.synthesizeAndBroadcastNeural(ps.text);
+        this.synthesizeAndBroadcastNeural(ps.text, reqId);
         break;
       }
 
@@ -456,7 +457,7 @@ export class HudServer {
    * Synthesize text with the active neural TTS engine (Kokoro preferred, Piper fallback)
    * and broadcast audio to all connected clients via piper_audio channel.
    */
-  private async synthesizeAndBroadcastNeural(text: string): Promise<void> {
+  private async synthesizeAndBroadcastNeural(text: string, reqId?: number): Promise<void> {
     // Try Kokoro first (higher quality)
     if (this.kokoroAdapter && this.kokoroReady) {
       try {
@@ -466,6 +467,7 @@ export class HudServer {
           format: "wav",
           text: text.slice(0, 100),
           engine: "kokoro",
+          id: reqId,
         } as any);
         return;
       } catch (err) {
@@ -487,6 +489,7 @@ export class HudServer {
           format: "wav",
           text: text.slice(0, 100),
           engine: "piper",
+          id: reqId,
         } as any);
         return;
       } catch (err) {

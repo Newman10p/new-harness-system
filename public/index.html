@@ -1839,20 +1839,24 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  SPEECH QUEUE — ensures audio plays in order, no overlap
+    //  SPEECH QUEUE — ordered playback with Piper pre-fetching
     // ═══════════════════════════════════════════════════════════════════════
-    state._speakQueue = [];      // [{text, callback, engine}]
-    state._speakActive = false;  // true while an item is playing
+    state._speakQueue = [];           // [{text, callback, engine, piperReady}]
+    state._speakActive = false;
+    state._piperReqId = 0;            // monotonic request ID counter
+    state._piperWaitingId = null;     // ID we're currently waiting for
+    state._piperResolve = null;       // resolves when current audio finishes playing
+    state._piperCache = new Map();    // reqId -> base64 audio (pre-fetched)
+    state._piperSpeakTimeout = null;
+    state._piperSource = null;        // current Web Audio source node
 
     function speak(text, callback) {
       const cleanText = stripMarkdown(text);
-      // Show text in chat bubble immediately (don't queue the visual)
       addChatBubble("ai", text);
       $("interimText").textContent = "";
       const profile = getProfile();
       addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
 
-      // Enqueue for audio playback
       state._speakQueue.push({
         text: cleanText,
         callback,
@@ -1880,8 +1884,16 @@
           }
         } catch (err) {
           console.error("[Speak] Queue item error:", err);
-          // If Piper fails mid-queue, fall back to browser for rest
           try { await speakWithBrowser(item.text); } catch { /* skip */ }
+        }
+
+        // Pre-fetch: start synthesizing the NEXT Piper audio while
+        // the user listens to the current one (if next item uses Piper)
+        if (state._speakQueue.length > 0) {
+          const next = state._speakQueue[0];
+          if (next.engine === "piper" && next.piperReady) {
+            prefetchPiper(next.text);
+          }
         }
       }
 
@@ -1896,7 +1908,6 @@
       } else {
         updateStatus(state.listening ? "LISTENING" : "STANDBY");
       }
-      // Process any voice input buffered during speech
       if (state._voiceBuffer && state._voiceBuffer.length > 0) {
         const buffered = state._voiceBuffer.join(" ");
         state._voiceBuffer = [];
@@ -1906,7 +1917,51 @@
     }
 
     /**
-     * Speak with browser SpeechSynthesis — returns a promise that resolves when done.
+     * Pre-fetch Piper audio — sends synthesis request now so it's
+     * ready when the queue advances to this item.
+     */
+    function prefetchPiper(cleanText) {
+      const id = ++state._piperReqId;
+      sendWS({ type: "piper_speak", text: cleanText, id });
+      // The piper_audio handler will cache the result by ID
+      // (no resolver to wait on — it's fire-and-forget)
+    }
+
+    /**
+     * Speak with Piper/Kokoro — uses cached audio if available,
+     * otherwise requests and waits. Resolves when playback ends.
+     */
+    function speakWithPiper(cleanText) {
+      return new Promise((resolve) => {
+        // Check if this was pre-fetched
+        const prefetchId = state._piperReqId;
+        if (state._piperCache.has(prefetchId)) {
+          const audio = state._piperCache.get(prefetchId);
+          state._piperCache.delete(prefetchId);
+          state._piperResolve = resolve;
+          playPiperAudio(audio);
+          return;
+        }
+
+        // Not pre-fetched — request now and wait
+        const id = ++state._piperReqId;
+        state._piperWaitingId = id;
+        state._piperResolve = resolve;
+        sendWS({ type: "piper_speak", text: cleanText, id });
+
+        // Timeout: if no audio in 4s, fall back to browser
+        state._piperSpeakTimeout = setTimeout(() => {
+          if (state._piperWaitingId === id) {
+            state._piperWaitingId = null;
+            state._piperResolve = null;
+            resolve(); // queue will move to browser fallback
+          }
+        }, 4000);
+      });
+    }
+
+    /**
+     * Speak with browser SpeechSynthesis. Returns promise, resolves when done.
      */
     function speakWithBrowser(cleanText) {
       return new Promise((resolve) => {
@@ -1922,23 +1977,6 @@
         utterance.onend = resolve;
         utterance.onerror = resolve;
         setTimeout(() => speechSynthesis.speak(utterance), 60);
-      });
-    }
-
-    /**
-     * Speak with Piper/Kokoro — sends request, waits for audio, plays it.
-     * Returns a promise that resolves when playback finishes.
-     */
-    function speakWithPiper(cleanText) {
-      return new Promise((resolve) => {
-        sendWS({ type: "piper_speak", text: cleanText });
-        // Store resolver so piper_audio handler can call it when done
-        state._piperResolve = resolve;
-        // Timeout fallback — if no audio arrives in 15s, move on
-        state._piperSpeakTimeout = setTimeout(() => {
-          state._piperResolve = null;
-          resolve();
-        }, 15000);
       });
     }
 
@@ -2149,17 +2187,31 @@
         }
 
         case "piper_audio": {
-          // Piper/Kokoro audio received — play it (queue handles sequencing)
+          // Piper/Kokoro audio received — route by request ID
           const audioData = msg.payload?.audio;
-          if (audioData) {
-            playPiperAudio(audioData);
-          } else {
-            // No audio data — resolve queue so it doesn't stall
-            if (state._piperResolve) {
-              const resolve = state._piperResolve;
+          const reqId = msg.payload?.id;
+
+          if (!audioData) {
+            // No audio — if we were waiting, resolve to unblock queue
+            if (state._piperWaitingId === reqId && state._piperResolve) {
+              clearTimeout(state._piperSpeakTimeout);
+              state._piperWaitingId = null;
+              const r = state._piperResolve;
               state._piperResolve = null;
-              resolve();
+              r();
             }
+            break;
+          }
+
+          if (state._piperWaitingId === reqId) {
+            // We're actively waiting for this audio — play now
+            clearTimeout(state._piperSpeakTimeout);
+            state._piperWaitingId = null;
+            playPiperAudio(audioData);
+            // playPiperAudio will call state._piperResolve when done
+          } else if (reqId) {
+            // Pre-fetched — cache by ID for when the queue reaches this item
+            state._piperCache.set(reqId, audioData);
           }
           break;
         }
