@@ -19,7 +19,7 @@
 
 import { TextToSpeechAdapter } from "./AudioAdapter";
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import os from "node:os";
@@ -115,8 +115,8 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
 
   /**
    * Synthesize text to WAV audio buffer.
-   * Piper outputs a complete WAV file to stdout (with RIFF header).
-   * Returns a Node.js Buffer containing the WAV data.
+   * Piper writes a temp .wav file and prints the path to stdout.
+   * We read the file from disk, validate it, and clean up.
    */
   async synthesize(text: string, options?: { speakerId?: number; noiseScale?: number; lengthScale?: number }): Promise<Buffer> {
     if (!this.ready) {
@@ -133,7 +133,6 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     const args: string[] = [
       "--model", this.model,
       "--config", this.config,
-      "--output", "-",
     ];
 
     if (this.dataDir) {
@@ -154,18 +153,38 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     const result = await this.execPiper(args, 30000, cleanText);
 
     if (!result.stdout || result.stdout.length === 0) {
-      throw new Error("Piper produced no audio output");
+      throw new Error("Piper produced no output");
     }
 
-    // Validate output is a valid WAV file (must start with RIFF header)
-    if (result.stdout.length < 12 || result.stdout.toString("ascii", 0, 4) !== "RIFF") {
-      // Piper outputted a text error instead of audio — log it for debugging
-      const textOutput = result.stdout.toString("utf-8").trim();
-      const errorMsg = textOutput.length > 200 ? textOutput.slice(0, 200) + "..." : textOutput;
-      throw new Error(`Piper output is not WAV (no RIFF header). Output: ${errorMsg}`);
+    // Piper prints the output .wav file path to stdout — read the actual file
+    const stdoutText = result.stdout.toString("utf-8").trim();
+    let wavPath = stdoutText;
+
+    // If stdout is binary WAV data (RIFF header), use it directly
+    if (result.stdout.length >= 12 && result.stdout.toString("ascii", 0, 4) === "RIFF") {
+      return result.stdout;
     }
 
-    return result.stdout;
+    // Otherwise treat stdout as a file path
+    if (!existsSync(wavPath)) {
+      throw new Error(`Piper output file not found: ${wavPath}`);
+    }
+
+    let wavData: Buffer;
+    try {
+      wavData = readFileSync(wavPath);
+    } catch (err) {
+      throw new Error(`Failed to read Piper output file: ${wavPath}`);
+    } finally {
+      // Clean up the temp file
+      try { unlinkSync(wavPath); } catch { /* ignore cleanup failure */ }
+    }
+
+    if (wavData.length < 12 || wavData.toString("ascii", 0, 4) !== "RIFF") {
+      throw new Error(`Piper output file is not valid WAV: ${wavPath}`);
+    }
+
+    return wavData;
   }
 
   /**
