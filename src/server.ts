@@ -181,6 +181,15 @@ async function main() {
   loop.setInboxAppender(inboxAppender);
   loop.setAudit(audit);
 
+  // 6b. Try to restore previous session (Hermes pattern)
+  const restored = await loop.tryRestoreSession();
+  if (restored) {
+    console.log(`[Session] Restored previous session ${loop.getState().sessionId} (${loop.getState().messages.length} messages)`);
+  } else {
+    console.log(`[Session] Fresh session ${loop.getState().sessionId}`);
+  }
+  console.log();
+
   // 6. Wire scheduled task runner
   setTaskRunner((command: string) => {
     console.log(`[Scheduler] Executing scheduled task: ${command.slice(0, 80)}`);
@@ -248,6 +257,22 @@ async function main() {
       return;
     }
 
+    // POST /api/abort — interrupt current loop (Hermes pattern)
+    if (req.method === "POST" && req.url === "/api/abort") {
+      loop.abort();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, message: "Loop interrupted" }));
+      return;
+    }
+
+    // POST /api/session/clear — clear history and start fresh session
+    if (req.method === "POST" && req.url === "/api/session/clear") {
+      loop.clearHistory();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, sessionId: loop.getState().sessionId }));
+      return;
+    }
+
     // GET /api/status — system status
     if (req.method === "GET" && req.url === "/api/status") {
       const state = loop.getState();
@@ -259,6 +284,10 @@ async function main() {
         messages: state.messages.length,
         pendingApproval: state.pendingApproval !== null,
         providers: providerInfo,
+        sessionId: state.sessionId,
+        totalTokensUsed: state.totalTokensUsed,
+        totalActionsExecuted: state.totalActionsExecuted,
+        compressionCount: state.compressionCount,
       }));
       return;
     }

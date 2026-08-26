@@ -100,11 +100,39 @@ export interface AgentState {
   pendingApproval: PendingApproval | null;
   lastSpeechText?: string;
   consecutiveMalformed: number;
+  // Hermes-style additions
+  sessionId: string;
+  createdAt: number;
+  lastActivityAt: number;
+  totalTokensUsed: number;
+  totalActionsExecuted: number;
+  compressionCount: number;
+  aborted: boolean;
+  iterationBudget: number;
 }
 
 export interface PendingApproval {
   action: Action;
   resolve: (approved: boolean) => void;
+}
+
+// ─── Context Compression (Hermes pattern) ──────────────────────────────────
+export interface CompressionResult {
+  compressed: boolean;
+ originalTokenEstimate: number;
+  newTokenEstimate: number;
+ summary: string;
+ turnsRemoved: number;
+}
+
+// ─── Error Classification (Hermes pattern) ────────────────────────────────
+export type ErrorSeverity = "transient" | "rate_limit" | "auth" | "context_overflow" | "model_error" | "network" | "unknown";
+
+export interface ClassifiedError {
+  severity: ErrorSeverity;
+  retryable: boolean;
+  message: string;
+  suggestion: string;
 }
 
 // ─── Chat ───────────────────────────────────────────────────────────────────
@@ -172,7 +200,10 @@ export type HudChannel =
   | "device_event"
   | "ui_patch"
   | "browser_event"
-  | "email_event";
+  | "email_event"
+  | "interim_message"
+  | "turn_start"
+  | "turn_end";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -217,6 +248,9 @@ export interface HudPayloads {
   ui_patch: { type: "css" | "theme" | "layout" | "widget" | "script"; selector?: string; css?: string; variables?: Record<string, string>; html?: string; js?: string; id?: string; description?: string };
   browser_event: { event: "discovered" | "tab_opened" | "tab_closed" | "navigated" | "screenshot" | "search_performed"; browserId?: string; tabId?: string; url?: string; title?: string; detail?: string };
   email_event: { event: "connected" | "disconnected" | "new_mail" | "mail_fetched" | "mail_sent"; accountId?: string; folder?: string; uid?: string; subject?: string; detail?: string };
+  interim_message: { type: "thinking" | "tool_call" | "compressing" | "waiting_approval" | "retrying" | "streaming"; detail?: string };
+  turn_start: { iteration: number; contextTokens: number; budgetRemaining: number };
+  turn_end: { iteration: number; reason: string; durationMs: number; tokensUsed: number };
 }
 
 export type HudMessage<C extends HudChannel> = {
@@ -238,7 +272,7 @@ export interface InboxEvent {
 }
 
 // ─── Audit Log ─────────────────────────────────────────────────────────────
-export type AuditEventType = "action_executed" | "action_blocked" | "action_approved" | "action_denied" | "action_timeout" | "llm_call" | "llm_error" | "policy_loaded";
+export type AuditEventType = "action_executed" | "action_blocked" | "action_approved" | "action_denied" | "action_timeout" | "llm_call" | "llm_error" | "policy_loaded" | "context_compressed" | "session_saved" | "session_restored" | "error_classified";
 
 export interface AuditEntry {
   timestamp?: string;

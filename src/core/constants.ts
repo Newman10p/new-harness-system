@@ -55,6 +55,10 @@ export const MACRO_HISTORY_PATH = path.join(PROJECT_ROOT, "state", "macro-runs.j
 // Conversation index
 export const CONVERSATION_INDEX_PATH = path.join(PROJECT_ROOT, "memory", "conversation-index.json");
 
+// Session persistence (Hermes pattern)
+export const SESSION_DIR = path.join(PROJECT_ROOT, "state", "sessions");
+export const SESSION_ACTIVE_PATH = path.join(SESSION_DIR, "active.json");
+
 // Sandbox paths
 export const SANDBOX_CONFIG_PATH = path.join(PROJECT_ROOT, "state", "sandbox-config.json");
 

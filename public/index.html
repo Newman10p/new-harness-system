@@ -1839,7 +1839,9 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  SPEECH QUEUE — ordered playback with Piper pre-fetching
+    //  SPEECH QUEUE — sentence-level pipelined playback (Hermes UX pattern)
+    //  Text is split into sentences. First sentence plays immediately while
+    //  the next is being synthesized, creating a real-time streaming feel.
     // ═══════════════════════════════════════════════════════════════════════
     state._speakQueue = [];           // [{text, callback, engine, piperReady}]
     state._speakActive = false;
@@ -1850,6 +1852,33 @@
     state._piperSpeakTimeout = null;
     state._piperSource = null;        // current Web Audio source node
 
+    /** Split text into sentence-level chunks for pipelined TTS. */
+    function splitIntoSentences(text) {
+      // Split on sentence boundaries but keep delimiters
+      const chunks = [];
+      // Match sentences: ends with . ! ? followed by space or end,
+      // or natural break points like semicolons, em-dashes
+      const regex = /[^.!?;]+[.!?;]+\s*|[^.!?;]+$/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const chunk = match[0].trim();
+        if (chunk) chunks.push(chunk);
+      }
+      // If no sentence boundaries found, split by commas or just use whole text
+      if (chunks.length === 0) {
+        // Try comma splitting for long text
+        if (text.length > 100) {
+          const parts = text.split(/,\s*/);
+          for (const part of parts) {
+            if (part.trim()) chunks.push(part.trim());
+          }
+        } else {
+          chunks.push(text);
+        }
+      }
+      return chunks;
+    }
+
     function speak(text, callback) {
       const cleanText = stripMarkdown(text);
       addChatBubble("ai", text);
@@ -1857,12 +1886,16 @@
       const profile = getProfile();
       addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
 
-      state._speakQueue.push({
-        text: cleanText,
-        callback,
-        engine: state.ttsEngine,
-        piperReady: state.piperReady,
-      });
+      // Split into sentence-level chunks for pipelined playback
+      const sentences = splitIntoSentences(cleanText);
+      for (const sentence of sentences) {
+        state._speakQueue.push({
+          text: sentence,
+          callback: sentences.indexOf(sentence) === sentences.length - 1 ? callback : null,
+          engine: state.ttsEngine,
+          piperReady: state.piperReady,
+        });
+      }
       processSpeakQueue();
     }
 
@@ -1887,8 +1920,8 @@
           try { await speakWithBrowser(item.text); } catch { /* skip */ }
         }
 
-        // Pre-fetch: start synthesizing the NEXT Piper audio while
-        // the user listens to the current one (if next item uses Piper)
+        // Pre-fetch: start synthesizing the NEXT sentence while
+        // current one plays (pipeline effect — feels real-time)
         if (state._speakQueue.length > 0) {
           const next = state._speakQueue[0];
           if (next.engine === "piper" && next.piperReady) {
@@ -2146,6 +2179,53 @@
           const status = msg.payload?.status || "running";
           const detail = msg.payload?.detail || "";
           updateBgActivity(id, action, status, detail);
+          break;
+        }
+
+        // ── Hermes-style UX channels ──
+        case "interim_message": {
+          const type = msg.payload?.type || "thinking";
+          const detail = msg.payload?.detail || "";
+          const interimEl = $("interimText");
+          const typeLabels = {
+            thinking: "\u{1F504} Thinking",
+            tool_call: "\u2699\uFE0F Working",
+            compressing: "\u{1F4CA} Compressing context",
+            waiting_approval: "\u23F3 Awaiting approval",
+            retrying: "\u{1F504} Retrying",
+            streaming: "\u{1F4E1} Streaming"
+          };
+          interimEl.textContent = (typeLabels[type] || type) + (detail ? `: ${detail}` : "");
+          interimEl.style.opacity = "1";
+          // Auto-fade interim after 3s if no update
+          clearTimeout(state._interimFadeTimeout);
+          state._interimFadeTimeout = setTimeout(() => {
+            interimEl.style.opacity = "0.4";
+          }, 3000);
+          break;
+        }
+
+        case "turn_start": {
+          // Show brief iteration indicator in activity
+          const iter = msg.payload?.iteration || 1;
+          const tokens = msg.payload?.contextTokens || 0;
+          const budget = msg.payload?.budgetRemaining || 0;
+          if (iter > 1) {
+            addLog(`Iteration ${iter} (${tokens} tokens, ${budget} remaining)`, "system");
+          }
+          break;
+        }
+
+        case "turn_end": {
+          // Clear interim text on turn end
+          const detail = msg.payload?.reason || "done";
+          const duration = msg.payload?.durationMs || 0;
+          if (duration > 0) {
+            addLog(`Turn completed in ${(duration/1000).toFixed(1)}s (${detail})`, "system");
+          }
+          const interimEl = $("interimText");
+          interimEl.style.opacity = "0";
+          interimEl.textContent = "";
           break;
         }
 
