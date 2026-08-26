@@ -156,6 +156,7 @@ export class AgentLoop {
       isRunning: false,
       pendingApproval: null,
       lastSpeechText: "",
+      consecutiveMalformed: 0,
     };
   }
 
@@ -307,6 +308,7 @@ export class AgentLoop {
   clearHistory(): void {
     this.state.messages = [];
     this.state.loopCount = 0;
+    this.state.consecutiveMalformed = 0;
   }
 
   getState(): Readonly<AgentState> {
@@ -333,6 +335,7 @@ export class AgentLoop {
 
   private async runLoop(): Promise<void> {
     this.state.isRunning = true;
+    this.state.consecutiveMalformed = 0;
     const maxLoops = MAX_LOOP_ITERATIONS;
 
     try {
@@ -425,15 +428,31 @@ export class AgentLoop {
         }
 
         if (parsed.malformedCount && parsed.malformedCount > 0) {
+          this.state.consecutiveMalformed++;
           this.callbacks.onError?.(
             `Parse warning: ${parsed.malformedCount} malformed action block(s) ignored${nativeToolActionsUsed ? ' (native tool calling active)' : ''}`
           );
+          // Safety: if LLM keeps producing malformed output, stop before burning all iterations
+          if (this.state.consecutiveMalformed >= 3) {
+            this.callbacks.onError?.(
+              `Loop halted: ${this.state.consecutiveMalformed} consecutive iterations with malformed action blocks. LLM may be confused.`
+            );
+            this.hudEmitter("silent_text", {
+              text: "I'm having trouble processing that request. Could you rephrase it?",
+            });
+            this.callbacks.onLoopEnd?.(iteration, `halted: ${this.state.consecutiveMalformed} consecutive malformed iterations`);
+            break;
+          }
         }
 
+        // Break if no valid actions to execute
         if (parsed.actions.length === 0) {
           this.callbacks.onLoopEnd?.(iteration, "no actions to execute");
           break;
         }
+
+        // Valid actions found — reset consecutive malformed counter
+        this.state.consecutiveMalformed = 0;
 
         // ─── Phase 4: ENFORCE + Phase 5: EXECUTE + Phase 6: STREAM ──
         const results: string[] = [];

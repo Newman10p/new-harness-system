@@ -99,6 +99,7 @@ export interface AgentState {
   isRunning: boolean;
   pendingApproval: PendingApproval | null;
   lastSpeechText?: string;
+  consecutiveMalformed: number;
 }
 
 export interface PendingApproval {

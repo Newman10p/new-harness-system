@@ -149,9 +149,16 @@ async function main() {
     },
     onActionResult: (_action, result) => {
       const status = result.ok ? "✓" : "✗";
-      const preview = result.ok
-        ? String(result.data ?? "").slice(0, 200)
-        : result.error ?? "unknown error";
+      let preview: string;
+      if (result.ok) {
+        preview = typeof result.data === "string"
+          ? result.data.slice(0, 200)
+          : result.data == null
+            ? "(no output)"
+            : JSON.stringify(result.data).slice(0, 200);
+      } else {
+        preview = result.error ?? "unknown error";
+      }
       console.log(`[Action] ${status} ${preview}`);
     },
     onPolicyViolation: (action, reason) => {

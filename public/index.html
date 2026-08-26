@@ -1763,19 +1763,23 @@
         }
 
         ctx.decodeAudioData(bytes.buffer.slice(0), (buffer) => {
+          // Stop any currently playing Piper source before starting new one
+          if (state._piperSource) {
+            try { state._piperSource.stop(); } catch { /* already stopped */ }
+          }
           const source = ctx.createBufferSource();
+          state._piperSource = source;
           source.buffer = buffer;
           source.connect(ctx.destination);
           source.start(0);
 
           source.onended = () => {
-            state.speaking = false;
-            $("core").classList.remove("speaking");
-            if (state.callActive) {
-              $("core").classList.add("call-active");
-              updateStatus("CALL ACTIVE");
-            } else {
-              updateStatus(state.listening ? "LISTENING" : "STANDBY");
+            state._piperSource = null;
+            // Resolve the queue promise so next item can play
+            if (state._piperResolve) {
+              const resolve = state._piperResolve;
+              state._piperResolve = null;
+              resolve();
             }
           };
         }, (err) => {
@@ -1785,9 +1789,20 @@
             ? `Header: ${String.fromCharCode(...bytes.slice(0, 4))} (expected RIFF)`
             : `Data too short: ${bytes.length} bytes`;
           addLog(`Piper audio decode failed — ${headerHint}`, "warning");
+          // Still resolve so the queue doesn't stall
+          if (state._piperResolve) {
+            const resolve = state._piperResolve;
+            state._piperResolve = null;
+            resolve();
+          }
         });
       } catch (err) {
         console.error("[Piper] Playback error:", err);
+        if (state._piperResolve) {
+          const resolve = state._piperResolve;
+          state._piperResolve = null;
+          resolve();
+        }
       }
     }
 
@@ -1823,83 +1838,108 @@
         .trim();
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SPEECH QUEUE — ensures audio plays in order, no overlap
+    // ═══════════════════════════════════════════════════════════════════════
+    state._speakQueue = [];      // [{text, callback, engine}]
+    state._speakActive = false;  // true while an item is playing
+
     function speak(text, callback) {
       const cleanText = stripMarkdown(text);
-      // Show text in chat bubble as rendered markdown
+      // Show text in chat bubble immediately (don't queue the visual)
       addChatBubble("ai", text);
-      // Also update the interim text area to show latest response
       $("interimText").textContent = "";
       const profile = getProfile();
       addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
 
-      state.speaking = true;
-      $("core").classList.remove("thinking");
-      if (!state.callActive) $("core").classList.add("speaking");
-      updateStatus("SPEAKING");
-
-      // Mute recognition input while speaking to prevent echo, but keep stream alive
-      state._wasMutedForSpeech = true;
-
-      // Route to Piper if selected and available
-      if (state.ttsEngine === "piper" && state.piperReady) {
-        sendWS({ type: "piper_speak", text: cleanText });
-        // The piper_audio response will be handled in handleWSMessage
-        // Set a timeout to fall back to browser TTS if Piper doesn't respond
-        const piperTimeout = setTimeout(() => {
-          // Piper didn't respond — fall back to browser
-          speakWithBrowser(cleanText, callback);
-        }, 10000);
-        state._piperSpeakTimeout = piperTimeout;
-        state._piperCallback = callback;
-        return;
-      }
-
-      // Default: browser SpeechSynthesis
-      speakWithBrowser(cleanText, callback);
+      // Enqueue for audio playback
+      state._speakQueue.push({
+        text: cleanText,
+        callback,
+        engine: state.ttsEngine,
+        piperReady: state.piperReady,
+      });
+      processSpeakQueue();
     }
 
-    function speakWithBrowser(cleanText, callback) {
-      if (!("speechSynthesis" in window)) {
-        state.speaking = false;
-        $("core").classList.remove("speaking");
-        updateStatus(state.listening ? "LISTENING" : "STANDBY");
-        if (callback) callback();
-        return;
+    async function processSpeakQueue() {
+      if (state._speakActive || state._speakQueue.length === 0) return;
+      state._speakActive = true;
+      state.speaking = true;
+      $("core").removeAttribute("class");
+      $("core").classList.add("speaking");
+      updateStatus("SPEAKING");
+
+      while (state._speakQueue.length > 0) {
+        const item = state._speakQueue.shift();
+        try {
+          if (item.engine !== "piper" || !item.piperReady) {
+            await speakWithBrowser(item.text);
+          } else {
+            await speakWithPiper(item.text);
+          }
+        } catch (err) {
+          console.error("[Speak] Queue item error:", err);
+          // If Piper fails mid-queue, fall back to browser for rest
+          try { await speakWithBrowser(item.text); } catch { /* skip */ }
+        }
       }
 
-      speechSynthesis.cancel();
-      const profile = getProfile();
+      // All done
+      state.speaking = false;
+      state._speakActive = false;
+      state._wasMutedForSpeech = false;
+      $("core").classList.remove("speaking");
+      if (state.callActive) {
+        $("core").classList.add("call-active");
+        updateStatus("CALL ACTIVE");
+      } else {
+        updateStatus(state.listening ? "LISTENING" : "STANDBY");
+      }
+      // Process any voice input buffered during speech
+      if (state._voiceBuffer && state._voiceBuffer.length > 0) {
+        const buffered = state._voiceBuffer.join(" ");
+        state._voiceBuffer = [];
+        processCommand(buffered);
+        $("commandInput").value = "";
+      }
+    }
 
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      if (state.voice) utterance.voice = state.voice;
-      utterance.lang = "en-GB";
-      utterance.rate = profile.rate;
-      utterance.pitch = profile.pitch;
-      utterance.volume = 1;
+    /**
+     * Speak with browser SpeechSynthesis — returns a promise that resolves when done.
+     */
+    function speakWithBrowser(cleanText) {
+      return new Promise((resolve) => {
+        if (!("speechSynthesis" in window)) { resolve(); return; }
+        speechSynthesis.cancel();
+        const profile = getProfile();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        if (state.voice) utterance.voice = state.voice;
+        utterance.lang = "en-GB";
+        utterance.rate = profile.rate;
+        utterance.pitch = profile.pitch;
+        utterance.volume = 1;
+        utterance.onend = resolve;
+        utterance.onerror = resolve;
+        setTimeout(() => speechSynthesis.speak(utterance), 60);
+      });
+    }
 
-      const finished = () => {
-        state.speaking = false;
-        state._wasMutedForSpeech = false;
-        $("core").classList.remove("speaking");
-        if (state.callActive) {
-          $("core").classList.add("call-active");
-          updateStatus("CALL ACTIVE");
-        } else {
-          updateStatus(state.listening ? "LISTENING" : "STANDBY");
-        }
-        // Process any voice input that was buffered during speech
-        if (state._voiceBuffer && state._voiceBuffer.length > 0) {
-          const buffered = state._voiceBuffer.join(" ");
-          state._voiceBuffer = [];
-          processCommand(buffered);
-          $("commandInput").value = "";
-        }
-        if (callback) callback();
-      };
-
-      utterance.onend = finished;
-      utterance.onerror = finished;
-      setTimeout(() => speechSynthesis.speak(utterance), 60);
+    /**
+     * Speak with Piper/Kokoro — sends request, waits for audio, plays it.
+     * Returns a promise that resolves when playback finishes.
+     */
+    function speakWithPiper(cleanText) {
+      return new Promise((resolve) => {
+        sendWS({ type: "piper_speak", text: cleanText });
+        // Store resolver so piper_audio handler can call it when done
+        state._piperResolve = resolve;
+        // Timeout fallback — if no audio arrives in 15s, move on
+        state._piperSpeakTimeout = setTimeout(() => {
+          state._piperResolve = null;
+          resolve();
+        }, 15000);
+      });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2109,15 +2149,17 @@
         }
 
         case "piper_audio": {
-          // Piper audio received — play it
+          // Piper/Kokoro audio received — play it (queue handles sequencing)
           const audioData = msg.payload?.audio;
           if (audioData) {
-            // Cancel the fallback timeout
-            if (state._piperSpeakTimeout) {
-              clearTimeout(state._piperSpeakTimeout);
-              state._piperSpeakTimeout = null;
-            }
             playPiperAudio(audioData);
+          } else {
+            // No audio data — resolve queue so it doesn't stall
+            if (state._piperResolve) {
+              const resolve = state._piperResolve;
+              state._piperResolve = null;
+              resolve();
+            }
           }
           break;
         }
