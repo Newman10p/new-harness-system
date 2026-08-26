@@ -1,26 +1,39 @@
 // ─── M.A.I. Agent Loop ─────────────────────────────────────────────────────
-// Hermes-adapted Agent Loop:
+// Architecture adapted from Hermes Agent + Pi:
 //
-//   1. ASSEMBLE  — 3-tier prompt (stable → context → volatile) + preflight compression
-//   2. INFER     — Interruptible LLM call with error classification + retry
-//   3. PARSE     — Native tool_calls > markdown action blocks (dual mode)
-//   4. ENFORCE   — PolicyEngine firewall validation
-//   5. EXECUTE   — Sequential action dispatch with timeout
-//   6. STREAM    — Live tokens + interim status to HUD
-//   7. LOOP      — Continue if actions executed, with iteration budget
+//   0. PREFLIGHT  — Micro-compaction + steering queue drain
+//   1. ASSEMBLE   — 3-tier prompt (stable → context → volatile) + preflight batch compression
+//   2. INFER      — Interruptible LLM call with error classification + retry + provider rotation
+//   3. PARSE      — Native tool_calls > markdown action blocks (dual mode)
+//   4. PREPARE    — 3-phase tool pipeline: prepare (validate/sanitize/plan parallelism)
+//   5. ENFORCE    — PolicyEngine firewall validation
+//   6. EXECUTE    — Parallel-safe execution groups (Hermes segmentation + Pi file-mutation queue)
+//   7. FINALIZE   — Post-execution: finalize phase + result truncation + side effects
+//   8. STREAM     — Live tokens via EventBus → typed AgentEvents → HUD bridge
+//   9. LOOP       — Continue if actions executed, with iteration budget
 //
-// Hermes patterns adapted:
+// Hermes patterns:
 //   - Interruptible API calls (AbortController)
 //   - Preflight context compression (>85% triggers)
-//   - Error classification with intelligent retry
+//   - Error classification with intelligent retry + provider rotation
 //   - Message alternation enforcement
 //   - Iteration budget tracking
-//   - Post-turn memory flush
-//   - Session persistence on turn completion
+//   - Micro-compaction (one exchange per turn)
+//   - Tool execution segmentation (destructive vs parallel)
+//   - Activity heartbeat for long tools
+//   - Structured streaming event vocabulary
+//
+// Pi patterns:
+//   - 3-phase tool pipeline (prepare → execute → finalize)
+//   - Parallel independent tool execution with file-mutation queue
+//   - Dual-queue message injection (steering + follow-up)
+//   - Tool result truncation (head + tail preservation)
+//   - Result<T,E> never-throw pattern for tool execution
 
 import type {
   ChatMessage,
   Action,
+  ActionName,
   ActionResult,
   AgentState,
   LLMConfig,
@@ -28,7 +41,15 @@ import type {
   InboxEvent,
   AuditEntry,
   ClassifiedError,
+  AgentLoopConfig,
+  AgentEvent,
+  QueuedMessage,
+  ActionContext,
+  PipelineTool,
+  ToolPrepareResult,
+  ToolFinalizeResult,
 } from "../types/index.js";
+import { DEFAULT_LOOP_CONFIG } from "../types/index.js";
 import { createRequire } from "node:module";
 import { ContextAssembler } from "./ContextAssembler.js";
 import { ResponseParser } from "./ResponseParser.js";
@@ -37,6 +58,11 @@ import { ActionRegistry } from "../actions/index.js";
 import { MAX_LOOP_ITERATIONS } from "./constants.js";
 import { loadProviders, createClients, callWithFallback, streamWithProvider, streamWithTools, supportsToolCalling, type LLMInstance, type StreamWithToolsResult } from "./MultiProvider.js";
 import { getToolSchemas } from "./ToolSchema.js";
+import { AgentEventBus } from "./EventBus.js";
+import { MicroCompactor } from "./MicroCompactor.js";
+import { FileMutationQueue, getFileMutationQueue } from "./FileMutationQueue.js";
+import { planToolExecution } from "./ToolExecutionPlanner.js";
+import { formatToolResult } from "./ToolResultTruncator.js";
 
 // Lazy-load intelligence engines
 const _require = createRequire(__filename);
@@ -134,14 +160,23 @@ export class AgentLoop {
   // Hermes additions
   private abortController: AbortController | null = null;
   private retryCount = 0;
-  private maxRetries = 2;
   private sessionSaveDebounce: ReturnType<typeof setTimeout> | null = null;
+
+  // ── New architecture (Hermes + Pi) ──
+  private eventBus = new AgentEventBus();
+  private microCompactor: MicroCompactor;
+  private fileMutationQueue: FileMutationQueue;
+  private loopConfig: AgentLoopConfig;
+  private steeringQueue: QueuedMessage[] = [];
+  private followUpQueue: QueuedMessage[] = [];
+  private activityHeartbeat: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     llmConfig: LLMConfig,
     policyEngine: PolicyEngine,
     registry: ActionRegistry,
-    callbacks: AgentLoopCallbacks = {}
+    callbacks: AgentLoopCallbacks = {},
+    config?: Partial<AgentLoopConfig>
   ) {
     const providers = loadProviders();
 
@@ -172,6 +207,11 @@ export class AgentLoop {
     this.callbacks = callbacks;
     this.useFallback = this.clients.length > 1;
 
+    // New architecture initialization
+    this.loopConfig = { ...DEFAULT_LOOP_CONFIG, ...config };
+    this.microCompactor = new MicroCompactor();
+    this.fileMutationQueue = getFileMutationQueue();
+
     const envToolCalling = process.env.NATIVE_TOOL_CALLING;
     this.useNativeToolCalling = envToolCalling !== "false";
 
@@ -190,7 +230,7 @@ export class AgentLoop {
       totalActionsExecuted: 0,
       compressionCount: 0,
       aborted: false,
-      iterationBudget: MAX_LOOP_ITERATIONS,
+      iterationBudget: this.loopConfig.maxIterations,
     };
   }
 
@@ -285,9 +325,44 @@ export class AgentLoop {
     }
   }
 
-  setHudEmitter(fn: HudEmitter): void { this.hudEmitter = fn; }
+  setHudEmitter(fn: HudEmitter): void {
+    this.hudEmitter = fn;
+    this.eventBus.setHudEmitter(fn);
+  }
   setInboxAppender(fn: (event: InboxEvent) => Promise<void>): void { this.inboxAppender = fn; }
   setAudit(fn: (entry: AuditEntry) => Promise<void>): void { this.audit = fn; }
+
+  /** Access the typed event bus for new-style subscribers. */
+  getEventBus(): AgentEventBus { return this.eventBus; }
+
+  /** Get the current loop configuration. */
+  getLoopConfig(): Readonly<AgentLoopConfig> { return this.loopConfig; }
+
+  /**
+   * Inject a steering message — added between tool-call turns
+   * (Pi pattern: real-time user guidance without interrupting the agent).
+   */
+  steer(text: string, mode: QueuedMessage["mode"] = "one-at-a-time"): void {
+    this.steeringQueue.push({
+      id: `steer_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      text,
+      queuedAt: Date.now(),
+      mode,
+    });
+  }
+
+  /**
+   * Queue a follow-up message — processed after the agent would otherwise stop
+   * (Pi pattern: user types while agent is thinking).
+   */
+  followUp(text: string, mode: QueuedMessage["mode"] = "all"): void {
+    this.followUpQueue.push({
+      id: `follow_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      text,
+      queuedAt: Date.now(),
+      mode,
+    });
+  }
 
   clearHistory(): void {
     this.state.messages = [];
@@ -349,286 +424,264 @@ export class AgentLoop {
   private async runLoop(): Promise<void> {
     this.state.isRunning = true;
     this.state.consecutiveMalformed = 0;
-    const maxLoops = MAX_LOOP_ITERATIONS;
+    const maxLoops = this.loopConfig.maxIterations;
     const turnStartTime = Date.now();
     let turnTokensUsed = 0;
 
+    // Emit agent_start event
+    this.eventBus.emit({ type: "agent_start", timestamp: Date.now() });
+
+    // Start activity heartbeat (Hermes pattern: prevents inactivity watchdog)
+    this.startActivityHeartbeat();
+
     try {
-      while (this.state.loopCount < maxLoops && this.state.isRunning && !this.state.aborted) {
-        this.state.loopCount++;
-        const iteration = this.state.loopCount;
+      // ── Outer loop: supports follow-up messages (Pi pattern) ──
+      let outerContinue = true;
+      while (outerContinue && !this.state.aborted) {
+        outerContinue = false;
+        this.state.loopCount = 0;
 
-        this.callbacks.onLoopStart?.(iteration);
+        // ── Inner loop: tool-call chaining + steering ──
+        while (this.state.loopCount < maxLoops && this.state.isRunning && !this.state.aborted) {
+          this.state.loopCount++;
+          const iteration = this.state.loopCount;
 
-        // ─── Phase 0: PREFLIGHT (Hermes pattern) ──
-        // Check context pressure and compress if needed before calling LLM
-        const compressionResult = await ContextAssembler.compressIfNeeded(this.state.messages);
-        if (compressionResult) {
-          this.state.messages = compressionResult.messages as ChatMessage[];
-          this.state.compressionCount++;
-          this.hudEmitter("interim_message", {
-            type: "compressing",
-            detail: `Compressed ${compressionResult.turnsRemoved} turns to free context`,
-          });
-          this.audit({
-            type: "context_compressed",
-            detail: `Compressed ${compressionResult.turnsRemoved} turns. Session compression #${this.state.compressionCount}`,
-            ok: true,
-          });
-        }
+          this.callbacks.onLoopStart?.(iteration);
 
-        // Emit turn start with context info (Hermes UX pattern)
-        const tokenEstimate = ContextAssembler.estimateTokens(this.state.messages);
-        this.hudEmitter("turn_start", {
-          iteration,
-          contextTokens: tokenEstimate,
-          budgetRemaining: maxLoops - iteration,
-        });
+          // ─── Phase 0: PREFLIGHT (Hermes + Pi) ──
+          // 0a. Drain steering queue (inject between tool-call turns)
+          await this.drainSteeringQueue();
 
-        // ─── Phase 1: ASSEMBLE (3-tier, Hermes pattern) ──
-        if (this.state.messages.length === 0 || this.state.messages[0].role !== "system") {
-          const systemPrompt = await ContextAssembler.assembleSystemPrompt(
-            this.policyEngine.getConfig(),
-            this.state,
-            { systemMessageOverride: this.currentToneAddon || undefined }
-          );
-          this.state.messages.unshift({ role: "system", content: systemPrompt });
-        } else {
-          // Refresh volatile tier on each iteration (timestamp, memory, context pressure)
-          const freshSystemPrompt = await ContextAssembler.assembleSystemPrompt(
-            this.policyEngine.getConfig(),
-            this.state,
-            { systemMessageOverride: this.currentToneAddon || undefined }
-          );
-          this.state.messages[0] = { role: "system", content: freshSystemPrompt };
-        }
-
-        // ─── Phase 2: INFER (interruptible, with error classification + retry) ──
-        this.hudEmitter("interim_message", { type: "thinking" });
-
-        let rawResponse: string;
-        let toolCallResult: StreamWithToolsResult | null = null;
-
-        try {
-          const llmResult = await this.callLLMWithRetry(this.state.messages);
-          rawResponse = llmResult.text;
-          toolCallResult = llmResult.toolCalls;
-          turnTokensUsed += rawResponse.length;
-        } catch (err) {
-          const classified = classifyError(err);
-          this.audit({
-            type: "error_classified",
-            detail: `${classified.severity}: ${classified.message} — ${classified.suggestion}`,
-            ok: false,
-          });
-
-          // Handle context overflow with emergency compression
-          if (classified.severity === "context_overflow") {
-            const emergencyCompress = await ContextAssembler.compressIfNeeded(this.state.messages, 0.5);
-            if (emergencyCompress) {
-              this.state.messages = emergencyCompress.messages as ChatMessage[];
-              this.state.compressionCount++;
-              this.hudEmitter("interim_message", {
-                type: "compressing",
-                detail: "Emergency compression — context overflow",
-              });
-              continue; // Retry with compressed context
-            }
-          }
-
-          // Non-retryable error — break
-          if (!classified.retryable) {
-            this.hudEmitter("silent_text", {
-              text: classified.suggestion || "Something went wrong. Please try again.",
+          // 0b. Batch compression (original Hermes pattern)
+          const compressionResult = await ContextAssembler.compressIfNeeded(this.state.messages);
+          if (compressionResult) {
+            this.state.messages = compressionResult.messages as ChatMessage[];
+            this.state.compressionCount++;
+            this.eventBus.emit({ type: "compression_start", mode: "batch", timestamp: Date.now() });
+            this.eventBus.emit({ type: "compression_end", turnsCompacted: compressionResult.turnsRemoved, tokensFreed: 0, timestamp: Date.now() });
+            this.hudEmitter("interim_message", {
+              type: "compressing",
+              detail: `Compressed ${compressionResult.turnsRemoved} turns to free context`,
             });
-            this.callbacks.onError?.(`${classified.severity}: ${classified.message}`);
-            this.callbacks.onLoopEnd?.(iteration, `non-retryable ${classified.severity}`);
-            break;
-          }
-
-          // Retryable but exhausted retries
-          if (this.retryCount >= this.maxRetries) {
-            this.hudEmitter("silent_text", {
-              text: `I'm having trouble connecting right now (${classified.severity}). Please try again in a moment.`,
-            });
-            this.callbacks.onLoopEnd?.(iteration, `retries exhausted: ${classified.severity}`);
-            break;
-          }
-
-          continue; // Retry loop
-        }
-
-        // ─── Phase 3: PARSE ──
-        let parsed = ResponseParser.parseResponse(rawResponse);
-        let nativeToolActionsUsed = false;
-
-        if (toolCallResult && toolCallResult.toolCalls.length > 0) {
-          const toolParsed = ResponseParser.parseToolCalls(toolCallResult.toolCalls);
-          if (toolParsed.actions.length > 0) {
-            parsed = {
-              text: parsed.text,
-              actions: toolParsed.actions,
-              malformedCount: (parsed.malformedCount ?? 0) + (toolParsed.malformedCount ?? 0),
-            };
-            nativeToolActionsUsed = true;
             this.audit({
-              type: "llm_call",
-              detail: `Native tool calling: ${toolParsed.actions.length} action(s) (provider: ${toolCallResult.providerName})`,
+              type: "context_compressed",
+              detail: `Batch compressed ${compressionResult.turnsRemoved} turns. Session compression #${this.state.compressionCount}`,
               ok: true,
             });
-          } else if (parsed.actions.length === 0 && toolParsed.malformedCount && toolParsed.malformedCount > 0) {
-            this.callbacks.onError?.(`Tool-call parse warning: ${toolParsed.malformedCount} malformed native tool_call(s) ignored`);
           }
-        }
 
-        // Stream conversational text
-        if (parsed.text) {
-          const normalizedText = parsed.text.trim();
-          if (normalizedText !== this.state.lastSpeechText) {
-            this.state.lastSpeechText = normalizedText;
-            this.callbacks.onText?.(parsed.text);
-            this.hudEmitter("jarvis_speech", { text: parsed.text });
-          } else {
-            this.callbacks.onText?.(parsed.text);
-          }
-          // Enforce message alternation: merge text into assistant message
-          const lastMsg = this.state.messages[this.state.messages.length - 1];
-          if (lastMsg && lastMsg.role === "assistant") {
-            lastMsg.content = parsed.text + "\n\n" + lastMsg.content;
-          } else {
-            this.state.messages.push({ role: "assistant", content: parsed.text });
-          }
-        }
-
-        // Malformed guard
-        if (parsed.malformedCount && parsed.malformedCount > 0) {
-          this.state.consecutiveMalformed++;
-          this.callbacks.onError?.(`Parse warning: ${parsed.malformedCount} malformed action block(s) ignored`);
-          if (this.state.consecutiveMalformed >= 3) {
-            this.hudEmitter("silent_text", {
-              text: "I'm having trouble processing that. Could you rephrase it?",
-            });
-            this.callbacks.onLoopEnd?.(iteration, `halted: ${this.state.consecutiveMalformed} consecutive malformed`);
-            break;
-          }
-        }
-
-        // No actions → done
-        if (parsed.actions.length === 0) {
-          this.callbacks.onLoopEnd?.(iteration, "no actions — response complete");
-          break;
-        }
-
-        // Valid actions → reset malformed counter
-        this.state.consecutiveMalformed = 0;
-
-        // ─── Phase 4+5+6: ENFORCE + EXECUTE + STREAM ──
-        this.hudEmitter("interim_message", {
-          type: "tool_call",
-          detail: `Executing ${parsed.actions.length} action(s)...`,
-        });
-
-        // Silent status
-        if (parsed.actions.length > 0) {
-          const actionNames = parsed.actions.map(a => a.action).join(", ");
-          this.hudEmitter("silent_text", {
-            text: `Working on ${parsed.actions.length > 1 ? `those ${parsed.actions.length} tasks` : actionNames}...`,
+          // Emit turn start with context info (Hermes UX pattern)
+          const tokenEstimate = ContextAssembler.estimateTokens(this.state.messages);
+          const turnStartEvent = { type: "turn_start" as const, iteration, contextTokens: tokenEstimate, budgetRemaining: maxLoops - iteration, timestamp: Date.now() };
+          this.eventBus.emit(turnStartEvent);
+          this.hudEmitter("turn_start", {
+            iteration,
+            contextTokens: tokenEstimate,
+            budgetRemaining: maxLoops - iteration,
           });
-        }
 
-        const results: string[] = [];
-
-        for (const action of parsed.actions) {
-          if (this.state.aborted) break;
-
-          const decision = this.policyEngine.validateAction(action, this.registry.listActions());
-
-          if (!decision.allowed) {
-            this.callbacks.onPolicyViolation?.(action, decision.reason);
-            this.hudEmitter("threat_level", {
-              level: "orange",
-              detail: `Policy blocked [${action.action}]: ${decision.reason}`,
-            });
-            results.push(`[${action.action}] BLOCKED by policy: ${decision.reason}`);
-            continue;
+          // ─── Phase 1: ASSEMBLE (3-tier, Hermes pattern) ──
+          if (this.state.messages.length === 0 || this.state.messages[0].role !== "system") {
+            const systemPrompt = await ContextAssembler.assembleSystemPrompt(
+              this.policyEngine.getConfig(),
+              this.state,
+              { systemMessageOverride: this.currentToneAddon || undefined }
+            );
+            this.state.messages.unshift({ role: "system", content: systemPrompt });
+          } else {
+            // Refresh volatile tier on each iteration (timestamp, memory, context pressure)
+            const freshSystemPrompt = await ContextAssembler.assembleSystemPrompt(
+              this.policyEngine.getConfig(),
+              this.state,
+              { systemMessageOverride: this.currentToneAddon || undefined }
+            );
+            this.state.messages[0] = { role: "system", content: freshSystemPrompt };
           }
 
-          if (this.policyEngine.requiresApproval(action.action)) {
-            this.callbacks.onApprovalRequired?.(action);
-            this.hudEmitter("activity_log", {
-              message: `Approval required for: ${action.action}`, level: "warn",
+          // ─── Phase 2: INFER (interruptible, with error classification + retry) ──
+          this.hudEmitter("interim_message", { type: "thinking" });
+          this.eventBus.emit({ type: "message_start", timestamp: Date.now() });
+
+          let rawResponse: string;
+          let toolCallResult: StreamWithToolsResult | null = null;
+
+          try {
+            const llmResult = await this.callLLMWithRetry(this.state.messages);
+            rawResponse = llmResult.text;
+            toolCallResult = llmResult.toolCalls;
+            turnTokensUsed += rawResponse.length;
+          } catch (err) {
+            const classified = classifyError(err);
+            this.eventBus.emitError(classified.severity, classified.message, classified.suggestion);
+            this.audit({
+              type: "error_classified",
+              detail: `${classified.severity}: ${classified.message} — ${classified.suggestion}`,
+              ok: false,
             });
-            this.hudEmitter("interim_message", { type: "waiting_approval", detail: `Waiting for approval: ${action.action}` });
-            const params = Object.entries(action)
-              .filter(([k]) => k !== "action")
-              .map(([k, v]) => `${k}: ${typeof v === "string" ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)}`)
-              .join(" | ");
-            this.hudEmitter("approval_request", {
-              action: action.action,
-              detail: params || `Action "${action.action}" requires approval`,
-            });
-            const approved = await this.waitForApproval(action);
-            if (!approved) {
-              results.push(`[${action.action}] DENIED by user`);
-              continue;
+
+            // Handle context overflow with emergency compression
+            if (classified.severity === "context_overflow") {
+              const emergencyCompress = await ContextAssembler.compressIfNeeded(this.state.messages, 0.5);
+              if (emergencyCompress) {
+                this.state.messages = emergencyCompress.messages as ChatMessage[];
+                this.state.compressionCount++;
+                this.hudEmitter("interim_message", {
+                  type: "compressing",
+                  detail: "Emergency compression — context overflow",
+                });
+                continue; // Retry with compressed context
+              }
+            }
+
+            // Non-retryable error — break
+            if (!classified.retryable) {
+              this.hudEmitter("silent_text", {
+                text: classified.suggestion || "Something went wrong. Please try again.",
+              });
+              this.callbacks.onError?.(`${classified.severity}: ${classified.message}`);
+              this.callbacks.onLoopEnd?.(iteration, `non-retryable ${classified.severity}`);
+              break;
+            }
+
+            // Retryable but exhausted retries
+            if (this.retryCount >= this.loopConfig.maxRetries) {
+              this.hudEmitter("silent_text", {
+                text: `I'm having trouble connecting right now (${classified.severity}). Please try again in a moment.`,
+              });
+              this.callbacks.onLoopEnd?.(iteration, `retries exhausted: ${classified.severity}`);
+              break;
+            }
+
+            continue; // Retry loop
+          }
+
+          this.eventBus.emit({ type: "message_end", fullText: rawResponse, timestamp: Date.now() });
+
+          // ─── Phase 3: PARSE ──
+          let parsed = ResponseParser.parseResponse(rawResponse);
+          let nativeToolActionsUsed = false;
+
+          if (toolCallResult && toolCallResult.toolCalls.length > 0) {
+            const toolParsed = ResponseParser.parseToolCalls(toolCallResult.toolCalls);
+            if (toolParsed.actions.length > 0) {
+              parsed = {
+                text: parsed.text,
+                actions: toolParsed.actions,
+                malformedCount: (parsed.malformedCount ?? 0) + (toolParsed.malformedCount ?? 0),
+              };
+              nativeToolActionsUsed = true;
+              this.audit({
+                type: "llm_call",
+                detail: `Native tool calling: ${toolParsed.actions.length} action(s) (provider: ${toolCallResult.providerName})`,
+                ok: true,
+              });
+            } else if (parsed.actions.length === 0 && toolParsed.malformedCount && toolParsed.malformedCount > 0) {
+              this.callbacks.onError?.(`Tool-call parse warning: ${toolParsed.malformedCount} malformed native tool_call(s) ignored`);
             }
           }
 
-          this.callbacks.onActionStart?.(action);
-          const actionId = `action_${Date.now()}_${action.action}`;
-          this.hudEmitter("bg_activity", {
-            id: actionId, action: action.action, status: "started",
-            detail: `Executing ${action.action}${action.command ? ": " + String(action.command).slice(0, 80) : ""}`,
+          // Stream conversational text via EventBus
+          if (parsed.text) {
+            const normalizedText = parsed.text.trim();
+            if (normalizedText !== this.state.lastSpeechText) {
+              this.state.lastSpeechText = normalizedText;
+              this.callbacks.onText?.(parsed.text);
+              this.hudEmitter("jarvis_speech", { text: parsed.text });
+            } else {
+              this.callbacks.onText?.(parsed.text);
+            }
+            // Enforce message alternation: merge text into assistant message
+            const lastMsg = this.state.messages[this.state.messages.length - 1];
+            if (lastMsg && lastMsg.role === "assistant") {
+              lastMsg.content = parsed.text + "\n\n" + lastMsg.content;
+            } else {
+              this.state.messages.push({ role: "assistant", content: parsed.text });
+            }
+          }
+
+          // Malformed guard
+          if (parsed.malformedCount && parsed.malformedCount > 0) {
+            this.state.consecutiveMalformed++;
+            this.callbacks.onError?.(`Parse warning: ${parsed.malformedCount} malformed action block(s) ignored`);
+            if (this.state.consecutiveMalformed >= 3) {
+              this.hudEmitter("silent_text", {
+                text: "I'm having trouble processing that. Could you rephrase it?",
+              });
+              this.callbacks.onLoopEnd?.(iteration, `halted: ${this.state.consecutiveMalformed} consecutive malformed`);
+              break;
+            }
+          }
+
+          // No actions → done (check follow-up queue)
+          if (parsed.actions.length === 0) {
+            this.callbacks.onLoopEnd?.(iteration, "no actions — response complete");
+            break;
+          }
+
+          // Valid actions → reset malformed counter
+          this.state.consecutiveMalformed = 0;
+
+          // ─── Phase 4+5+6+7: PREPARE + ENFORCE + EXECUTE + FINALIZE ──
+          this.hudEmitter("interim_message", {
+            type: "tool_call",
+            detail: `Executing ${parsed.actions.length} action(s)...`,
+          });
+          this.eventBus.emitCommentary(`Executing ${parsed.actions.length} action(s)...`);
+
+          // Silent status
+          if (parsed.actions.length > 0) {
+            const actionNames = parsed.actions.map(a => a.action).join(", ");
+            this.hudEmitter("silent_text", {
+              text: `Working on ${parsed.actions.length > 1 ? `those ${parsed.actions.length} tasks` : actionNames}...`,
+            });
+          }
+
+          // Execute tools with parallel support (Hermes segmentation + Pi 3-phase)
+          const results = await this.executeActionsWithPipeline(parsed.actions);
+
+          // ─── Phase 8+9: STREAM + LOOP ──
+          if (this.state.aborted) {
+            this.callbacks.onLoopEnd?.(iteration, "aborted by user");
+            break;
+          }
+
+          const resultSummary = results.join("\n\n");
+          this.state.messages.push({ role: "assistant", content: resultSummary });
+
+          // Emit turn end with stats
+          const turnDuration = Date.now() - turnStartTime;
+          this.eventBus.emit({ type: "turn_end", iteration, reason: "action results injected — looping", durationMs: turnDuration, tokensUsed: turnTokensUsed, timestamp: Date.now() });
+          this.hudEmitter("turn_end", {
+            iteration,
+            reason: "action results injected — looping",
+            durationMs: turnDuration,
+            tokensUsed: turnTokensUsed,
           });
 
-          const result = await this.registry.execute(action, {
-            emitHud: this.hudEmitter,
-            appendInbox: this.inboxAppender,
-            audit: this.audit,
-            llm: this.clients[0]?.client,
-            model: this.primaryModel,
-            state: this.state,
-          });
+          this.callbacks.onLoopEnd?.(iteration, "looping");
+        } // end inner loop
 
-          this.state.totalActionsExecuted++;
-          this.callbacks.onActionResult?.(action, result);
-
-          this.hudEmitter("bg_activity", {
-            id: actionId, action: action.action,
-            status: result.ok ? "completed" : "failed",
-            detail: result.ok ? `${action.action} completed` : `${action.action} failed: ${result.error || "unknown"}`,
-            result: result.ok ? "ok" : result.error,
-          });
-          results.push(ResponseParser.formatActionResult(action, result));
+        // ── Check follow-up queue (Pi pattern) ──
+        const followUps = this.drainFollowUpQueue();
+        if (followUps.length > 0) {
+          outerContinue = true;
+          for (const msg of followUps) {
+            this.state.messages.push({ role: "user", content: msg.text });
+            this.eventBus.emit({ type: "steering_injected", text: msg.text, timestamp: Date.now() });
+          }
         }
-
-        // ─── Phase 7: LOOP ──
-        if (this.state.aborted) {
-          this.callbacks.onLoopEnd?.(iteration, "aborted by user");
-          break;
-        }
-
-        const resultSummary = results.join("\n\n");
-        this.state.messages.push({ role: "assistant", content: resultSummary });
-
-        // Emit turn end with stats
-        const turnDuration = Date.now() - turnStartTime;
-        this.hudEmitter("turn_end", {
-          iteration,
-          reason: "action results injected — looping",
-          durationMs: turnDuration,
-          tokensUsed: turnTokensUsed,
-        });
-
-        this.callbacks.onLoopEnd?.(iteration, "looping");
-      }
+      } // end outer loop
     } finally {
       const turnDuration = Date.now() - turnStartTime;
       this.state.isRunning = false;
       this.state.lastActivityAt = Date.now();
       this.state.totalTokensUsed += turnTokensUsed;
       this.interactionCount++;
-      this.recentErrors = 0; // Reset error tracking on successful turn completion
+      this.recentErrors = 0;
+      this.stopActivityHeartbeat();
+
+      // Emit agent_end event
+      this.eventBus.emit({ type: "agent_end", reason: this.state.aborted ? "aborted" : "complete", durationMs: turnDuration, iterations: this.state.loopCount, timestamp: Date.now() });
 
       // Final turn_end emission
       this.hudEmitter("turn_end", {
@@ -637,6 +690,30 @@ export class AgentLoop {
         durationMs: turnDuration,
         tokensUsed: turnTokensUsed,
       });
+
+      // Micro-compaction after turn (Hermes pattern — opt-in)
+      if (this.loopConfig.microCompaction && !this.state.aborted) {
+        const compactionResult = await this.microCompactor.compactOne(
+          this.state.messages,
+          // Pass LLM summarization function if available
+          this.clients[0]?.client ? async (turns, existing) => {
+            try {
+              const prompt = `Summarize the following conversation turns into a concise summary that preserves:
+- Key decisions and conclusions
+- File paths and operations performed
+- Any errors encountered and their resolutions
+- Pending tasks or open questions\n\nExisting summary context: ${existing.slice(0, 500)}\n\nTurns to summarize:\n${turns.map(m => `[${m.role}]: ${m.content.slice(0, 200)}`).join("\n")}\n\nProvide a concise summary (max 500 words):`;
+              // Use the first available client for summarization
+              const response = await callWithFallback(this.clients, [{ role: "user", content: prompt }]);
+              return response.content;
+            } catch { return null; }
+          } : undefined
+        );
+        if (compactionResult) {
+          this.state.compressionCount++;
+          this.audit({ type: "context_compressed", detail: `Micro-compacted ${compactionResult.turnsCompacted} turns`, ok: true });
+        }
+      }
 
       // Trigger self-improvement every 10 interactions (non-blocking)
       if (this.selfEngine && this.interactionCount % 10 === 0) {
@@ -662,6 +739,179 @@ export class AgentLoop {
     }
   }
 
+  // ─── New Architecture: 3-Phase Tool Execution Pipeline (Pi + Hermes) ──────
+
+  /**
+   * Execute actions using the 3-phase pipeline with parallel groups.
+   * This replaces the old sequential-only execution.
+   */
+  private async executeActionsWithPipeline(actions: Action[]): Promise<string[]> {
+    const results: string[] = [];
+    const actionCtx: ActionContext = {
+      emitHud: this.hudEmitter,
+      appendInbox: this.inboxAppender,
+      audit: this.audit,
+      llm: this.clients[0]?.client,
+      model: this.primaryModel,
+      state: this.state,
+    };
+
+    // Phase 4: Plan execution groups (Hermes safety segmentation)
+    const indexedActions = actions.map((action, index) => ({ action, index }));
+    const plan = planToolExecution(indexedActions, this.loopConfig);
+
+    // Execute groups in sequence, actions within groups in parallel
+    for (const group of plan.groups) {
+      if (this.state.aborted) break;
+
+      if (group.actions.length === 1) {
+        // Single action — use 3-phase pipeline directly
+        const { action } = group.actions[0];
+        const result = await this.executeSingleActionWithPipeline(action, actionCtx);
+        results.push(result);
+      } else {
+        // Parallel group — execute all, wait for all
+        const groupPromises = group.actions.map(({ action }) =>
+          this.executeSingleActionWithPipeline(action, actionCtx)
+        );
+        const groupResults = await Promise.all(groupPromises);
+        results.push(...groupResults);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Execute a single action through the 3-phase pipeline:
+   *   Phase 1: PREPARE (validate, sanitize, check policy)
+   *   Phase 2: EXECUTE (run with timeout + file mutation queue)
+   *   Phase 3: FINALIZE (post-process, truncate, side effects)
+   */
+  private async executeSingleActionWithPipeline(action: Action, ctx: ActionContext): Promise<string> {
+    // ── Phase 4: PREPARE ──
+    this.eventBus.emit({ type: "tool_execution_start", toolName: action.action, action, timestamp: Date.now() });
+    this.audit({ type: "action_executed", action: action.action, detail: `Preparing: ${action.action}`, ok: true });
+
+    // Check policy
+    const decision = this.policyEngine.validateAction(action, this.registry.listActions());
+    if (!decision.allowed) {
+      this.callbacks.onPolicyViolation?.(action, decision.reason);
+      this.hudEmitter("threat_level", { level: "orange", detail: `Policy blocked [${action.action}]: ${decision.reason}` });
+      this.eventBus.emit({ type: "tool_execution_end", toolName: action.action, result: { ok: false, error: decision.reason }, durationMs: 0, timestamp: Date.now() });
+      return `[${action.action}] BLOCKED by policy: ${decision.reason}`;
+    }
+
+    // Check approval
+    if (this.policyEngine.requiresApproval(action.action)) {
+      this.callbacks.onApprovalRequired?.(action);
+      this.hudEmitter("interim_message", { type: "waiting_approval", detail: `Waiting for approval: ${action.action}` });
+      const params = Object.entries(action).filter(([k]) => k !== "action").map(([k, v]) => `${k}: ${typeof v === "string" ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)}`).join(" | ");
+      this.hudEmitter("approval_request", { action: action.action, detail: params || `Action "${action.action}" requires approval` });
+      this.eventBus.emit({ type: "approval_required", action, detail: params || action.action, timestamp: Date.now() });
+      const approved = await this.waitForApproval(action);
+      if (!approved) {
+        this.eventBus.emit({ type: "tool_execution_end", toolName: action.action, result: { ok: false, error: "Denied by user" }, durationMs: 0, timestamp: Date.now() });
+        return `[${action.action}] DENIED by user`;
+      }
+    }
+
+    this.callbacks.onActionStart?.(action);
+    const actionId = `action_${Date.now()}_${action.action}`;
+    this.hudEmitter("bg_activity", { id: actionId, action: action.action, status: "started", detail: `Executing ${action.action}...` });
+
+    // ── Phase 5+6: EXECUTE (with timeout + file mutation queue) ──
+    const execStart = Date.now();
+    let result: ActionResult;
+
+    const hasFilePath = (action.path || action.file || action.filePath) as string | undefined;
+    const executeFn = async () => {
+      return this.registry.execute(action, ctx);
+    };
+
+    if (hasFilePath && this.loopConfig.parallelTools) {
+      // Serialize via file mutation queue (Pi pattern)
+      let fileMutationResult: ActionResult = { ok: false, error: "queued execution failed" };
+      await this.fileMutationQueue.enqueue(hasFilePath, async () => {
+        fileMutationResult = await Promise.race([
+          executeFn(),
+          new Promise<ActionResult>((resolve) =>
+            setTimeout(() => resolve({ ok: false, error: `Timeout after ${this.loopConfig.toolTimeoutMs}ms` }), this.loopConfig.toolTimeoutMs)
+          ),
+        ]);
+      });
+      result = fileMutationResult;
+    } else {
+      // Direct execution with timeout
+      result = await Promise.race([
+        executeFn(),
+        new Promise<ActionResult>((resolve) =>
+          setTimeout(() => resolve({ ok: false, error: `Timeout after ${this.loopConfig.toolTimeoutMs}ms` }), this.loopConfig.toolTimeoutMs)
+        ),
+      ]);
+    }
+
+    const execDuration = Date.now() - execStart;
+    this.state.totalActionsExecuted++;
+    this.callbacks.onActionResult?.(action, result);
+
+    this.hudEmitter("bg_activity", {
+      id: actionId, action: action.action,
+      status: result.ok ? "completed" : "failed",
+      detail: result.ok ? `${action.action} completed` : `${action.action} failed: ${result.error || "unknown"}`,
+      result: result.ok ? "ok" : result.error,
+    });
+
+    // ── Phase 7: FINALIZE (truncate + emit event) ──
+    const resultText = result.ok
+      ? await formatToolResult(action.action, JSON.stringify(result.data) ?? "", this.loopConfig)
+      : `[${action.action}] FAILED: ${result.error || "unknown"}`;
+
+    this.eventBus.emit({ type: "tool_execution_end", toolName: action.action, result, durationMs: execDuration, timestamp: Date.now() });
+
+    return resultText;
+  }
+
+  // ─── Dual-Queue Message Injection (Pi pattern) ────────────────────────
+
+  /** Drain the steering queue, injecting messages between tool-call turns. */
+  private async drainSteeringQueue(): Promise<void> {
+    if (this.steeringQueue.length === 0) return;
+    const msg = this.steeringQueue.shift()!;
+    this.state.messages.push({ role: "user", content: msg.text });
+    this.eventBus.emit({ type: "steering_injected", text: msg.text, timestamp: Date.now() });
+    this.audit({ type: "steering_message" as any, detail: `Steering: ${msg.text.slice(0, 100)}`, ok: true });
+    // For "one-at-a-time" mode, only drain one per iteration
+    if (msg.mode === "one-at-a-time") return;
+    // For "all" mode, drain the rest
+    await this.drainSteeringQueue();
+  }
+
+  /** Drain the follow-up queue for the outer loop. */
+  private drainFollowUpQueue(): QueuedMessage[] {
+    if (this.followUpQueue.length === 0) return [];
+    const msgs = [...this.followUpQueue];
+    this.followUpQueue.length = 0;
+    this.audit({ type: "follow_up_message" as any, detail: `${msgs.length} follow-up message(s)`, ok: true });
+    return msgs;
+  }
+
+  // ─── Activity Heartbeat (Hermes pattern) ──────────────────────────────
+  /** Prevents inactivity watchdog from killing long tool calls. */
+  private startActivityHeartbeat(): void {
+    this.stopActivityHeartbeat();
+    this.activityHeartbeat = setInterval(() => {
+      this.state.lastActivityAt = Date.now();
+    }, 30_000); // Touch every 30s
+  }
+
+  private stopActivityHeartbeat(): void {
+    if (this.activityHeartbeat) {
+      clearInterval(this.activityHeartbeat);
+      this.activityHeartbeat = null;
+    }
+  }
+
   // ─── LLM Calls with Retry + Error Classification (Hermes pattern) ─────────
   private async callLLMWithRetry(messages: ChatMessage[]): Promise<{ text: string; toolCalls: StreamWithToolsResult | null }> {
     this.abortController = new AbortController();
@@ -679,13 +929,13 @@ export class AgentLoop {
     } catch (err) {
       const classified = classifyError(err);
 
-      if (classified.retryable && this.retryCount < this.maxRetries) {
+      if (classified.retryable && this.retryCount < this.loopConfig.maxRetries) {
         this.retryCount++;
-        const backoff = Math.min(1000 * Math.pow(2, this.retryCount - 1), 8000);
+        const backoff = Math.min(1000 * Math.pow(2, this.retryCount - 1), this.loopConfig.maxBackoffMs);
 
         this.hudEmitter("interim_message", {
           type: "retrying",
-          detail: `${classified.severity} — retry ${this.retryCount}/${this.maxRetries} in ${backoff}ms: ${classified.suggestion}`,
+          detail: `${classified.severity} — retry ${this.retryCount}/${this.loopConfig.maxRetries} in ${backoff}ms: ${classified.suggestion}`,
         });
         this.audit({
           type: "error_classified",

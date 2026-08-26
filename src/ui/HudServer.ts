@@ -84,6 +84,18 @@ interface InboundConversationSearch {
   limit?: number;
 }
 
+interface InboundSteering {
+  type: "steering";
+  text: string;
+  mode?: "all" | "one-at-a-time";
+}
+
+interface InboundFollowUp {
+  type: "follow_up";
+  text: string;
+  mode?: "all" | "one-at-a-time";
+}
+
 interface InboundVoiceSwitch {
   type: "voice_switch";
   personality: "friday" | "jarvis";
@@ -99,7 +111,7 @@ interface InboundPiperSpeak {
   text: string;
 }
 
-type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak;
+type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak | InboundSteering | InboundFollowUp;
 
 export class HudServer {
   private wss: WebSocketServer;
@@ -439,6 +451,24 @@ export class HudServer {
         const reqId = (ps as any).id ?? Date.now();
         // Use active neural TTS engine (Kokoro preferred over Piper)
         this.synthesizeAndBroadcastNeural(ps.text, reqId);
+        break;
+      }
+
+      case "steering": {
+        // Pi pattern: inject message between tool-call turns
+        const st = msg as InboundSteering;
+        if (!st.text || typeof st.text !== "string") break;
+        console.log(`[HUD] steering: "${st.text.slice(0, 100)}..."`);
+        this.agentLoop?.steer(st.text, st.mode);
+        break;
+      }
+
+      case "follow_up": {
+        // Pi pattern: queue message for after agent stops
+        const fu = msg as InboundFollowUp;
+        if (!fu.text || typeof fu.text !== "string") break;
+        console.log(`[HUD] follow_up: "${fu.text.slice(0, 100)}..."`);
+        this.agentLoop?.followUp(fu.text, fu.mode);
         break;
       }
 

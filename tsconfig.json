@@ -34,5 +34,5 @@
     "src/config.ts",
     "src/startup.ts"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/core/agentLoop.legacy.ts", "src/core/eventBus.ts", "src/core/agentState.ts", "src/core/workflowEngine.ts", "src/core/orchestrator.ts", "src/core/interaction.ts", "src/core/autonomous.ts"]
 }
