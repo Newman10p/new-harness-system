@@ -63,6 +63,10 @@ import { MicroCompactor } from "./MicroCompactor.js";
 import { FileMutationQueue, getFileMutationQueue } from "./FileMutationQueue.js";
 import { planToolExecution } from "./ToolExecutionPlanner.js";
 import { formatToolResult } from "./ToolResultTruncator.js";
+import { getLogger, setGlobalSession } from "./MaiLogger.js";
+
+// Module-level logger (Hermes pattern: one per file)
+const log = getLogger("AgentLoop");
 
 // Lazy-load intelligence engines
 const _require = createRequire(__filename);
@@ -244,6 +248,9 @@ export class AgentLoop {
 
   /** Main entry point: process a user message through the full loop. */
   async processUserMessage(input: string): Promise<void> {
+    log.info("Processing user message", { length: input.length, isRunning: this.state.isRunning, queueSize: this.messageQueue.length });
+    setGlobalSession(this.state.sessionId);
+
     if (this.state.isRunning) {
       this.messageQueue.push(input);
       this.hudEmitter("silent_text", {
@@ -502,6 +509,11 @@ export class AgentLoop {
           this.hudEmitter("interim_message", { type: "thinking" });
           this.eventBus.emit({ type: "message_start", timestamp: Date.now() });
 
+          // Hermes pattern: invalidate lastSpeechText at each inference start
+          // so the same response text is never falsely deduped against the
+          // PREVIOUS iteration's text
+          this.state.lastSpeechText = "_loop_fresh_";
+
           let rawResponse: string;
           let toolCallResult: StreamWithToolsResult | null = null;
 
@@ -512,6 +524,7 @@ export class AgentLoop {
             turnTokensUsed += rawResponse.length;
           } catch (err) {
             const classified = classifyError(err);
+            log.error("LLM inference failed", { error: err, data: { severity: classified.severity, retryable: classified.retryable, retryCount: this.retryCount, iteration } });
             this.eventBus.emitError(classified.severity, classified.message, classified.suggestion);
             this.audit({
               type: "error_classified",
@@ -583,12 +596,14 @@ export class AgentLoop {
           // Stream conversational text via EventBus
           if (parsed.text) {
             const normalizedText = parsed.text.trim();
-            if (normalizedText !== this.state.lastSpeechText) {
-              this.state.lastSpeechText = normalizedText;
-              this.callbacks.onText?.(parsed.text);
+            // Emit EVERY unique text response to the HUD (not just the first per turn).
+            // Hermes pattern: interim assistant text between tool iterations is delivered
+            // as complete messages — the dedup only prevents identical consecutive emissions.
+            const isDuplicate = normalizedText === this.state.lastSpeechText;
+            this.state.lastSpeechText = normalizedText;
+            this.callbacks.onText?.(parsed.text);
+            if (!isDuplicate) {
               this.hudEmitter("jarvis_speech", { text: parsed.text });
-            } else {
-              this.callbacks.onText?.(parsed.text);
             }
             // Enforce message alternation: merge text into assistant message
             const lastMsg = this.state.messages[this.state.messages.length - 1];
@@ -614,6 +629,13 @@ export class AgentLoop {
 
           // No actions → done (check follow-up queue)
           if (parsed.actions.length === 0) {
+            // Pi pattern: if no text was emitted this iteration but we have results,
+            // synthesize a brief summary so the user hears something
+            if (!parsed.text && iteration > 1) {
+              const summary = "Task complete.";
+              this.hudEmitter("jarvis_speech", { text: summary });
+              this.state.messages.push({ role: "assistant", content: summary });
+            }
             this.callbacks.onLoopEnd?.(iteration, "no actions — response complete");
             break;
           }
@@ -818,6 +840,7 @@ export class AgentLoop {
 
     this.callbacks.onActionStart?.(action);
     const actionId = `action_${Date.now()}_${action.action}`;
+    log.info(`Executing tool: ${action.action}`, { actionId, hasFile: !!(action.path || action.file || action.filePath) });
     this.hudEmitter("bg_activity", { id: actionId, action: action.action, status: "started", detail: `Executing ${action.action}...` });
 
     // ── Phase 5+6: EXECUTE (with timeout + file mutation queue) ──
@@ -854,6 +877,13 @@ export class AgentLoop {
     const execDuration = Date.now() - execStart;
     this.state.totalActionsExecuted++;
     this.callbacks.onActionResult?.(action, result);
+
+    // Structured result logging (Hermes pattern)
+    if (result.ok) {
+      log.info(`Tool completed: ${action.action}`, { data: { actionId, durationMs: execDuration } });
+    } else {
+      log.error(`Tool failed: ${action.action}`, { error: result.error, data: { actionId, durationMs: execDuration } });
+    }
 
     this.hudEmitter("bg_activity", {
       id: actionId, action: action.action,

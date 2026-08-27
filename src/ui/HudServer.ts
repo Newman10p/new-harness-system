@@ -25,6 +25,10 @@ import type {
   HudEmitter,
 } from "../types/index.js";
 import type { AgentLoop } from "../core/AgentLoop.js";
+import { getLogger } from "../core/MaiLogger.js";
+
+// Module-level logger
+const log = getLogger("HudServer");
 
 // ─── Inbound Message Types ─────────────────────────────────────────────────
 interface InboundUserInput {
@@ -168,7 +172,8 @@ export class HudServer {
         console.warn("[HUD] Piper TTS configured but not ready");
       }
     } catch (err) {
-      console.warn(`[HUD] Piper TTS not available: ${err instanceof Error ? err.message : err}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      log.error("Piper TTS not available", { error: errMsg });
       this.piperReady = false;
     }
 
@@ -187,7 +192,8 @@ export class HudServer {
         console.log("[HUD] Kokoro TTS initialized (preferred engine)");
       }
     } catch (err) {
-      console.warn(`[HUD] Kokoro TTS not available: ${err instanceof Error ? err.message : err}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      log.error("Kokoro TTS not available", { error: errMsg });
       this.kokoroReady = false;
     }
 
@@ -303,13 +309,11 @@ export class HudServer {
 
     ws.on("close", (code, reason) => {
       this.clients.delete(ws);
-      console.log(
-        `[HUD] Client disconnected (code: ${code}, clients: ${this.clients.size})`
-      );
+      log.info("Client disconnected", { code, reason: reason.toString(), remainingClients: this.clients.size });
     });
 
     ws.on("error", (err) => {
-      console.error(`[HUD] Client error: ${err.message}`);
+      log.error("Client WebSocket error", { error: err.message, data: { remainingClients: this.clients.size - 1 } });
       this.clients.delete(ws);
     });
   }
@@ -502,7 +506,7 @@ export class HudServer {
         return;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`[HUD] Kokoro synthesis failed, falling back: ${errMsg}`);
+        log.error("Kokoro synthesis failed, falling back", { error: errMsg, data: { textLength: text.length } });
         this.broadcast("activity_log", {
           message: `Kokoro TTS failed: ${errMsg}`,
           level: "warn",
@@ -524,7 +528,7 @@ export class HudServer {
         return;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`[HUD] Piper synthesis failed: ${errMsg}`);
+        log.error("Piper synthesis failed", { error: errMsg, data: { textLength: text.length } });
         this.broadcast("activity_log", {
           message: `Piper TTS failed: ${errMsg}`,
           level: "warn",

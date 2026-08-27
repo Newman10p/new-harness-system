@@ -282,10 +282,19 @@
     /* ═══════════════════════════════════════════════════════════════════════
        MIC & CALL BUTTONS
     ═══════════════════════════════════════════════════════════════════════ */
-    .mic.active {
+    .mic.active,
+    .voice-recording {
       border-color: var(--danger) !important;
       background: rgba(255,51,102,.2) !important;
       box-shadow: 0 0 25px rgba(255,51,102,.6);
+    }
+    .voice-error {
+      border-color: #f59e0b !important;
+      background: rgba(245,158,11,.15) !important;
+      box-shadow: 0 0 15px rgba(245,158,11,.4);
+    }
+    .voice-loading {
+      opacity: .7;
     }
 
     .call-btn.active {
@@ -1179,7 +1188,38 @@
       ttsEngine: localStorage.getItem("mai-tts-engine") || "browser", // "browser" or "piper"
       piperReady: false,
       piperAudioContext: null,
+      // Voice state machine (Jarvis-UI pattern: 4 visual states)
+      voiceState: "ready", // loading | ready | error | recording
     };
+
+    // Voice state icons mapping (Jarvis-UI pattern)
+    const VOICE_STATE_ICONS = {
+      loading: '<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>',
+      ready: '<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/><path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 0 0 2 0v-3.08A7 7 0 0 0 19 11Z"/></svg>',
+      error: '<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>',
+      recording: '<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
+    };
+
+    function updateVoiceState(newState) {
+      state.voiceState = newState;
+      const btn = $("micBtn");
+      btn.innerHTML = VOICE_STATE_ICONS[newState] || VOICE_STATE_ICONS.ready;
+      // Visual classes per state (Jarvis-UI pattern)
+      btn.classList.toggle("voice-loading", newState === "loading");
+      btn.classList.toggle("voice-error", newState === "error");
+      btn.classList.toggle("voice-recording", newState === "recording");
+      // Recording: red border; Error: amber border
+      if (newState === "recording") {
+        btn.classList.add("border-red-400/60", "text-red-300");
+        btn.classList.remove("border-cyan-400/40", "text-cyan-300", "border-amber-400/60", "text-amber-300");
+      } else if (newState === "error") {
+        btn.classList.add("border-amber-400/60", "text-amber-300");
+        btn.classList.remove("border-cyan-400/40", "text-cyan-300", "border-red-400/60", "text-red-300");
+      } else {
+        btn.classList.add("border-cyan-400/40", "text-cyan-300");
+        btn.classList.remove("border-red-400/60", "text-red-300", "border-amber-400/60", "text-amber-300");
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     //  MARKDOWN → HTML RENDERER
@@ -2526,7 +2566,7 @@
       if (!state.listening && recognition) {
         try { recognition.start(); } catch (_) {}
         state.listening = true;
-        $("micBtn").classList.add("active");
+        updateVoiceState("recording");
       }
 
       // Start audio visualizer
@@ -2793,12 +2833,14 @@
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (Recognition) {
+      updateVoiceState("loading");
       recognition = new Recognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = "en-GB";
 
       recognition.onresult = event => {
+        if (state.voiceState !== "recording") updateVoiceState("recording");
         let interim = "";
         let finalText = "";
 
@@ -2831,7 +2873,7 @@
           // Microphone permission denied — stop listening and don't auto-restart
           state.listening = false;
           state._permissionDenied = true;
-          $("micBtn").classList.remove("active");
+          updateVoiceState("error");
           addLog("Microphone access denied. Allow mic permission in browser settings.", "warning");
           if (state.callActive) {
             state.callActive = false;
@@ -2842,6 +2884,8 @@
         }
         if (!["no-speech", "aborted"].includes(event.error)) {
           addLog(`Recognition error: ${event.error}`, "error");
+          updateVoiceState("error");
+          setTimeout(() => { if (state.voiceState === "error") updateVoiceState("ready"); }, 3000);
         }
       };
 
@@ -2853,8 +2897,13 @@
         }
         if (state.listening || state.callActive) {
           try { recognition.start(); } catch (_) {}
+        } else {
+          updateVoiceState("ready");
         }
       };
+    } else {
+      updateVoiceState("error");
+      addLog("Speech recognition not supported in this browser", "warning");
     }
 
     function toggleListening() {
@@ -2869,7 +2918,7 @@
       }
 
       state.listening = !state.listening;
-      $("micBtn").classList.toggle("active", state.listening);
+      updateVoiceState(state.listening ? "recording" : "ready");
 
       if (state.listening) {
         try { recognition.start(); } catch (_) {}

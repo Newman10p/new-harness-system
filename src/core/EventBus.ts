@@ -69,7 +69,13 @@ export class AgentEventBus {
         break;
 
       case "message_end":
-        this.hudEmitter("jarvis_speech", { text: event.fullText });
+        // Only bridge to jarvis_speech if the text looks like conversational
+        // text (not raw tool-call JSON). The AgentLoop already emits
+        // jarvis_speech directly with clean parsed text; this bridge is
+        // a fallback for streaming-only paths.
+        if (event.fullText && !event.fullText.includes("{\"action\":") && event.fullText.length > 5) {
+          this.hudEmitter("jarvis_speech", { text: event.fullText });
+        }
         break;
 
       case "tool_execution_start":
