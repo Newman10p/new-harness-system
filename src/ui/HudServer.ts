@@ -127,6 +127,11 @@ export class HudServer {
   private kokoroReady = false;
   private activeTtsEngine: "piper" | "kokoro" | "browser" = "browser";
 
+  // Dedup guard: track last synthesis to detect and skip duplicates
+  private _lastSynthText = "";
+  private _lastSynthTime = 0;
+  private static readonly SYNTH_DEDUP_WINDOW_MS = 500;
+
   constructor(
     httpServer: unknown,
     private port: number = 8080
@@ -245,6 +250,18 @@ export class HudServer {
 
     const json = JSON.stringify(message);
 
+    // Diagnostic: log jarvis_speech broadcasts to trace duplication source
+    if (channel === "jarvis_speech") {
+      const text = (message.payload as any)?.text as string || "";
+      log.info("jarvis_speech broadcast", {
+        data: {
+          clientCount: this.clients.size,
+          textLength: text.length,
+          textPreview: text.slice(0, 80),
+        },
+      });
+    }
+
     for (const client of this.clients) {
       if (client.readyState === WebSocket.OPEN) {
         client.send(json);
@@ -274,7 +291,9 @@ export class HudServer {
   // ─── Private: Connection Handler ─────────────────────────────────────────
   private handleConnection(ws: WebSocket): void {
     this.clients.add(ws);
-    console.log(`[HUD] Client connected (${this.clients.size} total)`);
+    const clientAddr = (ws as any)._socket?.remoteAddress || "unknown";
+    console.log(`[HUD] Client connected (${this.clients.size} total) from ${clientAddr}`);
+    log.info("Client connected", { data: { clientCount: this.clients.size, address: clientAddr, totalConnections: this.wss.clients.size } });
 
     // Send initial state
     this.broadcast("activity_log", {
@@ -492,6 +511,15 @@ export class HudServer {
    * and broadcast audio to all connected clients via piper_audio channel.
    */
   private async synthesizeAndBroadcastNeural(text: string, reqId?: number): Promise<void> {
+    // Dedup guard: skip if identical text was synthesized recently
+    const now = Date.now();
+    if (text === this._lastSynthText && (now - this._lastSynthTime) < HudServer.SYNTH_DEDUP_WINDOW_MS) {
+      log.warn("TTS dedup: skipping duplicate synthesis", { data: { textLength: text.length, textPreview: text.slice(0, 80), reqId, sinceLastMs: now - this._lastSynthTime } });
+      return;
+    }
+    this._lastSynthText = text;
+    this._lastSynthTime = now;
+
     log.info("TTS synthesis request", { data: { engine: this.activeTtsEngine, textLength: text.length, textPreview: text.slice(0, 80), reqId } });
 
     // Try Kokoro first (higher quality)

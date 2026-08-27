@@ -1918,6 +1918,15 @@
     }
 
     function speak(text, callback) {
+      // Client-side dedup: skip if same text was spoken in the last 300ms
+      const now = Date.now();
+      if (text === state._lastSpeakText && (now - (state._lastSpeakTime || 0)) < 300) {
+        console.log("[Speak] Dedup: skipping duplicate speak()", text.slice(0, 60));
+        return;
+      }
+      state._lastSpeakText = text;
+      state._lastSpeakTime = now;
+
       const cleanText = stripMarkdown(text);
       addChatBubble("ai", text);
       $("interimText").textContent = "";
@@ -2875,6 +2884,7 @@
           updateVoiceState("error");
           setTimeout(() => { if (state.voiceState === "error") updateVoiceState("ready"); }, 3000);
         }
+      };
 
       recognition.onend = () => {
         // Don't restart if permission was denied or recognition unavailable
@@ -3409,7 +3419,7 @@
     }
 
     function finishOnboarding() {
-      const updates: any = {
+      const updates = {
         assistantName: document.getElementById('ob_name').value,
         audio: {
           mode: document.querySelector('input[name="ob_mode"]:checked').value === 'voice' ? 'builtIn' : 'builtIn',
