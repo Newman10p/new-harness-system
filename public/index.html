@@ -1864,7 +1864,7 @@
         .replace(/#{1,6}\s+/g, "")                          // headings
         .replace(/\*{1,3}(.*?)\*{1,3}/g, "$1")               // bold/italic
         .replace(/~~(.*?)~~/g, "$1")                          // strikethrough
-        .replace(/`{1,3}([^`]+)`{1,3}/g, "$1")                // inline code
+        .replace(/`[^`]+`/g, "")                              // remove inline code (file paths)
         .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")            // links
         .replace(/^\s*[-*+]\s+/gm, "")                       // list items
         .replace(/^\s*\d+\.\s+/gm, "")                      // numbered lists
@@ -1894,27 +1894,25 @@
 
     /** Split text into sentence-level chunks for pipelined TTS. */
     function splitIntoSentences(text) {
-      // Split on sentence boundaries but keep delimiters
       const chunks = [];
-      // Match sentences: ends with . ! ? followed by space or end,
-      // or natural break points like semicolons, em-dashes
+      // Split on sentence boundaries (. ! ? ;) followed by space or end
       const regex = /[^.!?;]+[.!?;]+\s*|[^.!?;]+$/g;
       let match;
       while ((match = regex.exec(text)) !== null) {
         const chunk = match[0].trim();
-        if (chunk) chunks.push(chunk);
-      }
-      // If no sentence boundaries found, split by commas or just use whole text
-      if (chunks.length === 0) {
-        // Try comma splitting for long text
-        if (text.length > 100) {
-          const parts = text.split(/,\s*/);
-          for (const part of parts) {
-            if (part.trim()) chunks.push(part.trim());
-          }
-        } else {
-          chunks.push(text);
+        // Skip tiny fragments (file extensions, abbreviations like "md.", "e.g.")
+        // Merge them back into the previous chunk instead of synthesizing separately
+        if (chunk && chunk.length > 8) {
+          chunks.push(chunk);
+        } else if (chunk && chunks.length > 0) {
+          chunks[chunks.length - 1] += " " + chunk;
+        } else if (chunk) {
+          chunks.push(chunk);
         }
+      }
+      // If nothing found, use whole text
+      if (chunks.length === 0) {
+        chunks.push(text);
       }
       return chunks;
     }
@@ -1960,14 +1958,7 @@
           try { await speakWithBrowser(item.text); } catch { /* skip */ }
         }
 
-        // Pre-fetch: start synthesizing the NEXT sentence while
-        // current one plays (pipeline effect — feels real-time)
-        if (state._speakQueue.length > 0) {
-          const next = state._speakQueue[0];
-          if (next.engine === "piper" && next.piperReady) {
-            prefetchPiper(next.text);
-          }
-        }
+        // No prefetch — synthesizes on demand to avoid doubled requests
       }
 
       // All done
@@ -1989,49 +1980,28 @@
       }
     }
 
-    /**
-     * Pre-fetch Piper audio — sends synthesis request now so it's
-     * ready when the queue advances to this item.
-     */
-    function prefetchPiper(cleanText) {
-      const id = ++state._piperReqId;
-      sendWS({ type: "piper_speak", text: cleanText, id });
-      // The piper_audio handler will cache the result by ID
-      // (no resolver to wait on — it's fire-and-forget)
-    }
 
     /**
-     * Speak with Piper/Kokoro — uses cached audio if available,
-     * otherwise requests and waits. Resolves when playback ends.
+     * Speak with Piper/Kokoro - request, wait, play. Resolves when playback ends.
      */
     function speakWithPiper(cleanText) {
       return new Promise((resolve) => {
-        // Check if this was pre-fetched
-        const prefetchId = state._piperReqId;
-        if (state._piperCache.has(prefetchId)) {
-          const audio = state._piperCache.get(prefetchId);
-          state._piperCache.delete(prefetchId);
-          state._piperResolve = resolve;
-          playPiperAudio(audio);
-          return;
-        }
-
-        // Not pre-fetched — request now and wait
         const id = ++state._piperReqId;
         state._piperWaitingId = id;
         state._piperResolve = resolve;
         sendWS({ type: "piper_speak", text: cleanText, id });
 
-        // Timeout: if no audio in 4s, fall back to browser
+        // Timeout: if no audio in 6s, fall back to browser TTS
         state._piperSpeakTimeout = setTimeout(() => {
           if (state._piperWaitingId === id) {
             state._piperWaitingId = null;
             state._piperResolve = null;
-            resolve(); // queue will move to browser fallback
+            resolve();
           }
-        }, 4000);
+        }, 6000);
       });
     }
+
 
     /**
      * Speak with browser SpeechSynthesis. Returns promise, resolves when done.
@@ -2329,10 +2299,8 @@
             state._piperWaitingId = null;
             playPiperAudio(audioData);
             // playPiperAudio will call state._piperResolve when done
-          } else if (reqId) {
-            // Pre-fetched — cache by ID for when the queue reaches this item
-            state._piperCache.set(reqId, audioData);
           }
+          // else: stale audio for a previous request — ignore
           break;
         }
 
