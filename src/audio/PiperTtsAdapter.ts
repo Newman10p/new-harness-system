@@ -23,6 +23,9 @@ import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import os from "node:os";
+import { getLogger } from "../core/MaiLogger.js";
+
+const log = getLogger("PiperTTS");
 
 const execFileAsync = promisify(execFile);
 
@@ -153,6 +156,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     const result = await this.execPiper(args, 30000, cleanText);
 
     if (!result.stdout || result.stdout.length === 0) {
+      log.error("Piper produced no output", { data: { stderr: result.stderr, textLength: cleanText.length } });
       throw new Error("Piper produced no output");
     }
 
@@ -166,7 +170,9 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     }
 
     // Otherwise treat stdout as a file path
+    log.debug("Piper output path", { data: { wavPath, stdoutLength: result.stdout.length } });
     if (!existsSync(wavPath)) {
+      log.error("Piper output file not found", { data: { wavPath, stdoutText: stdoutText.slice(0, 200) } });
       throw new Error(`Piper output file not found: ${wavPath}`);
     }
 
@@ -181,8 +187,11 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     }
 
     if (wavData.length < 12 || wavData.toString("ascii", 0, 4) !== "RIFF") {
+      log.error("Piper output is not valid WAV", { data: { wavPath, size: wavData.length, header: wavData.slice(0, 12).toString('hex') } });
       throw new Error(`Piper output file is not valid WAV: ${wavPath}`);
     }
+
+    log.debug("Piper synthesis OK", { data: { wavBytes: wavData.length, textChars: cleanText.length } });
 
     return wavData;
   }

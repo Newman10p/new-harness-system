@@ -492,10 +492,13 @@ export class HudServer {
    * and broadcast audio to all connected clients via piper_audio channel.
    */
   private async synthesizeAndBroadcastNeural(text: string, reqId?: number): Promise<void> {
+    log.info("TTS synthesis request", { data: { engine: this.activeTtsEngine, textLength: text.length, textPreview: text.slice(0, 80), reqId } });
+
     // Try Kokoro first (higher quality)
     if (this.kokoroAdapter && this.kokoroReady) {
       try {
         const base64Audio = await this.kokoroAdapter.synthesizeToBase64(text);
+        log.info("Kokoro synthesis OK", { data: { audioBytes: Math.round(base64Audio.length * 0.75), reqId } });
         this.broadcast("piper_audio", {
           audio: base64Audio,
           format: "wav",
@@ -506,7 +509,7 @@ export class HudServer {
         return;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        log.error("Kokoro synthesis failed, falling back", { error: errMsg, data: { textLength: text.length } });
+        log.error("Kokoro synthesis failed, falling back", { error: errMsg, data: { textLength: text.length, reqId } });
         this.broadcast("activity_log", {
           message: `Kokoro TTS failed: ${errMsg}`,
           level: "warn",
@@ -518,6 +521,7 @@ export class HudServer {
     if (this.piperAdapter && this.piperReady) {
       try {
         const base64Audio = await this.piperAdapter.synthesizeToBase64(text);
+        log.info("Piper synthesis OK", { data: { audioBytes: Math.round(base64Audio.length * 0.75), reqId } });
         this.broadcast("piper_audio", {
           audio: base64Audio,
           format: "wav",
@@ -528,7 +532,7 @@ export class HudServer {
         return;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        log.error("Piper synthesis failed", { error: errMsg, data: { textLength: text.length } });
+        log.error("Piper synthesis failed", { error: errMsg, data: { textLength: text.length, reqId } });
         this.broadcast("activity_log", {
           message: `Piper TTS failed: ${errMsg}`,
           level: "warn",
@@ -537,6 +541,7 @@ export class HudServer {
     }
 
     // Neither engine available — notify clients to use browser TTS
+    log.warn("No neural TTS engine available for synthesis", { data: { kokoroReady: this.kokoroReady, piperReady: this.piperReady } });
     this.broadcast("tts_engine_status", {
       engine: "browser",
       ready: false,

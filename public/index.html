@@ -2552,7 +2552,14 @@
     // ═══════════════════════════════════════════════════════════════════════
     //  VOICE CALL MODE
     // ═══════════════════════════════════════════════════════════════════════
-    function startCallMode() {
+    async function startCallMode() {
+      // Check mic permission before activating call mode
+      const hasPermission = await checkMicPermission();
+      if (!hasPermission) {
+        addLog("Microphone permission required for voice call. Grant access in browser settings and reload.", "warning");
+        return;
+      }
+
       state.callActive = true;
       $("callBtn").classList.add("active");
       $("callStatus").classList.add("visible");
@@ -2867,18 +2874,31 @@
       };
 
       let _lastRecognitionError = "";
-      recognition.onerror = event => {
+      recognition.onerror = async event => {
         _lastRecognitionError = event.error;
         if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          // Microphone permission denied — stop listening and don't auto-restart
-          state.listening = false;
-          state._permissionDenied = true;
-          updateVoiceState("error");
-          addLog("Microphone access denied. Allow mic permission in browser settings.", "warning");
-          if (state.callActive) {
-            state.callActive = false;
-            updateStatus("STANDBY");
-            addLog("Voice call ended — mic permission required", "warning");
+          // Verify with Permissions API before permanently blocking
+          let actuallyDenied = true;
+          try {
+            if (navigator.permissions && navigator.permissions.query) {
+              const result = await navigator.permissions.query({ name: 'microphone' });
+              actuallyDenied = result.state === 'denied';
+            }
+          } catch (_) {}
+          if (actuallyDenied) {
+            state.listening = false;
+            state._permissionDenied = true;
+            updateVoiceState("error");
+            addLog("Microphone access denied. Allow mic permission in browser settings.", "warning");
+            if (state.callActive) {
+              state.callActive = false;
+              updateStatus("STANDBY");
+              addLog("Voice call ended — mic permission required", "warning");
+            }
+          } else {
+            // Permission is actually granted — transient error, allow retry
+            addLog(`Mic error (transient): ${event.error} — retrying...`, "warning");
+            setTimeout(() => { if (state.listening || state.callActive) { try { recognition.start(); } catch (_) {} } }, 500);
           }
           return;
         }
@@ -2887,7 +2907,6 @@
           updateVoiceState("error");
           setTimeout(() => { if (state.voiceState === "error") updateVoiceState("ready"); }, 3000);
         }
-      };
 
       recognition.onend = () => {
         // Don't restart if permission was denied or recognition unavailable
@@ -2906,13 +2925,47 @@
       addLog("Speech recognition not supported in this browser", "warning");
     }
 
-    function toggleListening() {
+    async function checkMicPermission() {
+      // Use the Permissions API to check actual mic permission state
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const result = await navigator.permissions.query({ name: 'microphone' });
+          if (result.state === 'granted') {
+            state._permissionDenied = false;
+            return true;
+          }
+          if (result.state === 'denied') {
+            state._permissionDenied = true;
+            return false;
+          }
+          // 'prompt' — not yet decided, allow attempt
+          state._permissionDenied = false;
+          return true;
+        }
+      } catch (_) { /* Permissions API not supported */ }
+      // Fallback: if flag was set, check by trying getUserMedia
+      if (state._permissionDenied) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach(t => t.stop());
+          state._permissionDenied = false;
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    async function toggleListening() {
       if (!recognition) {
         speak("Voice recognition is unavailable. Please use the command console.");
         return;
       }
 
-      if (state._permissionDenied) {
+      // Always re-check actual permission state — the flag may be stale
+      const hasPermission = await checkMicPermission();
+      if (!hasPermission) {
         addLog("Microphone permission was denied. Grant access in browser settings and reload.", "warning");
         return;
       }
