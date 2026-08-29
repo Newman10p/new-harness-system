@@ -46,6 +46,10 @@ interface InboundPromotionResponse {
   approved: boolean;
 }
 
+interface InboundGetContextOccupancy {
+  type: "get_context_occupancy";
+}
+
 interface InboundFileRequest {
   type: "file_request";
   path?: string;
@@ -120,7 +124,7 @@ interface InboundPiperSpeak {
   text: string;
 }
 
-type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundPromotionResponse | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak | InboundSteering | InboundFollowUp;
+type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundPromotionResponse | InboundGetContextOccupancy | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak | InboundSteering | InboundFollowUp;
 
 export class HudServer {
   private wss: WebSocketServer;
@@ -378,6 +382,15 @@ export class HudServer {
         const approved = msg.approved === true;
         console.log(`[HUD] promotion_response: ${approved ? "APPROVED" : "DENIED"}`);
         this.agentLoop?.resolvePromotion(approved);
+        break;
+      }
+
+      case "get_context_occupancy": {
+        // Client requests current context occupancy stats
+        const stats = this.agentLoop?.getContextStats();
+        if (stats) {
+          this.broadcast("context_occupancy", stats);
+        }
         break;
       }
 

@@ -371,6 +371,25 @@
     }
     '.approval-banner.visible { display: flex; }
 
+  .context-meter {
+    height: 3px;
+    background: rgba(0,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .context-meter-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease, background-color 0.5s ease;
+  }
+  .context-meter-label {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+    opacity: 0.5;
+  }
+
   .promotion-banner {
     display: none;
     position: absolute;
@@ -1069,6 +1088,14 @@
         <!-- SYSTEM METRICS -->
         <div>
           <h2 class="display mb-3 text-xs tracking-widest text-cyan-400">SYSTEM METRICS</h2>
+          <!-- Context Occupancy Meter (DSH pattern) -->
+          <div class="context-meter">
+            <div id="contextMeterFill" class="context-meter-fill" style="width:0%;background:#22d3ee"></div>
+          </div>
+          <div class="flex justify-between">
+            <span class="context-meter-label display text-cyan-500">CONTEXT</span>
+            <span id="contextMeterLabel" class="context-meter-label display text-cyan-600">0%</span>
+          </div>
           <div class="space-y-3 text-xs">
 
             <!-- CPU -->

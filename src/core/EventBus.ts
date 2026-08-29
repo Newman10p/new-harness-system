@@ -153,6 +153,33 @@ export class AgentEventBus {
         });
         break;
 
+      case "step_start":
+        this.hudEmitter("step_info", {
+          turnIteration: event.turnIteration,
+          stepNumber: event.stepNumber,
+          actionCount: 0,
+          phase: "infer",
+        });
+        break;
+
+      case "step_end":
+        this.hudEmitter("step_info", {
+          turnIteration: event.turnIteration,
+          stepNumber: event.stepNumber,
+          actionCount: event.actionCount,
+          phase: event.reason,
+          durationMs: event.durationMs,
+        });
+        break;
+
+      case "context_occupancy":
+        this.hudEmitter("context_occupancy", {
+          percent: event.percent,
+          usedTokens: event.usedTokens,
+          contextWindow: event.contextWindow,
+        });
+        break;
+
       // agent_start, agent_end, tool_call_* — no HUD bridge needed
       // (these are primarily for subscribers)
     }

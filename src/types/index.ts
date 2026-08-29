@@ -223,6 +223,8 @@ export type HudChannel =
   | "tts_engine_switch"
   | "sandbox_output"
   | "sandbox_session_event"
+  | "context_occupancy"
+  | "step_info"
   | "device_event"
   | "ui_patch"
   | "browser_event"
@@ -286,6 +288,8 @@ export interface HudPayloads {
     totalSize: number;
     reason?: string;
   };
+  context_occupancy: { percent: number; usedTokens: number; contextWindow: number };
+  step_info: { turnIteration: number; stepNumber: number; actionCount: number; phase: string; durationMs?: number };
 }
 
 export type HudMessage<C extends HudChannel> = {
@@ -396,6 +400,8 @@ export type AgentEventType =
   | "agent_end"
   | "turn_start"
   | "turn_end"
+  | "step_start"
+  | "step_end"
   | "message_start"
   | "message_chunk"
   | "message_end"
@@ -410,7 +416,8 @@ export type AgentEventType =
   | "compression_start"
   | "compression_end"
   | "approval_required"
-  | "steering_injected";
+  | "steering_injected"
+  | "context_occupancy";
 
 export interface AgentEventBase {
   type: AgentEventType;
@@ -422,6 +429,9 @@ export type AgentEvent =
   | (AgentEventBase & { type: "agent_end"; reason: string; durationMs: number; iterations: number })
   | (AgentEventBase & { type: "turn_start"; iteration: number; contextTokens: number; budgetRemaining: number })
   | (AgentEventBase & { type: "turn_end"; iteration: number; reason: string; durationMs: number; tokensUsed: number })
+  | (AgentEventBase & { type: "step_start"; turnIteration: number; stepNumber: number; contextTokens: number })
+  | (AgentEventBase & { type: "step_end"; turnIteration: number; stepNumber: number; reason: "completed" | "max-tokens" | "aborted" | "error"; durationMs: number; tokensUsed: number; actionCount: number })
+  | (AgentEventBase & { type: "context_occupancy"; percent: number; usedTokens: number; contextWindow: number })
   | (AgentEventBase & { type: "message_start" })
   | (AgentEventBase & { type: "message_chunk"; text: string })
   | (AgentEventBase & { type: "message_end"; fullText: string })
@@ -507,6 +517,8 @@ export interface AgentLoopConfig {
   maxRetries: number;
   /** Maximum backoff in ms (default: 8000). */
   maxBackoffMs: number;
+  /** Context window token limit for occupancy meter (default: 128000). */
+  contextWindowTokens: number;
 }
 
 export const DEFAULT_LOOP_CONFIG: AgentLoopConfig = {
@@ -519,6 +531,7 @@ export const DEFAULT_LOOP_CONFIG: AgentLoopConfig = {
   parallelTools: true,
   maxRetries: 2,
   maxBackoffMs: 8_000,
+  contextWindowTokens: 128_000,
 };
 
 // ─── Tool Execution Groups (Hermes pattern: safety-based segmentation) ────────

@@ -359,6 +359,17 @@ export class AgentLoop {
     }
   }
 
+  /** Expose context stats for HUD context occupancy meter. */
+  getContextStats(): { percent: number; usedTokens: number; contextWindow: number } {
+    const usedTokens = ContextAssembler.estimateTokens(this.state.messages);
+    const contextWindow = this.loopConfig.contextWindowTokens || 128000;
+    return {
+      percent: Math.min(100, Math.round((usedTokens / contextWindow) * 100)),
+      usedTokens,
+      contextWindow,
+    };
+  }
+
   setHudEmitter(fn: HudEmitter): void {
     this.hudEmitter = fn;
     this.eventBus.setHudEmitter(fn);
@@ -454,6 +465,7 @@ export class AgentLoop {
   private currentUserInput = "";
   private currentIntent: { type: string; urgency: string; suggestedSystemBehavior: string } | null = null;
   private currentToneAddon = "";
+  private stepNumber = 0;  // Monotonic step counter across all turns
 
   private async runLoop(): Promise<void> {
     this.state.isRunning = true;
@@ -513,6 +525,19 @@ export class AgentLoop {
             contextTokens: tokenEstimate,
             budgetRemaining: maxLoops - iteration,
           });
+
+          // Emit context occupancy (DSH pattern)
+          const contextWindow = this.loopConfig.contextWindowTokens || 128000;
+          const occupancyPercent = Math.min(100, Math.round((tokenEstimate / contextWindow) * 100));
+          const occupancyEvent = { type: "context_occupancy" as const, percent: occupancyPercent, usedTokens: tokenEstimate, contextWindow, timestamp: Date.now() };
+          this.eventBus.emit(occupancyEvent);
+          this.hudEmitter("context_occupancy", { percent: occupancyPercent, usedTokens: tokenEstimate, contextWindow });
+
+          // ── Step boundary (DSH pattern: step = one LLM call + tool executions) ──
+          this.stepNumber++;
+          const stepStart = Date.now();
+          this.eventBus.emit({ type: "step_start", turnIteration: iteration, stepNumber: this.stepNumber, contextTokens: tokenEstimate, timestamp: Date.now() });
+          this.hudEmitter("step_info", { turnIteration: iteration, stepNumber: this.stepNumber, actionCount: 0, phase: "assemble" });
 
           // ─── Phase 1: ASSEMBLE (3-tier, Hermes pattern) ──
           if (this.state.messages.length === 0 || this.state.messages[0].role !== "system") {
@@ -656,6 +681,11 @@ export class AgentLoop {
 
           // No actions → done (check follow-up queue)
           if (parsed.actions.length === 0) {
+            // Emit step_end for this completed step (DSH pattern)
+            const stepDuration = Date.now() - stepStart;
+            this.eventBus.emit({ type: "step_end", turnIteration: iteration, stepNumber: this.stepNumber, reason: "completed", durationMs: stepDuration, tokensUsed: turnTokensUsed, actionCount: 0, timestamp: Date.now() });
+            this.hudEmitter("step_info", { turnIteration: iteration, stepNumber: this.stepNumber, actionCount: 0, phase: "completed", durationMs: stepDuration });
+
             // Pi pattern: if no text was emitted this iteration but we have results,
             // synthesize a brief summary so the user hears something
             if (!parsed.text && iteration > 1) {
@@ -686,7 +716,13 @@ export class AgentLoop {
           }
 
           // Execute tools with parallel support (Hermes segmentation + Pi 3-phase)
+          this.hudEmitter("step_info", { turnIteration: iteration, stepNumber: this.stepNumber, actionCount: parsed.actions.length, phase: "execute" });
           const results = await this.executeActionsWithPipeline(parsed.actions);
+
+          // Emit step_end for this tool-execution step (DSH pattern)
+          const stepDuration = Date.now() - stepStart;
+          this.eventBus.emit({ type: "step_end", turnIteration: iteration, stepNumber: this.stepNumber, reason: "completed", durationMs: stepDuration, tokensUsed: turnTokensUsed, actionCount: parsed.actions.length, timestamp: Date.now() });
+          this.hudEmitter("step_info", { turnIteration: iteration, stepNumber: this.stepNumber, actionCount: parsed.actions.length, phase: "completed", durationMs: stepDuration });
 
           // ─── Phase 8+9: STREAM + LOOP ──
           if (this.state.aborted) {
