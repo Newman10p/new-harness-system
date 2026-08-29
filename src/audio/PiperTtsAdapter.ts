@@ -16,18 +16,22 @@
 //   PIPER_BIN=/usr/local/bin/piper
 //   PIPER_MODEL=/home/user/.local/share/piper-voices/en-us-lessac-medium.onnx
 //   PIPER_CONFIG=/home/user/.local/share/piper-voices/en-us-lessac-medium.onnx.json
+//
+// Performance optimizations:
+//   - Pre-warms model at init (dummy synthesis to cache ONNX in memory)
+//   - Uses --sentence-silence 0.15 for faster sentence transitions
+//   - Uses --length-scale 0.92 for slightly faster speech
+//   - Detects stdout WAV mode to avoid temp file I/O
+//   - Uses spawn for streaming output
 
 import { TextToSpeechAdapter } from "./AudioAdapter";
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { promisify } from "node:util";
 import os from "node:os";
 import { getLogger } from "../core/MaiLogger.js";
 
 const log = getLogger("PiperTTS");
-
-const execFileAsync = promisify(execFile);
 
 export interface PiperConfig {
   /** Path to piper binary */
@@ -42,7 +46,7 @@ export interface PiperConfig {
   speakerId?: number;
   /** Noise scale (0.0–1.0, default: 0.667) */
   noiseScale?: number;
-  /** Length scale (0.0–2.0, default: 1.0 — higher = slower) */
+  /** Length scale (0.0–2.0, default: 0.92 for faster speech) */
   lengthScale?: number;
 }
 
@@ -57,6 +61,9 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
   private lengthScale: number;
   private ready = false;
   private initializing = false;
+  private prewarmed = false;
+  /** Cached detection: does this piper version output WAV to stdout? */
+  private stdoutWavMode = false;
 
   constructor(config: PiperConfig) {
     this.bin = config.bin || process.env.PIPER_BIN || "piper";
@@ -76,7 +83,8 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     this.dataDir = config.dataDir || process.env.PIPER_DATA || "";
     this.speakerId = config.speakerId;
     this.noiseScale = config.noiseScale ?? 0.667;
-    this.lengthScale = config.lengthScale ?? 1.0;
+    // Default to 0.92 for ~8% faster speech (still natural)
+    this.lengthScale = config.lengthScale ?? 0.92;
 
     // Verify model exists
     if (!this.model || !existsSync(this.model)) {
@@ -95,8 +103,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
   }
 
   /**
-   * Initialize — validate binary and model availability.
-   * Call this after construction to get a meaningful status.
+   * Initialize — validate binary and model, detect output mode, pre-warm.
    */
   async initialize(): Promise<{ ready: boolean; error?: string }> {
     if (this.initializing) return { ready: false, error: "Already initializing" };
@@ -104,8 +111,23 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
 
     try {
       // Check piper binary exists
-      await this.execPiper(["--help"], 5000);
+      await this.spawnPiper(["--help"], 5000);
       this.ready = true;
+
+      // Pre-warm: do a tiny synthesis to load the ONNX model into OS cache
+      if (!this.prewarmed) {
+        this.prewarmed = true;
+        log.info("Pre-warming Piper model (loading ONNX into cache)..." );
+        try {
+          const warmStart = Date.now();
+          await this.synthesize("hello");
+          log.info("Piper model pre-warmed", { data: { warmupMs: Date.now() - warmStart } });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn("Pre-warm failed (non-fatal)", { error: msg });
+        }
+      }
+
       return { ready: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -118,8 +140,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
 
   /**
    * Synthesize text to WAV audio buffer.
-   * Piper writes a temp .wav file and prints the path to stdout.
-   * We read the file from disk, validate it, and clean up.
+   * Uses spawn for streaming, detects stdout WAV mode to avoid temp file I/O.
    */
   async synthesize(text: string, options?: { speakerId?: number; noiseScale?: number; lengthScale?: number }): Promise<Buffer> {
     if (!this.ready) {
@@ -153,24 +174,28 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     const lengthScale = options?.lengthScale ?? this.lengthScale;
     args.push("--length-scale", String(lengthScale));
 
-    const result = await this.execPiper(args, 30000, cleanText);
+    // Reduced sentence silence for faster transitions (default is 0.4)
+    args.push("--sentence-silence", "0.15");
+
+    const result = await this.spawnPiper(args, 30_000, cleanText);
 
     if (!result.stdout || result.stdout.length === 0) {
       log.error("Piper produced no output", { data: { stderr: result.stderr, textLength: cleanText.length } });
       throw new Error("Piper produced no output");
     }
 
-    // Piper prints the output .wav file path to stdout — read the actual file
-    const stdoutText = result.stdout.toString("utf-8").trim();
-    let wavPath = stdoutText;
-
-    // If stdout is binary WAV data (RIFF header), use it directly
+    // If stdout is binary WAV data (RIFF header), use it directly — no temp file I/O
     if (result.stdout.length >= 12 && result.stdout.toString("ascii", 0, 4) === "RIFF") {
+      this.stdoutWavMode = true;
+      log.debug("Piper stdout WAV mode", { data: { wavBytes: result.stdout.length } });
       return result.stdout;
     }
 
-    // Otherwise treat stdout as a file path
-    log.debug("Piper output path", { data: { wavPath, stdoutLength: result.stdout.length } });
+    // Otherwise treat stdout as a file path (legacy mode)
+    const stdoutText = result.stdout.toString("utf-8").trim();
+    const wavPath = stdoutText;
+
+    log.debug("Piper file-path mode", { data: { wavPath, stdoutLength: result.stdout.length } });
     if (!existsSync(wavPath)) {
       log.error("Piper output file not found", { data: { wavPath, stdoutText: stdoutText.slice(0, 200) } });
       throw new Error(`Piper output file not found: ${wavPath}`);
@@ -191,7 +216,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
       throw new Error(`Piper output file is not valid WAV: ${wavPath}`);
     }
 
-    log.debug("Piper synthesis OK", { data: { wavBytes: wavData.length, textChars: cleanText.length } });
+    log.debug("Piper synthesis OK", { data: { wavBytes: wavData.length, textChars: cleanText.length, mode: "file-path" } });
 
     return wavData;
   }
@@ -214,6 +239,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
     bin: string;
     speakerId?: number;
     supportedVoices: string[];
+    stdoutWavMode: boolean;
   } {
     // List available voice models in the model directory
     const voices: string[] = [];
@@ -237,6 +263,7 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
       bin: this.bin,
       speakerId: this.speakerId,
       supportedVoices: voices,
+      stdoutWavMode: this.stdoutWavMode,
     };
   }
 
@@ -267,40 +294,59 @@ export class PiperTtsAdapter implements TextToSpeechAdapter {
   }
 
   /**
-   * Execute Piper binary with arguments, piping text via stdin.
+   * Spawn Piper binary with arguments, piping text via stdin.
+   * Uses spawn instead of execFile for streaming output and better control.
    */
-  private execPiper(
+  private spawnPiper(
     args: string[],
     timeout: number,
     stdinText?: string
   ): Promise<{ stdout: Buffer; stderr: string }> {
     return new Promise((resolve, reject) => {
-      const proc = execFile(
-        this.bin,
-        args,
-        {
-          maxBuffer: 10 * 1024 * 1024, // 10MB — WAV can be large
-          timeout,
-          encoding: "buffer",        // raw bytes for WAV audio
-          env: {
-            ...process.env,
-            ...(this.dataDir ? { ESPEAK_DATA_DIR: this.dataDir } : {}),
-          },
+      const proc = spawn(this.bin, args, {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          ...(this.dataDir ? { ESPEAK_DATA_DIR: this.dataDir } : {}),
         },
-        (error, stdout, stderr) => {
-          if (error) {
-            // Include stderr in error message for debugging
-            const stderrText = (stderr as Buffer).toString("utf-8").trim();
-            const detail = stderrText ? `: ${stderrText}` : `: ${error.message}`;
-            reject(new Error(`Piper exec error${detail}`));
-            return;
-          }
-          resolve({
-            stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout as unknown as ArrayBuffer),
-            stderr: (stderr as Buffer).toString("utf-8").trim(),
-          });
+      });
+
+      const stdoutChunks: Buffer[] = [];
+      let stderr = "";
+      let totalBytes = 0;
+      const maxBytes = 10 * 1024 * 1024; // 10MB
+
+      proc.stdout?.on("data", (chunk: Buffer) => {
+        totalBytes += chunk.length;
+        if (totalBytes <= maxBytes) {
+          stdoutChunks.push(chunk);
         }
-      );
+      });
+
+      proc.stderr?.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString("utf-8");
+      });
+
+      // Timeout
+      const timer = setTimeout(() => {
+        proc.kill("SIGKILL");
+        reject(new Error(`Piper timed out after ${timeout}ms`));
+      }, timeout);
+
+      proc.on("close", (code) => {
+        clearTimeout(timer);
+        const stdout = Buffer.concat(stdoutChunks);
+        if (code !== 0 && stdout.length === 0) {
+          reject(new Error(`Piper exited with code ${code}: ${stderr.trim() || "unknown error"}`));
+          return;
+        }
+        resolve({ stdout, stderr: stderr.trim() });
+      });
+
+      proc.on("error", (err) => {
+        clearTimeout(timer);
+        reject(new Error(`Piper spawn error: ${err.message}`));
+      });
 
       // Pipe text to Piper's stdin
       if (stdinText && proc.stdin) {

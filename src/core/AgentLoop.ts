@@ -150,6 +150,7 @@ export class AgentLoop {
   private state: AgentState;
   private callbacks: AgentLoopCallbacks;
   private hudEmitter: HudEmitter = () => {};
+  private static readonly APPROVAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
   private inboxAppender: (event: InboxEvent) => Promise<void> = async () => {};
   private audit: (entry: AuditEntry) => Promise<void> = async () => {};
   private useFallback: boolean;
@@ -227,6 +228,7 @@ export class AgentLoop {
       pendingApproval: null,
       lastSpeechText: "",
       consecutiveMalformed: 0,
+      sandboxGranted: false,  // One-time sandbox permission: once granted, execute-terminal skips approval
       sessionId: this.generateSessionId(),
       createdAt: Date.now(),
       lastActivityAt: Date.now(),
@@ -824,14 +826,22 @@ export class AgentLoop {
       return `[${action.action}] BLOCKED by policy: ${decision.reason}`;
     }
 
-    // Check approval
-    if (this.policyEngine.requiresApproval(action.action)) {
+    // Check approval (skip if sandbox-granted and this is a sandboxed action)
+    const isSandboxedAction = action.action === "execute-terminal" && this.state.sandboxGranted;
+    if (!isSandboxedAction && this.policyEngine.requiresApproval(action.action)) {
+      // First execute-terminal approval grants sandbox access for the session
+      const isSandboxRequest = action.action === "execute-terminal";
       this.callbacks.onApprovalRequired?.(action);
-      this.hudEmitter("interim_message", { type: "waiting_approval", detail: `Waiting for approval: ${action.action}` });
+      this.hudEmitter("interim_message", { type: "waiting_approval", detail: isSandboxRequest ? "Grant sandbox access? Commands will run in an isolated environment." : `Waiting for approval: ${action.action}` });
       const params = Object.entries(action).filter(([k]) => k !== "action").map(([k, v]) => `${k}: ${typeof v === "string" ? v.slice(0, 120) : JSON.stringify(v).slice(0, 120)}`).join(" | ");
       this.hudEmitter("approval_request", { action: action.action, detail: params || `Action "${action.action}" requires approval` });
       this.eventBus.emit({ type: "approval_required", action, detail: params || action.action, timestamp: Date.now() });
       const approved = await this.waitForApproval(action);
+      if (approved && action.action === "execute-terminal") {
+        this.state.sandboxGranted = true;
+        log.info("Sandbox access granted for session", { data: { sessionId: this.state.sessionId } });
+        this.hudEmitter("activity_log", { message: "Sandbox access granted — commands will run isolated without further prompts", level: "info" });
+      }
       if (!approved) {
         this.eventBus.emit({ type: "tool_execution_end", toolName: action.action, result: { ok: false, error: "Denied by user" }, durationMs: 0, timestamp: Date.now() });
         return `[${action.action}] DENIED by user`;
@@ -1200,6 +1210,14 @@ export class AgentLoop {
   private waitForApproval(action: Action): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       this.state.pendingApproval = { action, resolve };
+      // Auto-deny after timeout to prevent deadlock
+      setTimeout(() => {
+        if (this.state.pendingApproval?.resolve === resolve) {
+          log.warn("Approval timed out, auto-denying", { data: { action: action.action, timeoutMs: AgentLoop.APPROVAL_TIMEOUT_MS } });
+          this.state.pendingApproval = null;
+          resolve(false);
+        }
+      }, AgentLoop.APPROVAL_TIMEOUT_MS);
     });
   }
 }

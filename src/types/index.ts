@@ -106,6 +106,7 @@ export interface AgentState {
   pendingApproval: PendingApproval | null;
   lastSpeechText?: string;
   consecutiveMalformed: number;
+  sandboxGranted: boolean;
   // Hermes-style additions
   sessionId: string;
   createdAt: number;
