@@ -30,6 +30,7 @@ const READONLY_ACTIONS: string[] = [
 // Actions that are sandboxed by design and never need approval
 const SANDBOXED_ACTIONS: string[] = [
   "sandbox-execute",
+  "sandbox-promote",
   "device-control",
   "dry-run",
   "ui-adapt",
@@ -42,7 +43,7 @@ const FALLBACK_POLICY: PolicyConfig = {
   deny_commands: ["rm -rf", "format", "mkfs", "dd if=", "shutdown", "reboot", ":(){ :|:& };:"],
   allow_network: [],
   require_approval: ["execute-terminal", "write-file", "http-request"],
-  auto_approve: ["sandbox-execute", "device-control", "ui-adapt", "dry-run", "browser-control", "email-access"],
+  auto_approve: ["sandbox-execute", "sandbox-promote", "device-control", "ui-adapt", "dry-run", "browser-control", "email-access"],
 };
 
 export class PolicyEngine {

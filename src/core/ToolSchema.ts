@@ -430,6 +430,41 @@ const TOOL_DEFINITIONS: ToolFunctionSchema[] = [
     },
   },
 
+  // ── Sandbox Promotion ──────────────────────────────────────────────────
+  {
+    name: "sandbox-promote",
+    description:
+      "Promote sandbox files to a real target directory on the host filesystem. After working in the sandbox and verifying results, call this to present the user with a file-level diff summary and ask for one-time permission to apply changes. The user sees exactly which files will be created/modified and their sizes before approving. This is the ONLY way sandbox output reaches the real filesystem.",
+    parameters: {
+      type: "object",
+      properties: {
+        session_id: {
+          type: "string",
+          description: "The sandbox session ID whose files to promote.",
+        },
+        target_dir: {
+          type: "string",
+          description: "Absolute path to the real target directory on the host where files should be applied.",
+        },
+        reason: {
+          type: "string",
+          description: "Brief explanation to the user about why this promotion is needed and what was verified in the sandbox.",
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional: specific files to promote (relative to sandbox dir). If omitted, all changed files are promoted.",
+        },
+        exclude: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional: glob patterns to exclude (default: node_modules, .git, *.tmp, *.log).",
+        },
+      },
+      required: ["session_id", "target_dir"],
+    },
+  },
+
   // ── Device Control ──────────────────────────────────────────────────────
   {
     name: "device-control",

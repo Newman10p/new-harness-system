@@ -226,6 +226,7 @@ export class AgentLoop {
       loopCount: 0,
       isRunning: false,
       pendingApproval: null,
+      pendingPromotion: null,
       lastSpeechText: "",
       consecutiveMalformed: 0,
       sandboxGranted: false,  // One-time sandbox permission: once granted, execute-terminal skips approval
@@ -329,6 +330,30 @@ export class AgentLoop {
         action: action.action,
         detail: `User ${approved ? "approved" : "denied"}: ${action.action}`,
         ok: approved,
+      });
+      resolve(approved);
+    }
+  }
+
+  /** Inject a promotion response from the WebSocket HUD.
+   *  The sandbox-promote primitive stores its resolve callback on state._promotionResolve,
+   *  so we call it directly from here.
+   */
+  resolvePromotion(approved: boolean): void {
+    const resolve = (this.state as any)._promotionResolve as ((v: boolean) => void) | undefined;
+    if (resolve) {
+      (this.state as any)._promotionResolve = null;
+      this.audit({
+        type: approved ? "action_approved" as const : "action_denied" as const,
+        action: "sandbox-promote",
+        detail: `User ${approved ? "approved" : "denied"} sandbox promotion`,
+        ok: approved,
+      });
+      this.hudEmitter("activity_log", {
+        message: approved
+          ? "Promotion APPROVED — applying sandbox changes to real filesystem"
+          : "Promotion DENIED — sandbox changes will not be applied",
+        level: approved ? "info" : "warn",
       });
       resolve(approved);
     }

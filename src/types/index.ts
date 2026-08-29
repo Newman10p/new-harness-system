@@ -65,6 +65,7 @@ export type ActionName =
   | "web-scrape"
   | "analyze-image"
   | "sandbox-execute"
+  | "sandbox-promote"
   | "device-control"
   | "ui-adapt"
   | "browser-control"
@@ -104,6 +105,7 @@ export interface AgentState {
   loopCount: number;
   isRunning: boolean;
   pendingApproval: PendingApproval | null;
+  pendingPromotion: PendingPromotion | null;
   lastSpeechText?: string;
   consecutiveMalformed: number;
   sandboxGranted: boolean;
@@ -120,6 +122,23 @@ export interface AgentState {
 
 export interface PendingApproval {
   action: Action;
+  resolve: (approved: boolean) => void;
+}
+
+export interface PendingPromotion {
+  /** The sandbox session whose files are being promoted */
+  sessionId: string;
+  /** Absolute path to the sandbox working directory */
+  sandboxDir: string;
+  /** Absolute path to the real target directory on the host */
+  targetDir: string;
+  /** Summary of files that will be copied/changed */
+  files: Array<{ path: string; size: number; change: "created" | "modified" | "deleted" }>;
+  /** Total size of files to be promoted (bytes) */
+  totalSize: number;
+  /** Optional description the agent provides about why this promotion is needed */
+  reason?: string;
+  /** Resolve callback — true = apply changes, false = cancel */
   resolve: (approved: boolean) => void;
 }
 
@@ -210,7 +229,8 @@ export type HudChannel =
   | "email_event"
   | "interim_message"
   | "turn_start"
-  | "turn_end";
+  | "turn_end"
+  | "promotion_request";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -258,6 +278,14 @@ export interface HudPayloads {
   interim_message: { type: "thinking" | "tool_call" | "compressing" | "waiting_approval" | "retrying" | "streaming"; detail?: string };
   turn_start: { iteration: number; contextTokens: number; budgetRemaining: number };
   turn_end: { iteration: number; reason: string; durationMs: number; tokensUsed: number };
+  promotion_request: {
+    sessionId: string;
+    sandboxDir: string;
+    targetDir: string;
+    files: Array<{ path: string; size: number; change: "created" | "modified" | "deleted" }>;
+    totalSize: number;
+    reason?: string;
+  };
 }
 
 export type HudMessage<C extends HudChannel> = {

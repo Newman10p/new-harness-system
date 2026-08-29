@@ -681,6 +681,158 @@ export class SandboxManager {
     });
   }
 
+  /**
+   * Promote (copy) sandbox files to a real target directory.
+   * Returns a summary of files that would be promoted before actually copying.
+   */
+  async promoteSessionFiles(
+    sessionId: string,
+    targetDir: string,
+    options?: {
+      /** If true, only compute the diff summary without actually copying */
+      dryRun?: boolean;
+      /** Specific files to promote (relative to sandbox dir). If empty, promotes all. */
+      files?: string[];
+      /** Files to exclude (glob patterns relative to sandbox dir) */
+      exclude?: string[];
+    }
+  ): Promise<{
+    ok: boolean;
+    files: Array<{ path: string; size: number; change: "created" | "modified" | "deleted" }>;
+    totalSize: number;
+    error?: string;
+  }> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return { ok: false, files: [], totalSize: 0, error: `Session not found: ${sessionId}` };
+    }
+    if (session.status !== "active") {
+      return { ok: false, files: [], totalSize: 0, error: `Session is ${session.status}` };
+    }
+
+    const sandboxDir = session.workingDir;
+    const resolvedTarget = path.resolve(targetDir);
+    const excludePatterns = options?.exclude ?? ["node_modules", ".git", "*.tmp", "*.log"];
+    const dryRun = options?.dryRun ?? false;
+    const specificFiles = options?.files;
+
+    // Collect sandbox files
+    const sandboxFiles = new Map<string, number>(); // relative path → size
+    const collectFiles = (dir: string, base: string) => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relPath = path.relative(base, fullPath);
+        // Skip excluded patterns
+        if (excludePatterns.some(pat => {
+          if (pat.startsWith("*")) return entry.name.endsWith(pat.slice(1));
+          return relPath.startsWith(pat) || relPath === pat;
+        })) continue;
+        if (entry.isDirectory()) {
+          collectFiles(fullPath, base);
+        } else {
+          try {
+            const stat = fs.statSync(fullPath);
+            sandboxFiles.set(relPath, stat.size);
+          } catch { /* ignore */ }
+        }
+      }
+    };
+    collectFiles(sandboxDir, sandboxDir);
+
+    // If specific files requested, filter to those
+    let filesToPromote = new Map(sandboxFiles);
+    if (specificFiles && specificFiles.length > 0) {
+      const filtered = new Map<string, number>();
+      for (const f of specificFiles) {
+        const normalized = f.startsWith("/") ? f.slice(1) : f;
+        if (sandboxFiles.has(normalized)) {
+          filtered.set(normalized, sandboxFiles.get(normalized)!);
+        }
+      }
+      filesToPromote = filtered;
+    }
+
+    // Build change summary by comparing with target
+    const changes: Array<{ path: string; size: number; change: "created" | "modified" | "deleted" }> = [];
+    let totalSize = 0;
+
+    for (const [relPath, size] of filesToPromote) {
+      const targetPath = path.join(resolvedTarget, relPath);
+      totalSize += size;
+      if (!fs.existsSync(targetPath)) {
+        changes.push({ path: relPath, size, change: "created" });
+      } else {
+        // Compare content (size first, then mtime as heuristic)
+        const targetStat = fs.statSync(targetPath);
+        const sourceStat = fs.statSync(path.join(sandboxDir, relPath));
+        if (sourceStat.size !== targetStat.size || sourceStat.mtimeMs > targetStat.mtimeMs) {
+          changes.push({ path: relPath, size, change: "modified" });
+        }
+      }
+    }
+
+    if (dryRun) {
+      return { ok: true, files: changes, totalSize };
+    }
+
+    // Actually copy files
+    try {
+      for (const { path: relPath, change } of changes) {
+        const srcPath = path.join(sandboxDir, relPath);
+        const destPath = path.join(resolvedTarget, relPath);
+        const destDir = path.dirname(destPath);
+
+        // Create parent directories
+        if (!fs.existsSync(destDir)) {
+          fs.mkdirSync(destDir, { recursive: true });
+        }
+
+        // Copy file preserving mode
+        fs.copyFileSync(srcPath, destPath);
+      }
+
+      console.log(
+        `[SandboxManager] Promoted ${changes.length} files from ${session.name} → ${resolvedTarget} ` +
+        `(${(totalSize / 1024).toFixed(1)} KB)`
+      );
+
+      return { ok: true, files: changes, totalSize };
+    } catch (err: any) {
+      return { ok: false, files: changes, totalSize, error: `Promotion failed: ${err.message}` };
+    }
+  }
+
+  /**
+   * Get the list of files modified/created in a sandbox session.
+   * Useful for showing the user what changed before promotion.
+   */
+  getSessionFileChanges(sessionId: string): Array<{ path: string; size: number }> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return [];
+    const files: Array<{ path: string; size: number }> = [];
+    const collectFiles = (dir: string, base: string) => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name === "node_modules" || entry.name === ".git") continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          collectFiles(fullPath, base);
+        } else {
+          try {
+            const stat = fs.statSync(fullPath);
+            files.push({
+              path: path.relative(base, fullPath),
+              size: stat.size,
+            });
+          } catch { /* ignore */ }
+        }
+      }
+    };
+    collectFiles(session.workingDir, session.workingDir);
+    return files;
+  }
+
   // ─── Safety Validation ──────────────────────────────────────────────────
 
   private validateCommand(command: string): { blocked: boolean; warnings: string[]; reason?: string } {

@@ -45,6 +45,7 @@ require_approval:
   - "adaptive-config"
 auto_approve:
   - "sandbox-execute"
+  - "sandbox-promote"
   - "device-control"
   - "ui-adapt"
   - "dry-run"
@@ -122,6 +123,7 @@ untrusted_content_sources:
 | web-search | Auto | Read-only web search |
 | web-scrape | Auto | Read-only web page fetch |
 | sandbox-execute | Auto | Isolated command execution |
+| sandbox-promote | Auto | Asks user via promotion banner before copying |
 | device-control | Auto | Device discovery and control |
 | browser-control | Auto | Browser tab management via CDP |
 | email-access | Auto | Email reading and sending via IMAP/SMTP |

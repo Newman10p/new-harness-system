@@ -41,6 +41,11 @@ interface InboundApprovalResponse {
   approved: boolean;
 }
 
+interface InboundPromotionResponse {
+  type: "promotion_response";
+  approved: boolean;
+}
+
 interface InboundFileRequest {
   type: "file_request";
   path?: string;
@@ -115,7 +120,7 @@ interface InboundPiperSpeak {
   text: string;
 }
 
-type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak | InboundSteering | InboundFollowUp;
+type InboundMessage = InboundUserInput | InboundApprovalResponse | InboundPromotionResponse | InboundFileRequest | InboundListFiles | InboundVoiceCall | InboundFileRead | InboundDeviceControl | InboundNotificationAction | InboundMacroTrigger | InboundConversationSearch | InboundVoiceSwitch | InboundTtsSwitch | InboundPiperSpeak | InboundSteering | InboundFollowUp;
 
 export class HudServer {
   private wss: WebSocketServer;
@@ -366,6 +371,13 @@ export class HudServer {
         const approved = msg.approved === true;
         console.log(`[HUD] approval_response: ${approved ? "APPROVED" : "DENIED"}`);
         this.agentLoop?.resolveApproval(approved);
+        break;
+      }
+
+      case "promotion_response": {
+        const approved = msg.approved === true;
+        console.log(`[HUD] promotion_response: ${approved ? "APPROVED" : "DENIED"}`);
+        this.agentLoop?.resolvePromotion(approved);
         break;
       }
 

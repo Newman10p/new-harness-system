@@ -369,7 +369,43 @@
       z-index: 20;
       animation: slideUp .3s ease-out;
     }
-    .approval-banner.visible { display: flex; }
+    '.approval-banner.visible { display: flex; }
+
+  .promotion-banner {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 60;
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 520px;
+    width: 90vw;
+    gap: 12px;
+    animation: fadeIn 0.3s ease;
+  }
+  .promotion-banner.visible { display: flex; }
+  .promotion-file-list {
+    max-height: 180px;
+    overflow-y: auto;
+    font-size: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,255,255,0.3) transparent;
+  }
+  .promotion-file-list::-webkit-scrollbar { width: 4px; }
+  .promotion-file-list::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.3); border-radius: 2px; }
+  .promotion-file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(0,255,255,0.08);
+  }
+  .promotion-file-item:last-child { border-bottom: none; }
+  .file-change-created { color: #34d399; }
+  .file-change-modified { color: #fbbf24; }
+  .file-change-deleted { color: #f87171; }
 
     @keyframes slideUp {
       from { transform: translateX(-50%) translateY(20px); opacity: 0; }
@@ -988,6 +1024,33 @@
             <button id="denyBtn"
               class="holo-edge rounded border border-red-400/50 px-3 py-1 display text-xs tracking-wider text-red-400 transition hover:bg-red-400/15">
               DENY
+            </button>
+          </div>
+        </div>
+
+        <!-- Promotion Banner -->
+        <div id="promotionBanner" class="promotion-banner glass gap-3 rounded-lg px-5 py-4">
+          <div class="flex items-center justify-between">
+            <span class="display text-xs tracking-widest text-purple-400">SANDBOX PROMOTION</span>
+            <span id="promoSize" class="mono text-xs text-cyan-600"></span>
+          </div>
+          <div id="promoReason" class="mono text-xs text-cyan-300" style="display:none"></div>
+          <div class="flex items-center gap-2 mono text-xs">
+            <span class="text-cyan-500">Sandbox:</span>
+            <span id="promoSandboxDir" class="text-cyan-300" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+            <span class="text-purple-400 mx-1">→</span>
+            <span class="text-cyan-500">Target:</span>
+            <span id="promoTargetDir" class="text-emerald-300" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          </div>
+          <div id="promoFileList" class="promotion-file-list mono text-cyan-400 mt-1"></div>
+          <div class="flex gap-2 justify-end mt-1">
+            <button id="promoDenyBtn"
+              class="holo-edge rounded border border-red-400/50 px-3 py-1 display text-xs tracking-wider text-red-400 transition hover:bg-red-400/15">
+              CANCEL
+            </button>
+            <button id="promoApproveBtn"
+              class="holo-edge rounded border border-purple-400/50 px-4 py-1 display text-xs tracking-wider text-purple-300 transition hover:bg-purple-400/15">
+              APPLY TO REAL FS
             </button>
           </div>
         </div>
@@ -2267,6 +2330,18 @@
           break;
         }
 
+        case "promotion_request": {
+          // Sandbox promotion request — show detailed file list for user to approve
+          const files = msg.payload?.files || [];
+          const totalSize = msg.payload?.totalSize || 0;
+          const sandboxDir = msg.payload?.sandboxDir || "";
+          const targetDir = msg.payload?.targetDir || "";
+          const reason = msg.payload?.reason || "";
+          showPromotion(sandboxDir, targetDir, files, totalSize, reason);
+          addLog(`Promotion requested: ${files.length} files (${(totalSize / 1024).toFixed(1)} KB)`, "policy");
+          break;
+        }
+
         case "voice_switch": {
           // Sync personality from another client or backend
           const personality = msg.payload?.personality;
@@ -2524,6 +2599,43 @@
       sendWS({ type: "approval_response", approved });
       $("approvalBanner").classList.remove("visible");
       addLog(approved ? "Action APPROVED" : "Action DENIED", approved ? "action" : "error");
+    }
+
+    function showPromotion(sandboxDir, targetDir, files, totalSize, reason) {
+      $("promoSandboxDir").textContent = sandboxDir;
+      $("promoTargetDir").textContent = targetDir;
+      $("promoSize").textContent = `${files.length} files • ${(totalSize / 1024).toFixed(1)} KB`;
+
+      if (reason) {
+        $("promoReason").textContent = reason;
+        $("promoReason").style.display = "block";
+      } else {
+        $("promoReason").style.display = "none";
+      }
+
+      const list = $("promoFileList");
+      list.innerHTML = "";
+      for (const f of files) {
+        const changeClass = f.change === "created" ? "file-change-created"
+          : f.change === "modified" ? "file-change-modified"
+          : "file-change-deleted";
+        const changeLabel = f.change === "created" ? "+NEW"
+          : f.change === "modified" ? "~MOD"
+          : "-DEL";
+        const sizeStr = f.size > 1024 ? `${(f.size / 1024).toFixed(1)}KB` : `${f.size}B`;
+        const item = document.createElement("div");
+        item.className = "promotion-file-item";
+        item.innerHTML = `<span class="${changeClass}">${changeLabel}</span><span style="flex:1;margin-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.path}">${f.path}</span><span style="opacity:0.5">${sizeStr}</span>`;
+        list.appendChild(item);
+      }
+
+      $("promotionBanner").classList.add("visible");
+    }
+
+    function resolvePromotion(approved) {
+      sendWS({ type: "promotion_response", approved });
+      $("promotionBanner").classList.remove("visible");
+      addLog(approved ? "Promotion APPROVED — changes applied" : "Promotion CANCELLED", approved ? "action" : "error");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -3046,6 +3158,8 @@
 
     $("approveBtn").addEventListener("click", () => resolveApproval(true));
     $("denyBtn").addEventListener("click", () => resolveApproval(false));
+    $("promoApproveBtn").addEventListener("click", () => resolvePromotion(true));
+    $("promoDenyBtn").addEventListener("click", () => resolvePromotion(false));
 
     // ═══════════════════════════════════════════════════════════════════════
     //  INITIALIZATION
