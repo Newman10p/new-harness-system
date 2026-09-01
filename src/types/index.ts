@@ -237,7 +237,9 @@ export type HudChannel =
   | "workflow_step_update"
   | "workflow_completed"
   | "workflow_failed"
-  | "workflow_cancelled";
+  | "workflow_cancelled"
+  | "router_status"
+  | "routing_decision";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -282,7 +284,9 @@ export interface HudPayloads {
   ui_patch: { type: "css" | "theme" | "layout" | "widget" | "script"; selector?: string; css?: string; variables?: Record<string, string>; html?: string; js?: string; id?: string; description?: string };
   browser_event: { event: "discovered" | "tab_opened" | "tab_closed" | "navigated" | "screenshot" | "search_performed"; browserId?: string; tabId?: string; url?: string; title?: string; detail?: string };
   email_event: { event: "connected" | "disconnected" | "new_mail" | "mail_fetched" | "mail_sent"; accountId?: string; folder?: string; uid?: string; subject?: string; detail?: string };
-  interim_message: { type: "thinking" | "tool_call" | "compressing" | "waiting_approval" | "retrying" | "streaming"; detail?: string };
+  interim_message: { type: "thinking" | "tool_call" | "compressing" | "waiting_approval" | "retrying" | "streaming" | "model_switch"; detail?: string };
+  router_status: { router: boolean; hands: boolean; routerModel?: string; handsModel?: string; routerHealthy?: boolean; handsHealthy?: boolean };
+  routing_decision: { role: string; category: string; reason: string; confidence: number; contextWindow: number; maxTokens: number; useCodePrompt: boolean };
   turn_start: { iteration: number; contextTokens: number; budgetRemaining: number };
   turn_end: { iteration: number; reason: string; durationMs: number; tokensUsed: number };
   promotion_request: {
@@ -321,7 +325,7 @@ export interface InboxEvent {
 }
 
 // ─── Audit Log ─────────────────────────────────────────────────────────────
-export type AuditEventType = "action_executed" | "action_blocked" | "action_approved" | "action_denied" | "action_timeout" | "llm_call" | "llm_error" | "policy_loaded" | "context_compressed" | "session_saved" | "session_restored" | "error_classified";
+export type AuditEventType = "action_executed" | "action_blocked" | "action_approved" | "action_denied" | "action_timeout" | "llm_call" | "llm_error" | "policy_loaded" | "context_compressed" | "session_saved" | "session_restored" | "error_classified" | "routing";
 
 export interface AuditEntry {
   timestamp?: string;

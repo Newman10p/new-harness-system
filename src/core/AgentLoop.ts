@@ -64,7 +64,7 @@ import { FileMutationQueue, getFileMutationQueue } from "./FileMutationQueue.js"
 import { planToolExecution } from "./ToolExecutionPlanner.js";
 import { formatToolResult } from "./ToolResultTruncator.js";
 import { getLogger, setGlobalSession } from "./MaiLogger.js";
-import { ModelRouter, type RoutingDecision } from "./ModelRouter.js";
+import { ModelRouter, type RoutingDecision, type ModelRole } from "./ModelRouter.js";
 import { WorkflowEngine, type BrainQueryFn } from "./WorkflowEngine.js";
 
 // Module-level logger (Hermes pattern: one per file)
@@ -166,6 +166,8 @@ export class AgentLoop {
   private messageQueue: string[] = [];
   private processingQueue = false;
   private useNativeToolCalling: boolean;
+  // Multi-model routing: tracks which model handles the current turn
+  private currentRoutingDecision: RoutingDecision | null = null;
   // Hermes additions
   private abortController: AbortController | null = null;
   private retryCount = 0;
@@ -211,10 +213,14 @@ export class AgentLoop {
 
     // Initialize multi-model router (uses ROUTER_MODEL/HANDS_MODEL env vars)
     this.modelRouter = ModelRouter.fromEnv();
-    const routerInfo = this.modelRouter.getInfo();
-    if (routerInfo.router || routerInfo.hands) {
-      log.info("Multi-model router active", { data: routerInfo });
-    }
+    // Async init — fire and forget (auto-detect + health check)
+    this.modelRouter.initialize().then(() => {
+      const info = this.modelRouter.getInfo();
+      if (info.router || info.hands) {
+        log.info("Multi-model router initialized", { data: info });
+        this.hudEmitter("router_status", this.modelRouter.getInfo());
+      }
+    }).catch(() => {});
 
     this.clients = createClients(providers);
     this.primaryModel = llmConfig.model;
@@ -283,8 +289,10 @@ export class AgentLoop {
     // ── Multi-model routing ──
     // If a router model is configured, try to handle simple messages directly
     // without entering the full agent loop (saves API credits on the brain model).
+    // Pass estimated context token count for context-aware routing decisions.
+    const contextTokenEstimate = ContextAssembler.estimateTokens(this.state.messages);
     if (this.modelRouter.hasRouter()) {
-      const routeResult = await this.modelRouter.route(input);
+      const routeResult = await this.modelRouter.route(input, contextTokenEstimate);
       if (routeResult.handled) {
         log.info("Message handled by router model", { category: routeResult.decision.category });
         this.hudEmitter("jarvis_speech", { text: routeResult.response });
@@ -292,8 +300,19 @@ export class AgentLoop {
         this.state.messages.push({ role: "assistant", content: routeResult.response });
         return;
       }
-      // Not handled by router — continue to full agent loop with brain model
-      log.info("Routing to brain model", { category: routeResult.decision.category, role: routeResult.decision.role });
+      // Store routing decision for the loop to use
+      this.currentRoutingDecision = routeResult.decision;
+      log.info("Routing decision", {
+        data: {
+          role: routeResult.decision.role,
+          category: routeResult.decision.category,
+          confidence: routeResult.decision.confidence,
+          contextWindow: routeResult.decision.contextWindow,
+        },
+      });
+      this.hudEmitter("routing_decision", routeResult.decision);
+    } else {
+      this.currentRoutingDecision = null;
     }
 
     // Reset for new user turn
@@ -1115,20 +1134,110 @@ export class AgentLoop {
   }
 
   // ─── LLM Calls with Retry + Error Classification (Hermes pattern) ─────────
+
+  /**
+   * Select the appropriate LLM client based on the current routing decision.
+   * Returns the brain client (this.clients[0]) by default, or the hands client
+   * if the router classified the message as a code_task.
+   */
+  private selectClientForRole(): { client: LLMInstance; role: ModelRole; adaptContext: boolean } {
+    const decision = this.currentRoutingDecision;
+
+    // If hands model is available, healthy, and routing says code_task → use it
+    if (decision?.role === "hands" && this.modelRouter.hasHands()) {
+      const handsClient = this.modelRouter.getHandsClient();
+      if (handsClient) {
+        log.info("Using hands model for code task", { data: { model: handsClient.model } });
+        this.audit({
+          type: "routing",
+          detail: `Delegated to hands model: ${handsClient.model}`,
+          ok: true,
+        });
+        return { client: handsClient, role: "hands", adaptContext: true };
+      }
+    }
+
+    // Default: brain model
+    return { client: this.clients[0], role: "brain", adaptContext: false };
+  }
+
+  /**
+   * Adapt messages for the target model's context window.
+   * When using small models (router/hands), we may need to truncate context.
+   */
+  private adaptMessagesForModel(
+    messages: ChatMessage[],
+    targetRole: ModelRole
+  ): ChatMessage[] {
+    if (targetRole === "brain") return messages; // No adaptation needed for brain
+
+    const maxTokens = this.modelRouter.getContextWindow(targetRole);
+    const estimatedTokens = ContextAssembler.estimateTokens(messages);
+
+    if (estimatedTokens <= maxTokens * 0.8) {
+      return messages; // Fits comfortably — no truncation needed
+    }
+
+    // Need to truncate — keep system prompt + last N messages that fit
+    log.info("Truncating context for small model", {
+      data: { role: targetRole, estimatedTokens, maxTokens },
+    });
+
+    const systemMsg = messages[0]?.role === "system" ? [messages[0]] : [];
+    const chatMsgs = messages.slice(systemMsg.length);
+    const availableTokens = maxTokens * 0.8 - (systemMsg.length > 0 ? ContextAssembler.estimateTokens(systemMsg) : 0);
+
+    // Keep messages from the end until we exceed the budget
+    const kept: ChatMessage[] = [];
+    let keptTokens = 0;
+    for (let i = chatMsgs.length - 1; i >= 0; i--) {
+      const msgTokens = ContextAssembler.estimateTokens([chatMsgs[i]]);
+      if (keptTokens + msgTokens > availableTokens) break;
+      kept.unshift(chatMsgs[i]);
+      keptTokens += msgTokens;
+    }
+
+    return [...systemMsg, ...kept];
+  }
+
   private async callLLMWithRetry(messages: ChatMessage[]): Promise<{ text: string; toolCalls: StreamWithToolsResult | null }> {
     this.abortController = new AbortController();
 
+    // Select client based on routing decision (hands vs brain)
+    const { client: selectedClient, role: targetRole, adaptContext } = this.selectClientForRole();
+
+    // Adapt messages for the target model's context window
+    const adaptedMessages = adaptContext
+      ? this.adaptMessagesForModel(messages, targetRole)
+      : messages;
+
     try {
       if (this.useNativeToolCalling && this.isNativeToolCallingActive()) {
-        const result = await this.callLLMWithTools(messages);
+        const result = await this.callLLMWithTools(adaptedMessages, selectedClient, targetRole);
         this.retryCount = 0; // Reset on success
         return { text: result.text, toolCalls: result };
       } else {
-        const text = await this.callLLMStreaming(messages);
+        const text = await this.callLLMStreaming(adaptedMessages, selectedClient, targetRole);
         this.retryCount = 0;
         return { text, toolCalls: null };
       }
     } catch (err) {
+      // If hands model fails, escalate to brain (only on first attempt)
+      if (targetRole === "hands" && this.retryCount === 0) {
+        log.warn("Hands model failed — escalating to brain", { error: err instanceof Error ? err.message : String(err) });
+        this.currentRoutingDecision = null; // Clear so next attempt uses brain
+        this.audit({
+          type: "routing",
+          detail: `Hands model failed, escalating to brain: ${err instanceof Error ? err.message : String(err)}`,
+          ok: false,
+        });
+        this.hudEmitter("interim_message", {
+          type: "model_switch",
+          detail: "Hands model failed — switching to brain model",
+        });
+        return this.callLLMWithRetry(messages);
+      }
+
       const classified = classifyError(err);
 
       if (classified.retryable && this.retryCount < this.loopConfig.maxRetries) {
@@ -1168,22 +1277,30 @@ export class AgentLoop {
 
   /**
    * Call LLM with native tool calling support.
+   * @param client - The LLM instance to use (brain or hands)
+   * @param targetRole - Which model role is handling this call
    */
-  private async callLLMWithTools(messages: ChatMessage[]): Promise<StreamWithToolsResult> {
+  private async callLLMWithTools(messages: ChatMessage[], client?: LLMInstance, targetRole?: ModelRole): Promise<StreamWithToolsResult> {
     const start = Date.now();
-    const client = this.clients[0];
-    if (!client) throw new Error("No LLM provider configured");
+    const activeClient = client || this.clients[0];
+    if (!activeClient) throw new Error("No LLM provider configured");
 
     const toolSchemas = getToolSchemas();
+    const maxTokens = targetRole
+      ? this.modelRouter.getMaxOutputTokens(targetRole)
+      : 4096;
+
+    // Hands model uses code-optimized system prompt
+    const finalMessages = this.maybeInjectCodePrompt(messages, targetRole);
 
     try {
       const result = await streamWithTools(
-        client,
-        messages.map((m) => ({ role: m.role, content: m.content })),
+        activeClient,
+        finalMessages.map((m) => ({ role: m.role, content: m.content })),
         toolSchemas,
         {
-          temperature: 0.7,
-          max_tokens: 4096,
+          temperature: targetRole === "hands" ? 0.3 : 0.7,
+          max_tokens: maxTokens,
           onToken: (token) => this.callbacks.onToken?.(token),
         }
       );
@@ -1191,7 +1308,7 @@ export class AgentLoop {
       const duration = Date.now() - start;
       this.audit({
         type: "llm_call",
-        detail: `Provider: ${client.name}, Model: ${client.model}, ToolCalls: ${result.toolCalls.length}${result.toolCalls.length > 0 ? ' (native)' : ''}`,
+        detail: `Provider: ${activeClient.name}, Model: ${activeClient.model}, Role: ${targetRole || "brain"}, ToolCalls: ${result.toolCalls.length}${result.toolCalls.length > 0 ? ' (native)' : ''}`,
         durationMs: duration,
         ok: true,
       });
@@ -1201,7 +1318,7 @@ export class AgentLoop {
       const duration = Date.now() - start;
       this.audit({
         type: "llm_error",
-        detail: `Provider ${client.name} (tool-calling): ${err instanceof Error ? err.message : String(err)}`,
+        detail: `Provider ${activeClient.name} (tool-calling, role: ${targetRole || "brain"}): ${err instanceof Error ? err.message : String(err)}`,
         durationMs: duration,
         ok: false,
       });
@@ -1211,20 +1328,70 @@ export class AgentLoop {
 
   /**
    * Call LLM with live token streaming. Falls back to next provider on failure.
+   * @param client - The LLM instance to use (brain or hands)
+   * @param targetRole - Which model role is handling this call
    */
-  private async callLLMStreaming(messages: ChatMessage[]): Promise<string> {
+  private async callLLMStreaming(messages: ChatMessage[], client?: LLMInstance, targetRole?: ModelRole): Promise<string> {
     const start = Date.now();
+    const activeClient = client || this.clients[0];
+    const maxTokens = targetRole
+      ? this.modelRouter.getMaxOutputTokens(targetRole)
+      : 4096;
 
+    // Hands model uses code-optimized system prompt
+    const finalMessages = this.maybeInjectCodePrompt(messages, targetRole);
+
+    // For hands model, use single-provider streaming (no fallback chain)
+    if (targetRole === "hands" && activeClient) {
+      let fullText = "";
+      let buffer = "";
+      try {
+        const tokenStream = streamWithProvider(
+          activeClient,
+          finalMessages.map((m) => ({ role: m.role, content: m.content })),
+          { temperature: 0.3, max_tokens: maxTokens }
+        );
+
+        for await (const token of tokenStream) {
+          buffer += token;
+          fullText += token;
+          if (buffer.length >= 50) {
+            this.callbacks.onToken?.(buffer);
+            buffer = "";
+          }
+        }
+        if (buffer) this.callbacks.onToken?.(buffer);
+
+        this.audit({
+          type: "llm_call",
+          detail: `Provider: ${activeClient.name}, Model: ${activeClient.model}, Role: hands, Chars: ~${fullText.length}`,
+          durationMs: Date.now() - start,
+          ok: true,
+        });
+
+        return fullText;
+      } catch (err) {
+        this.audit({
+          type: "llm_error",
+          detail: `Provider ${activeClient.name} (hands): ${err instanceof Error ? err.message : String(err)}`,
+          durationMs: Date.now() - start,
+          ok: false,
+        });
+        throw err;
+      }
+    }
+
+    // Brain model: fallback chain or single provider
     if (this.useFallback) {
       try {
         const result = await callWithFallback(
           this.clients,
-          messages.map((m) => ({ role: m.role, content: m.content }))
+          finalMessages.map((m) => ({ role: m.role, content: m.content }))
         );
 
         this.audit({
           type: "llm_call",
-          detail: `Fallback chain, served by: ${result.providerName}`,
+          detail: `Fallback chain, served by: ${result.providerName}, Role: brain`,
           durationMs: Date.now() - start,
           ok: true,
         });
@@ -1242,16 +1409,16 @@ export class AgentLoop {
       }
     }
 
-    const client = this.clients[0];
-    if (!client) throw new Error("No LLM provider configured");
+    const brainClient = this.clients[0];
+    if (!brainClient) throw new Error("No LLM provider configured");
 
     let fullText = "";
     let buffer = "";
 
     try {
       const tokenStream = streamWithProvider(
-        client,
-        messages.map((m) => ({ role: m.role, content: m.content })),
+        brainClient,
+        finalMessages.map((m) => ({ role: m.role, content: m.content })),
         { temperature: 0.7, max_tokens: 4096 }
       );
 
@@ -1267,7 +1434,7 @@ export class AgentLoop {
     } catch (err) {
       this.audit({
         type: "llm_error",
-        detail: `Provider ${client.name}: ${err instanceof Error ? err.message : String(err)}`,
+        detail: `Provider ${brainClient.name}: ${err instanceof Error ? err.message : String(err)}`,
         durationMs: Date.now() - start,
         ok: false,
       });
@@ -1276,7 +1443,7 @@ export class AgentLoop {
 
     this.audit({
       type: "llm_call",
-      detail: `Provider: ${client.name}, Model: ${client.model}, Chars: ~${fullText.length}`,
+      detail: `Provider: ${brainClient.name}, Model: ${brainClient.model}, Chars: ~${fullText.length}`,
       durationMs: Date.now() - start,
       ok: true,
     });
@@ -1289,6 +1456,37 @@ export class AgentLoop {
     for (const chunk of chunks) {
       this.callbacks.onToken?.(chunk + " ");
     }
+  }
+
+  /**
+   * When the hands model is active for code tasks, replace the system prompt
+   * with a code-optimized version. This avoids confusing the code model with
+   * personality/persona instructions.
+   */
+  private maybeInjectCodePrompt(messages: ChatMessage[], targetRole?: ModelRole): ChatMessage[] {
+    if (targetRole !== "hands") return messages;
+    if (messages.length === 0 || messages[0].role !== "system") return messages;
+
+    // Replace system prompt with code-optimized version
+    const codePrompt = this.modelRouter.getCodeSystemPrompt();
+    return [{ role: "system", content: codePrompt }, ...messages.slice(1)];
+  }
+
+  // ─── Router Status (for API/HUD) ──────────────────────────────────────
+
+  /**
+   * Get the current router status, stats, and health info.
+   */
+  getRouterStatus() {
+    return this.modelRouter.getStats();
+  }
+
+  getRouterInfo() {
+    return this.modelRouter.getInfo();
+  }
+
+  getRouterHealth() {
+    return this.modelRouter.getHealthStatus();
   }
 
   // ─── Queue Processing ────────────────────────────────────────────────────

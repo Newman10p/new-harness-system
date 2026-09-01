@@ -296,6 +296,19 @@ async function main() {
         totalTokensUsed: state.totalTokensUsed,
         totalActionsExecuted: state.totalActionsExecuted,
         compressionCount: state.compressionCount,
+        router: loop.getRouterInfo(),
+      }));
+      return;
+    }
+
+    // GET /api/router — detailed router stats, health, and token savings
+    if (req.method === "GET" && req.url === "/api/router") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        ok: true,
+        info: loop.getRouterInfo(),
+        stats: loop.getRouterStatus(),
+        health: loop.getRouterHealth(),
       }));
       return;
     }
