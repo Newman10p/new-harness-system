@@ -533,7 +533,7 @@ export class AgentLoop {
 
     // Wire the action executor — lets the engine invoke primitives through the registry
     const actionCtx: ActionContext = {
-      emitHud: this.hudEmitter,
+      emitHud: this.dedupedHudEmitter,
       appendInbox: this.inboxAppender,
       audit: this.audit,
       llm: this.clients[0]?.client,
@@ -953,7 +953,7 @@ export class AgentLoop {
   private async executeActionsWithPipeline(actions: Action[]): Promise<string[]> {
     const results: string[] = [];
     const actionCtx: ActionContext = {
-      emitHud: this.hudEmitter,
+      emitHud: this.dedupedHudEmitter,
       appendInbox: this.inboxAppender,
       audit: this.audit,
       llm: this.clients[0]?.client,
@@ -1457,6 +1457,23 @@ export class AgentLoop {
       this.callbacks.onToken?.(chunk + " ");
     }
   }
+
+  /**
+   * Dedup-guarded HUD emitter wrapper.
+   * Prevents jarvis_speech duplication from both the main loop AND action execution
+   * (e.g. emit-hud-update primitive) reaching the client with the same text.
+   */
+  private dedupedHudEmitter: HudEmitter = (channel: any, payload: any) => {
+    if (channel === "jarvis_speech") {
+      const text = payload?.text?.trim();
+      if (text && text === this.state.lastSpeechText) {
+        log.debug("Deduped jarvis_speech from action execution", { data: { textLength: text.length } });
+        return; // Skip duplicate
+      }
+      if (text) this.state.lastSpeechText = text;
+    }
+    this.hudEmitter(channel, payload);
+  };
 
   /**
    * When the hands model is active for code tasks, replace the system prompt
