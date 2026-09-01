@@ -20,7 +20,41 @@ export function writeConfig(config: Partial<HarnessConfig>, configPath = "harnes
   const resolved = path.resolve(process.cwd(), configPath);
   const folder = path.dirname(resolved);
   fs.mkdirSync(folder, { recursive: true });
-  fs.writeFileSync(resolved, JSON.stringify(config, null, 2) + "\n", "utf8");
+
+  // Strip sensitive fields before writing to config file.
+  // Secrets must only live in .env — never in committed config.
+  const sanitized = stripSecrets(config);
+
+  fs.writeFileSync(resolved, JSON.stringify(sanitized, null, 2) + "\n", "utf8");
+}
+
+/**
+ * Remove apiKey fields from config to prevent plaintext credential leaks.
+ * The .env file is the single source of truth for secrets.
+ */
+function stripSecrets(config: any): any {
+  if (!config || typeof config !== "object") return config;
+  if (Array.isArray(config)) return config.map(stripSecrets);
+
+  const result: any = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (key === "apiKey" || key === "api_key" || key === "secret" || key === "password") {
+      // Skip secret fields — they belong in .env only
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        // Recurse into nested objects but still skip the apiKey itself
+        const nested: any = {};
+        for (const [nk, nv] of Object.entries(value as Record<string, unknown>)) {
+          if (nk === "apiKey" || nk === "api_key" || nk === "secret" || nk === "password") continue;
+          nested[nk] = stripSecrets(nv);
+        }
+        result[key] = nested;
+      }
+      // If apiKey is a string, skip it entirely
+      continue;
+    }
+    result[key] = stripSecrets(value);
+  }
+  return result;
 }
 
 export function updateConfig(updates: Partial<HarnessConfig>, configPath = "harness.config.json"): void {

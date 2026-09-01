@@ -29,6 +29,8 @@ import type {
   WorkflowTrigger,
   WorkflowMatchResult,
   WorkflowEngineConfig,
+  WorkflowCondition,
+  WorkflowRetry,
   AuditLogger,
 } from "../types/index.js";
 import { WORKFLOWS_DIR } from "./constants.js";
@@ -312,26 +314,22 @@ export class WorkflowEngine {
       };
       instance.steps.push(stepState);
 
+      // ── Conditional execution check ──
+      if (step.condition && !this.evaluateCondition(step.condition, instance)) {
+        stepState.status = "skipped";
+        stepState.completedAt = Date.now();
+        log.info("Step skipped by condition", { data: { stepId: step.id, condition: step.condition } });
+        this.emitStepUpdate(instance, i, step.name, "skipped", undefined, "Condition not met — skipped");
+        continue;
+      }
+
       const percent = Math.round(((i) / steps.length) * 100);
       this.emitStepUpdate(instance, i, step.name, "running", percent, step.description);
       stepState.status = "running";
       stepState.startedAt = Date.now();
 
       try {
-        switch (step.kind) {
-          case "actions":
-            await this.executeActionsStep(step.actions, instance, stepState);
-            break;
-          case "parallel":
-            await this.executeParallelStep(step.actions, instance, stepState);
-            break;
-          case "decision":
-            await this.executeDecisionStep(step.decision, instance, stepState);
-            break;
-          case "brain":
-            await this.executeBrainStep(step.prompt, step.saveAs, instance, stepState);
-            break;
-        }
+        await this.executeStepWithRetry(step, instance, stepState);
 
         stepState.status = "completed";
         stepState.completedAt = Date.now();
@@ -344,9 +342,123 @@ export class WorkflowEngine {
         stepState.status = "failed";
         stepState.error = err instanceof Error ? err.message : String(err);
         stepState.completedAt = Date.now();
+
+        // Optional steps don't kill the workflow
+        if (step.optional) {
+          log.warn("Optional step failed — continuing", { data: { stepId: step.id, error: stepState.error } });
+          this.emitStepUpdate(instance, i, step.name, "skipped", undefined, `Optional step failed: ${stepState.error}`);
+          instance.summary += `[${step.name}] SKIPPED (optional): ${stepState.error}\n`;
+          continue;
+        }
+
         instance.status = "failed";
         throw err;
       }
+    }
+  }
+
+  /**
+   * Execute a single step with retry/poll support.
+   */
+  private async executeStepWithRetry(
+    step: WorkflowStepDef,
+    instance: WorkflowInstance,
+    stepState: WorkflowStepState
+  ): Promise<void> {
+    if (!step.retry) {
+      await this.executeStepKind(step, instance, stepState);
+      return;
+    }
+
+    const retry = step.retry;
+
+    // Poll mode: repeat until condition is met
+    if (retry.pollUntil) {
+      const maxAttempts = retry.pollUntil.maxAttempts ?? 10;
+      const intervalMs = retry.pollUntil.intervalMs ?? retry.delayMs ?? 5000;
+      let attempts = 0;
+
+      while (attempts < maxAttempts) {
+        if (instance.status !== "running") return;
+        attempts++;
+        try {
+          await this.executeStepKind(step, instance, stepState);
+          // Check if the poll condition is now met
+          const varValue = instance.variables[retry.pollUntil.variable] ?? "";
+          if (varValue.includes(retry.pollUntil.contains)) {
+            log.info("Poll condition met", { data: { stepId: step.id, attempts, variable: retry.pollUntil.variable } });
+            return;
+          }
+        } catch (err) {
+          if (attempts >= maxAttempts) throw err;
+          log.warn("Poll attempt failed, retrying", { data: { stepId: step.id, attempts, error: err instanceof Error ? err.message : err } });
+        }
+        this.emitStepUpdate(instance, instance.currentStepIndex, stepState.name, "running", undefined, `Polling... attempt ${attempts}/${maxAttempts}`);
+        await new Promise(r => setTimeout(r, intervalMs));
+      }
+      throw new Error(`Poll exceeded ${maxAttempts} attempts without meeting condition`);
+      return;
+    }
+
+    // Standard retry mode
+    const maxRetries = retry.maxRetries ?? 1;
+    const delayMs = retry.delayMs ?? 2000;
+    let attempts = 0;
+
+    while (attempts <= maxRetries) {
+      try {
+        await this.executeStepKind(step, instance, stepState);
+        return; // Success
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        attempts++;
+
+        // Check if retry applies
+        let shouldRetry = false;
+        if (retry.onFail === true) {
+          shouldRetry = true;
+        } else if (typeof retry.onFail === "string") {
+          shouldRetry = errMsg.toLowerCase().includes(retry.onFail.toLowerCase());
+        }
+
+        if (!shouldRetry || attempts > maxRetries) {
+          throw err;
+        }
+
+        log.warn("Retrying step", { data: { stepId: step.id, attempts, maxRetries, error: errMsg } });
+        this.emitStepUpdate(instance, instance.currentStepIndex, stepState.name, "running", undefined, `Retrying... attempt ${attempts}/${maxRetries}`);
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  }
+
+  /**
+   * Execute a step based on its kind.
+   */
+  private async executeStepKind(
+    step: WorkflowStepDef,
+    instance: WorkflowInstance,
+    stepState: WorkflowStepState
+  ): Promise<void> {
+    switch (step.kind) {
+      case "actions":
+        await this.executeActionsStep(step.actions, instance, stepState);
+        break;
+      case "parallel":
+        await this.executeParallelStep(step.actions, instance, stepState);
+        break;
+      case "decision":
+        await this.executeDecisionStep(step.decision, instance, stepState);
+        break;
+      case "brain":
+        await this.executeBrainStep(step.prompt, step.saveAs, instance, stepState);
+        break;
+      case "file-write":
+        await this.executeFileWriteStep(step.sourceVar, step.parseFiles, step.fallbackPath, instance, stepState);
+        break;
+      case "input":
+        await this.executeInputStep(step.prompt, step.saveAs, step.default, instance, stepState);
+        break;
     }
   }
 
@@ -434,7 +546,9 @@ export class WorkflowEngine {
     stepState.status = "waiting_brain";
     this.emitStepUpdate(instance, instance.currentStepIndex, stepState.name, "waiting_brain", undefined, "Consulting brain model...");
 
-    const response = await this.queryBrain(prompt, instance);
+    // Interpolate variables into the prompt
+    const interpolatedPrompt = this.interpolateString(prompt, instance.variables);
+    const response = await this.queryBrain(interpolatedPrompt, instance);
     stepState.brainResponse = response;
     stepState.status = "running";
 
@@ -445,6 +559,158 @@ export class WorkflowEngine {
 
     // Add to summary
     instance.summary += `[Brain]: ${response.slice(0, 500)}${response.length > 500 ? "..." : ""}\n`;
+  }
+
+  // ─── New: File-Write Step ────────────────────────────────────────────────
+
+  /**
+   * Write files from a brain-generated variable.
+   * If parseFiles is true, expects the ---FILE: path---\ncontent\n---END FILE--- format.
+   * Otherwise writes the entire variable value to fallbackPath.
+   */
+  private async executeFileWriteStep(
+    sourceVar: string,
+    parseFiles: boolean | undefined,
+    fallbackPath: string | undefined,
+    instance: WorkflowInstance,
+    stepState: WorkflowStepState
+  ): Promise<void> {
+    const content = instance.variables[sourceVar];
+    if (!content) {
+      throw new Error(`Variable "${sourceVar}" is empty — nothing to write`);
+    }
+
+    const actionCtx = this.buildActionContext(instance);
+    const filesWritten: string[] = [];
+
+    if (parseFiles) {
+      // Parse ---FILE: path---\ncontent\n---END FILE--- blocks
+      const fileRegex = /---FILE:\s*(.+?)---\n([\s\S]*?)---END FILE---/g;
+      let match: RegExpExecArray | null;
+      let found = 0;
+
+      while ((match = fileRegex.exec(content)) !== null) {
+        const filePath = match[1].trim();
+        const fileContent = match[2];
+        // Interpolate variables in the file path
+        const resolvedPath = this.interpolateString(filePath, instance.variables);
+
+        // Ensure parent directory exists
+        await this.executeSingleWorkflowAction(
+          { action: "execute-terminal", params: { command: `mkdir -p "${resolvedPath.replace(/\/[^/]*$/, '')}"` }, label: `Create dir for ${resolvedPath.split('/').pop()}` },
+          instance,
+          actionCtx
+        );
+
+        // Write the file
+        const result = await this.executeSingleWorkflowAction(
+          { action: "write-file", params: { path: resolvedPath, content: fileContent }, label: `Write ${resolvedPath.split('/').pop()}` },
+          instance,
+          actionCtx
+        );
+
+        if (result.ok) {
+          filesWritten.push(resolvedPath);
+        } else {
+          log.warn("Failed to write workflow file", { data: { path: resolvedPath, error: result.truncated } });
+        }
+        found++;
+      }
+
+      if (found === 0) {
+        log.warn("No file blocks found in brain output", { data: { sourceVar, contentLength: content.length } });
+        // Try writing as a single file to fallbackPath
+        if (fallbackPath) {
+          const resolvedPath = this.interpolateString(fallbackPath, instance.variables);
+          await this.executeSingleWorkflowAction(
+            { action: "write-file", params: { path: resolvedPath, content }, label: `Write ${resolvedPath.split('/').pop()}` },
+            instance,
+            actionCtx
+          );
+          filesWritten.push(resolvedPath);
+        }
+      }
+    } else {
+      // Write entire content to a single file
+      if (!fallbackPath) {
+        throw new Error("file-write step requires either parseFiles=true or a fallbackPath");
+      }
+      const resolvedPath = this.interpolateString(fallbackPath, instance.variables);
+
+      await this.executeSingleWorkflowAction(
+        { action: "execute-terminal", params: { command: `mkdir -p "${resolvedPath.replace(/\/[^/]*$/, '')}"` }, label: `Create dir for ${resolvedPath.split('/').pop()}` },
+        instance,
+        actionCtx
+      );
+
+      await this.executeSingleWorkflowAction(
+        { action: "write-file", params: { path: resolvedPath, content }, label: `Write ${resolvedPath.split('/').pop()}` },
+        instance,
+        actionCtx
+      );
+      filesWritten.push(resolvedPath);
+    }
+
+    instance.summary += `[Files written]: ${filesWritten.join(", ")}\n`;
+    stepState.brainResponse = `${filesWritten.length} file(s) written`;
+  }
+
+  // ─── New: Input Step ────────────────────────────────────────────────────
+
+  /**
+   * Prompt the user for input and store it in a variable.
+   * Falls back to default if the user doesn't respond within 5 minutes.
+   */
+  private async executeInputStep(
+    prompt: string,
+    saveAs: string,
+    defaultValue: string | undefined,
+    instance: WorkflowInstance,
+    stepState: WorkflowStepState
+  ): Promise<void> {
+    stepState.status = "waiting_input";
+    const interpolatedPrompt = this.interpolateString(prompt, instance.variables);
+    this.emitStepUpdate(instance, instance.currentStepIndex, stepState.name, "waiting_input", undefined, interpolatedPrompt);
+
+    // Show prompt in HUD and inbox
+    this.hudEmitter("approval_request", {
+      action: "workflow-input",
+      detail: interpolatedPrompt,
+    });
+    this.hudEmitter("activity_log", {
+      message: `Workflow needs input: ${interpolatedPrompt.slice(0, 100)}`,
+      level: "info",
+    });
+
+    // Wait for user response via inbox or timeout to default
+    const value = await new Promise<string>((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve(defaultValue ?? "");
+      }, 5 * 60 * 1000); // 5 minutes
+
+      // Store the resolver so the WebSocket handler can call it
+      instance._inputResolve = (val: string) => {
+        clearTimeout(timeout);
+        resolve(val);
+      };
+    });
+
+    instance.variables[saveAs] = value || defaultValue || "";
+    stepState.status = "running";
+    instance.summary += `[Input: ${saveAs}]: ${instance.variables[saveAs]}\n`;
+  }
+
+  /**
+   * Resolve a pending input for a workflow instance (called from WebSocket).
+   */
+  resolveWorkflowInput(workflowId: string, value: string): boolean {
+    const instance = this.activeWorkflows.get(workflowId);
+    if (instance && (instance as any)._inputResolve) {
+      (instance as any)._inputResolve(value);
+      (instance as any)._inputResolve = null;
+      return true;
+    }
+    return false;
   }
 
   // ─── Private: Brain Query ────────────────────────────────────────────────
@@ -464,13 +730,13 @@ export class WorkflowEngine {
       .map(b => `  [${b.id}] ${b.condition}`)
       .join("\n");
 
-    const prompt = `${decision.question}\n
+    const prompt = this.interpolateString(`${decision.question}\n
 Available branches:
 ${branchDescriptions}
 
 Context: ${instance.triggerMessage.slice(0, 300)}
 
-Respond with ONLY the branch ID (e.g., "${decision.branches[0].id}"). Nothing else.`;
+Respond with ONLY the branch ID (e.g., "${decision.branches[0].id}"). Nothing else.`, instance.variables);
 
     try {
       const response = await this.brainQuery([
@@ -662,10 +928,45 @@ Respond with ONLY the branch ID (e.g., "${decision.branches[0].id}"). Nothing el
     }
   }
 
+  // ─── Condition Evaluation ─────────────────────────────────────────────
+
+  private evaluateCondition(condition: WorkflowCondition, instance: WorkflowInstance): boolean {
+    let result = true;
+
+    if (condition.variable) {
+      const value = instance.variables[condition.variable] ?? "";
+      if (condition.contains !== undefined) {
+        result = value.includes(condition.contains);
+      } else if (condition.equals !== undefined) {
+        result = value === condition.equals;
+      } else if (condition.notEquals !== undefined) {
+        result = value !== condition.notEquals;
+      }
+    }
+
+    if (condition.stepFailed) {
+      const failedStep = instance.steps.find(s => s.stepId === condition.stepFailed);
+      result = failedStep?.status === "failed";
+    }
+    if (condition.stepSucceeded) {
+      const succeededStep = instance.steps.find(s => s.stepId === condition.stepSucceeded);
+      result = succeededStep?.status === "completed";
+    }
+
+    if (condition.invert) result = !result;
+    return result;
+  }
+
+  // ─── Variable Interpolation ─────────────────────────────────────────────
+
+  /** Interpolate {{variable}} placeholders in a string. */
+  private interpolateString(text: string, variables: Record<string, string>): string {
+    return text.replace(/\{\{(\w+)\}\}/g, (_, varName) => variables[varName] ?? `{{${varName}}}`);
+  }
+
   /**
    * Extract variable values from a user message using simple heuristics.
-   * For example, if the template has a "projectPath" variable and the
-   * message contains a file path, extract it.
+   * Enhanced with bare path and error message extraction.
    */
   private extractVariables(
     template: WorkflowTemplate,
@@ -675,8 +976,7 @@ Respond with ONLY the branch ID (e.g., "${decision.branches[0].id}"). Nothing el
     if (!template.variables) return vars;
 
     for (const v of template.variables) {
-      // Try common extraction patterns
-      // File paths: anything that looks like a path
+      // File paths
       if (v.name.toLowerCase().includes("path") || v.name.toLowerCase().includes("dir")) {
         const pathMatch = message.match(/(?:at |in |to |from )([\w\/.\-~]+)/);
         if (pathMatch) { vars[v.name] = pathMatch[1]; continue; }
@@ -695,6 +995,12 @@ Respond with ONLY the branch ID (e.g., "${decision.branches[0].id}"). Nothing el
         // Also try "called X" or "named X"
         const calledMatch = message.match(/(?:called|named)\s+(\w+)/i);
         if (calledMatch) { vars[v.name] = calledMatch[1]; continue; }
+      }
+
+      // Error messages
+      if (v.name.toLowerCase().includes("error") || v.name.toLowerCase().includes("message")) {
+        const errorMatch = message.match(/(?:error|issue|problem|bug)[^:]*:\s*([\s\S]{10,500})/i);
+        if (errorMatch) { vars[v.name] = errorMatch[1].trim(); continue; }
       }
 
       // Use default if available

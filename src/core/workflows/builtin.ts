@@ -1,165 +1,513 @@
 // ─── M.A.I. Built-in Workflow Templates ──────────────────────────────────
-// These are the predefined workflows that Mai uses for common autonomous tasks.
+// Predefined workflows that Mai uses for common autonomous tasks.
 // Each template is a deterministic blueprint with optional brain decision points.
+//
+// Step kinds available:
+//   actions   — Execute primitives sequentially
+//   parallel  — Execute primitives concurrently
+//   decision  — Brain picks a branch
+//   brain     — Brain analyzes/synthesizes (saves to variable)
+//   file-write — Write files from brain output (---FILE: path--- format)
+//   input     — Ask the user for a value
+//
+// Features: condition, retry, optional, pollUntil
 
 import type { WorkflowTemplate } from "../../types/index.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROJECT BUILD WORKFLOW
-// Triggered when user asks to build/create a project.
+// Triggered when user asks to build/create/scaffold a project.
+// Uses file-write step to actually write brain-generated files to disk.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const projectBuild: WorkflowTemplate = {
   id: "project-build",
   name: "Project Build",
-  estimatedDurationSec: 120,
+  estimatedDurationSec: 180,
   triggers: [
     {
-      keywords: ["build a project", "create a project", "scaffold", "set up a project", "new project", "initialize project", "create a web app", "build me a", "make me a"],
+      keywords: ["build a project", "create a project", "scaffold", "set up a project", "new project", "initialize project", "create a web app", "build me a", "make me a", "create an app", "scaffold a"],
       intentTypes: ["complex_task", "planning"],
     },
   ],
   variables: [
-    { name: "projectPath", description: "Where to create the project", required: true, prompt: 'Where should I create this project? (path or "." for current directory)' },
+    { name: "projectPath", description: "Where to create the project", required: true, default: ".", prompt: "Where should I create this project?" },
   ],
   steps: [
     {
       id: "pb_assess",
       kind: "brain",
       name: "Assess Requirements",
-      description: "Brain analyzes what the user wants and creates a build plan",
-      prompt: `Based on the user's request, determine:
-1. What type of project this is (web app, CLI tool, API server, etc.)
-2. What technology stack to use (consider: Node.js/TypeScript, Python, etc.)
-3. What the directory structure should look like
-4. What dependencies are needed
-5. What build/dev commands to set up
+      description: "Brain analyzes what the user wants and creates a detailed build plan",
+      prompt: `Based on the user's request, create a detailed build plan:
+1. What type of project this is (web app, CLI, API, library, etc.)
+2. Technology stack (Node.js/TypeScript preferred unless user specifies otherwise)
+3. Complete directory structure
+4. All dependencies with exact install commands
+5. Build/dev/test scripts for package.json
+6. What each source file should contain
 
-Be specific and actionable. Output a clear plan with exact commands to run.`,
+Be extremely specific. This plan will be used to generate every file.`,
       saveAs: "buildPlan",
     },
     {
       id: "pb_create_dir",
       kind: "actions",
       name: "Create Project Directory",
-      description: "Create the project directory structure",
+      description: "Create the project root directory",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "mkdir -p {{projectPath}}" },
-          label: "Create project directory",
-        },
+        { action: "execute-terminal", params: { command: "mkdir -p {{projectPath}}" }, label: "Create project directory" },
       ],
     },
     {
       id: "pb_init",
       kind: "actions",
-      name: "Initialize Project",
-      description: "Run package manager init and install dependencies",
+      name: "Initialize Package",
+      description: "Run npm init",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{projectPath}} && npm init -y" },
-          label: "Initialize npm",
-        },
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && npm init -y 2>&1" }, label: "Initialize npm" },
       ],
     },
     {
       id: "pb_install_deps",
       kind: "brain",
-      name: "Install Dependencies",
-      description: "Brain determines which packages to install and installs them",
-      prompt: `Based on the build plan:
+      name: "Plan Dependencies",
+      description: "Brain determines install commands from the build plan",
+      prompt: `Based on the build plan, output ONLY the exact npm install command(s) needed, one per line:
 
 {{buildPlan}}
 
-List ONLY the exact npm install command(s) needed. Output nothing but the command(s), one per line. Example:
+Example format:
 npm install express
-npm install -D typescript @types/node`,
+npm install -D typescript @types/node
+
+Output ONLY the commands. Nothing else.`,
       saveAs: "installCommands",
     },
     {
       id: "pb_execute_installs",
       kind: "actions",
-      name: "Run Install Commands",
-      description: "Execute the dependency installation commands from the brain",
+      name: "Install Dependencies",
+      description: "Run the dependency installation commands",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{projectPath}} && {{installCommands}}" },
-          label: "Install dependencies",
-        },
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && {{installCommands}}" }, label: "Install dependencies" },
       ],
+      retry: { maxRetries: 2, delayMs: 5000, onFail: true },
     },
     {
-      id: "pb_write_files",
+      id: "pb_generate_files",
       kind: "brain",
-      name: "Generate Project Files",
-      description: "Brain generates the actual source code files",
-      prompt: `Based on the build plan, generate the project's source files.
+      name: "Generate Source Code",
+      description: "Brain generates all project source files",
+      prompt: `Based on the build plan, generate ALL source files for the project.
 
 Build plan:
 {{buildPlan}}
 
-For each file, output in this exact format:
----FILE: <path>---
-<file content>
+For EACH file, output in this EXACT format:
+---FILE: {{projectPath}}/<relative-path>---
+<complete file content>
 ---END FILE---
 
-Include at minimum: main entry point, package.json scripts, README.
-For web apps: HTML entry, CSS, server config.
-For APIs: route definitions, middleware setup.`,
+Include ALL files needed:
+- Main entry point (index.ts or server.ts)
+- package.json (with proper scripts section)
+- tsconfig.json (if TypeScript)
+- README.md with run instructions
+- Any config files, routes, middleware
+- HTML/CSS if web app
+
+IMPORTANT: Every file must be complete and ready to run. No placeholders or TODOs.`,
       saveAs: "generatedFiles",
     },
     {
+      id: "pb_write_files",
+      kind: "file-write",
+      name: "Write Files to Disk",
+      description: "Parse brain output and write all generated files",
+      sourceVar: "generatedFiles",
+      parseFiles: true,
+      fallbackPath: "{{projectPath}}/output.txt",
+    },
+    {
       id: "pb_verify",
-      kind: "decision",
+      kind: "actions",
       name: "Verify Build",
-      description: "Check if the project builds/compiles successfully",
-      decision: {
-        id: "build_check",
-        question: "Should I verify the project builds correctly by running the build/dev command?",
-        branches: [
-          {
-            id: "verify",
-            condition: "Run build check to verify everything compiles",
-            actions: [
-              {
-                action: "execute-terminal",
-                params: { command: "cd {{projectPath}} && npm run build 2>&1 || echo 'BUILD_FAILED'" },
-                label: "Build check",
-                optional: true,
-              },
-            ],
-          },
-          {
-            id: "skip",
-            condition: "Skip verification, project is ready",
-            actions: [],
-          },
-        ],
-        fallbackBranch: "verify",
-      },
+      description: "Check if the project compiles/builds",
+      actions: [
+        {
+          action: "execute-terminal",
+          params: { command: "cd {{projectPath}} && npm run build 2>&1 || echo 'NO_BUILD_SCRIPT'" },
+          label: "Build check",
+          optional: true,
+        },
+      ],
+      retry: { maxRetries: 1, onFail: "NO_BUILD_SCRIPT" },
     },
     {
       id: "pb_report",
       kind: "brain",
-      name: "Generate Summary",
+      name: "Build Summary",
       description: "Brain summarizes what was built",
-      prompt: `Summarize what was just built. Include:
-- Project type and location
-- Key files created
-- How to run it
-- Next steps for the user
+      prompt: `Summarize what was just built at {{projectPath}}. Include:
+- Project type and tech stack
+- Key files created (list them)
+- How to run it (exact commands)
+- How to run tests (if applicable)
+- Next steps
 
-Keep it concise (3-5 sentences). The project is at: {{projectPath}}`,
+Keep it concise but actionable (3-5 sentences).`,
+    },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INVESTIGATE ERROR WORKFLOW
+// Triggered when user shares an error message and asks for help.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const investigateError: WorkflowTemplate = {
+  id: "investigate-error",
+  name: "Investigate Error",
+  estimatedDurationSec: 90,
+  triggers: [
+    {
+      keywords: ["error", "failed", "crashed", "broken", "not working", "bug", "issue", "fix this", "help me debug", "why is"],
+      intentTypes: ["complex_task"],
+    },
+  ],
+  variables: [
+    { name: "errorMessage", description: "The error output", required: true },
+    { name: "projectPath", description: "Project directory", required: false, default: "." },
+  ],
+  steps: [
+    {
+      id: "ie_collect",
+      kind: "parallel",
+      name: "Gather Context",
+      description: "Collect error context and recent file changes",
+      actions: [
+        { action: "get-system-info", params: {}, label: "System info", optional: true },
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && git log --oneline -5 2>/dev/null || echo 'NOT_A_GIT_REPO'" }, label: "Recent git commits", optional: true },
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && git diff --name-only HEAD~1 2>/dev/null | head -10 || echo 'NO_GIT'" }, label: "Recently changed files", optional: true },
+      ],
+    },
+    {
+      id: "ie_read_relevant",
+      kind: "brain",
+      name: "Identify Relevant Files",
+      description: "Brain determines which files to read based on the error",
+      prompt: `The user is experiencing this error:
+
+{{errorMessage}}
+
+Based on the error message and any file changes shown above, list the exact file paths (one per line) that I should read to diagnose this issue. Only list files that exist in the project. If the error mentions a specific file, include it.
+
+Output ONLY file paths, one per line. If no relevant files can be determined, output "NONE".`,
+      saveAs: "filesToRead",
+    },
+    {
+      id: "ie_analyze",
+      kind: "brain",
+      name: "Diagnose Error",
+      description: "Brain analyzes the error and provides root cause + fix",
+      prompt: `Analyze this error and provide a diagnosis:
+
+Error:
+{{errorMessage}}
+
+Files to examine:
+{{filesToRead}}
+
+Provide:
+1. Root cause (1-2 sentences)
+2. The exact fix needed (specific code change or command)
+3. Step-by-step fix instructions
+4. How to verify the fix worked
+
+Be specific and actionable. Include exact file paths and code snippets if applicable.`,
+    },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SETUP DEV ENVIRONMENT WORKFLOW
+// Triggered when user asks to set up a development environment.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const setupDevEnv: WorkflowTemplate = {
+  id: "setup-dev-environment",
+  name: "Setup Dev Environment",
+  estimatedDurationSec: 300,
+  triggers: [
+    {
+      keywords: ["set up environment", "dev environment", "install dependencies", "setup my dev", "configure my development", "prepare my workspace", "get my environment ready"],
+      intentTypes: ["complex_task", "planning"],
+    },
+  ],
+  variables: [
+    { name: "projectPath", description: "Project directory", required: true, default: ".", prompt: "Which project directory?" },
+    { name: "envType", description: "Type of environment (node, python, rust, etc.)", required: false },
+  ],
+  steps: [
+    {
+      id: "dev_detect",
+      kind: "parallel",
+      name: "Detect Current Setup",
+      description: "Check what's already installed and what the project needs",
+      actions: [
+        { action: "get-system-info", params: {}, label: "System info" },
+        { action: "execute-terminal", params: { command: "node --version 2>/dev/null && npm --version 2>/dev/null && echo '---' && python3 --version 2>/dev/null && echo '---' && rustc --version 2>/dev/null && echo '---' && git --version 2>/dev/null || echo 'CHECKS_DONE'" }, label: "Installed toolchains" },
+        { action: "list-files-detailed", params: { path: "{{projectPath}}" }, label: "Project files" },
+      ],
+    },
+    {
+      id: "dev_plan",
+      kind: "brain",
+      name: "Create Setup Plan",
+      description: "Brain determines what needs to be installed/configured",
+      prompt: `Based on the system info and project files, determine what needs to be set up for development.
+
+Project path: {{projectPath}}
+{{envType}}
+
+Provide:
+1. What tools/runtimes are missing
+2. What project dependencies need installing
+3. What config files need creating or updating
+4. Exact install/setup commands (one per line)
+
+Output ONLY the exact commands to run, one per line. Prefix with "INSTALL: " for package installs and "CONFIG: " for configuration steps.`,
+      saveAs: "setupCommands",
+    },
+    {
+      id: "dev_execute",
+      kind: "actions",
+      name: "Run Setup Commands",
+      description: "Execute the setup plan",
+      actions: [
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && {{setupCommands}}" }, label: "Execute setup" },
+      ],
+      retry: { maxRetries: 2, delayMs: 3000, onFail: true },
+    },
+    {
+      id: "dev_verify",
+      kind: "actions",
+      name: "Verify Setup",
+      description: "Verify everything is working",
+      actions: [
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && npm run build 2>&1 || npm test 2>&1 || echo 'VERIFY_SKIPPED'" }, label: "Build/test check", optional: true },
+      ],
+      retry: { maxRetries: 1, onFail: "VERIFY_SKIPPED" },
+    },
+    {
+      id: "dev_report",
+      kind: "brain",
+      name: "Setup Summary",
+      prompt: `Summarize the dev environment setup for {{projectPath}}.
+- What was installed/configured
+- What's ready to use
+- How to start developing (commands)
+- Any remaining manual steps
+
+Keep it concise (3-4 sentences).`,
+    },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GIT WORKFLOW
+// Triggered when user asks for git operations.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const gitWorkflow: WorkflowTemplate = {
+  id: "git-workflow",
+  name: "Git Operations",
+  estimatedDurationSec: 60,
+  triggers: [
+    {
+      keywords: ["commit these changes", "create a branch", "git commit", "git push", "git status", "git log", "merge branch", "create a pr", "pull request", "git diff"],
+      intentTypes: ["complex_task", "system_command"],
+    },
+  ],
+  variables: [
+    { name: "projectPath", description: "Project directory", required: true, default: "." },
+  ],
+  steps: [
+    {
+      id: "git_status",
+      kind: "actions",
+      name: "Git Status",
+      description: "Check current git state",
+      actions: [
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && git status --short 2>&1 && echo '---' && git branch --show-current 2>&1 && echo '---' && git log --oneline -3 2>&1" }, label: "Git status + recent commits" },
+      ],
+    },
+    {
+      id: "git_diff",
+      kind: "actions",
+      name: "Show Changes",
+      description: "Show what has changed",
+      actions: [
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && git diff --stat 2>&1" }, label: "Diff summary", optional: true },
+      ],
+    },
+    {
+      id: "git_brain",
+      kind: "brain",
+      name: "Plan Git Action",
+      description: "Brain determines what git operation to perform",
+      prompt: `The user wants to perform a git operation. Based on their request and the current git state, determine:
+1. What git command(s) to run
+2. What commit message to use (if committing)
+3. What branch name (if branching)
+
+Output the EXACT commands to run, one per line. Include the commit message in the -m flag.`,
+      saveAs: "gitCommands",
+    },
+    {
+      id: "git_execute",
+      kind: "decision",
+      name: "Confirm and Execute",
+      description: "Ask brain to confirm the commands are safe, then execute",
+      decision: {
+        id: "git_safety_check",
+        question: `Review these git commands for safety. Do they look correct and non-destructive?
+
+{{gitCommands}}
+
+Choose 'safe' if the commands are standard git operations. Choose 'risky' if they involve force-push, reset --hard, or branch deletion.`,
+        branches: [
+          {
+            id: "safe",
+            condition: "Commands are safe to execute",
+            actions: [
+              { action: "execute-terminal", params: { command: "cd {{projectPath}} && {{gitCommands}}" }, label: "Execute git commands" },
+            ],
+          },
+          {
+            id: "risky",
+            condition: "Commands are potentially destructive",
+            actions: [],
+          },
+        ],
+        fallbackBranch: "safe",
+      },
+    },
+    {
+      id: "git_result",
+      kind: "brain",
+      name: "Summarize Result",
+      prompt: `Summarize the git operation result in 1-2 sentences. What was done and what's the current state?`,
+    },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MORNING BRIEFING WORKFLOW
+// Triggered when user asks for a morning briefing or daily summary.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const morningBriefing: WorkflowTemplate = {
+  id: "morning-briefing",
+  name: "Morning Briefing",
+  estimatedDurationSec: 45,
+  triggers: [
+    {
+      keywords: ["morning briefing", "daily summary", "what's happening", "morning report", "daily briefing", "start my day", "what's new", "catch me up", "brief me"],
+      intentTypes: ["conversation", "planning"],
+    },
+  ],
+  steps: [
+    {
+      id: "mb_collect",
+      kind: "parallel",
+      name: "Gather Morning Data",
+      description: "Collect system status, pending items, and notifications",
+      actions: [
+        { action: "get-system-info", params: {}, label: "System status" },
+        { action: "get-process-list", params: {}, label: "Running processes", optional: true },
+        { action: "get-network-info", params: {}, label: "Network status", optional: true },
+        { action: "execute-terminal", params: { command: "date '+%A, %B %d, %Y - %H:%M' 2>/dev/null && echo '---' && uptime 2>/dev/null && echo '---' && df -h / 2>/dev/null | tail -1" }, label: "Date, uptime, disk" },
+      ],
+    },
+    {
+      id: "mb_brain",
+      name: "Generate Briefing",
+      kind: "brain",
+      description: "Brain creates a personalized morning briefing",
+      prompt: `Create a concise morning briefing based on the system data. Include:
+1. Good morning greeting with the current date/time
+2. System health summary (CPU, memory, disk at a glance)
+3. Network connectivity status
+4. Any notable processes running
+5. A proactive suggestion for the day (one actionable thing)
+
+Keep the total briefing under 200 words. Be warm but concise. Think of this as a Tony Stark/Jarvis morning report.`,
+    },
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CODE REVIEW WORKFLOW
+// Triggered when user asks for a code review.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const codeReview: WorkflowTemplate = {
+  id: "code-review",
+  name: "Code Review",
+  estimatedDurationSec: 90,
+  triggers: [
+    {
+      keywords: ["code review", "review this code", "review my changes", "check this code", "what do you think of this code", "review my pr", "review these changes"],
+      intentTypes: ["complex_task"],
+    },
+  ],
+  variables: [
+    { name: "projectPath", description: "Project directory", required: true, default: "." },
+  ],
+  steps: [
+    {
+      id: "cr_get_changes",
+      kind: "actions",
+      name: "Get Changed Files",
+      description: "Find what files have been modified",
+      actions: [
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && git diff --name-only HEAD~1 2>/dev/null || git diff --name-only --cached 2>/dev/null || echo 'NO_GIT_CHANGES'" }, label: "Get changed files" },
+      ],
+    },
+    {
+      id: "cr_get_diff",
+      kind: "actions",
+      name: "Get Full Diff",
+      description: "Get the actual code changes",
+      actions: [
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && git diff HEAD~1 2>/dev/null | head -2000 || git diff --cached 2>/dev/null | head -2000 || echo 'NO_DIFF_AVAILABLE'" }, label: "Get code diff" },
+      ],
+    },
+    {
+      id: "cr_review",
+      name: "Analyze Code",
+      kind: "brain",
+      description: "Brain performs a thorough code review",
+      prompt: `Perform a thorough code review of these changes. Analyze:
+
+1. **Correctness**: Are there bugs, logic errors, or edge cases not handled?
+2. **Security**: Any vulnerabilities (injection, XSS, hardcoded secrets, etc.)?
+3. **Performance**: Any obvious performance issues (N+1 queries, unnecessary loops, memory leaks)?
+4. **Code Quality**: Naming, structure, DRY principle, error handling?
+5. **Testing**: Are there test gaps? What should be tested?
+
+Rate overall: APPROVE / APPROVE_WITH_NOTES / REQUEST_CHANGES
+
+For each issue found, specify the file, line area, and exact fix suggestion.
+Be specific — no vague "consider refactoring" comments.`,
     },
   ],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEPLOY WORKFLOW
-// Triggered when user asks to deploy something.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const deploy: WorkflowTemplate = {
@@ -180,97 +528,42 @@ const deploy: WorkflowTemplate = {
       id: "dep_analyze",
       kind: "brain",
       name: "Analyze Deployment Target",
-      description: "Brain determines the deployment method based on project type",
-      prompt: `Analyze the project at {{projectPath}} and determine:
-1. What type of project this is
-2. The best deployment method (Docker, PM2, systemd, static hosting, serverless)
-3. What pre-deployment checks to run (tests, lint, build)
-4. What the deployment command should be
-
-Read the project's package.json and config files to make this determination. Be specific with exact commands.`,
+      description: "Brain determines the deployment method",
+      prompt: `Analyze the project at {{projectPath}} and determine the best deployment method.
+Consider: Docker, PM2, systemd, static hosting, serverless.
+Provide exact commands for the recommended approach.`,
       saveAs: "deployPlan",
     },
     {
       id: "dep_precheck",
       kind: "actions",
       name: "Pre-deployment Checks",
-      description: "Run tests, lint, and build before deploying",
+      description: "Run tests and build",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{projectPath}} && npm test 2>&1 || echo 'TESTS_SKIPPED'" },
-          label: "Run tests",
-          optional: true,
-        },
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{projectPath}} && npm run build 2>&1 || echo 'BUILD_SKIPPED'" },
-          label: "Build for production",
-          optional: true,
-        },
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && npm test 2>&1 || echo 'TESTS_SKIPPED'" }, label: "Run tests", optional: true },
+        { action: "execute-terminal", params: { command: "cd {{projectPath}} && npm run build 2>&1 || echo 'BUILD_SKIPPED'" }, label: "Build for production", optional: true },
       ],
     },
     {
       id: "dep_method",
       kind: "decision",
       name: "Choose Deploy Method",
-      description: "Brain decides the deployment approach",
+      description: "Brain picks the deployment approach",
       decision: {
         id: "deploy_method_choice",
-        question: `Based on the deploy plan, which deployment method should we use?
-
-Deploy plan:
-{{deployPlan}}
-
-Choose: docker, pm2, systemd, static, or manual.`,
+        question: "Based on the deploy plan, which deployment method?\n\nDeploy plan:\n{{deployPlan}}\n\nChoose: docker, pm2, systemd, static, or manual.",
         branches: [
-          {
-            id: "docker",
-            condition: "Docker container deployment",
-            actions: [
-              {
-                action: "execute-terminal",
-                params: { command: "cd {{projectPath}} && docker build -t mai-deploy:latest . 2>&1" },
-                label: "Build Docker image",
-                optional: true,
-              },
-              {
-                action: "execute-terminal",
-                params: { command: "docker run -d --name mai-deploy -p 3000:3000 mai-deploy:latest 2>&1" },
-                label: "Run container",
-                optional: true,
-              },
-            ],
-          },
-          {
-            id: "pm2",
-            condition: "PM2 process manager",
-            actions: [
-              {
-                action: "execute-terminal",
-                params: { command: "cd {{projectPath}} && pm2 restart all 2>&1 || pm2 start npm --name mai-deploy -- start 2>&1" },
-                label: "PM2 start/restart",
-                optional: true,
-              },
-            ],
-          },
-          {
-            id: "systemd",
-            condition: "Systemd service",
-            actions: [
-              {
-                action: "execute-terminal",
-                params: { command: "sudo systemctl restart mai-deploy 2>&1 || echo 'SERVICE_NOT_FOUND'" },
-                label: "Restart systemd service",
-                optional: true,
-              },
-            ],
-          },
-          {
-            id: "manual",
-            condition: "Manual deployment (just build, user handles the rest)",
-            actions: [],
-          },
+          { id: "docker", condition: "Docker deployment", actions: [
+            { action: "execute-terminal", params: { command: "cd {{projectPath}} && docker build -t mai-deploy:latest . 2>&1" }, label: "Build Docker image", optional: true },
+            { action: "execute-terminal", params: { command: "docker run -d --name mai-deploy -p 3000:3000 mai-deploy:latest 2>&1" }, label: "Run container", optional: true },
+          ]},
+          { id: "pm2", condition: "PM2 process manager", actions: [
+            { action: "execute-terminal", params: { command: "cd {{projectPath}} && pm2 restart all 2>&1 || pm2 start npm --name mai-deploy -- start 2>&1" }, label: "PM2 start/restart", optional: true },
+          ]},
+          { id: "systemd", condition: "Systemd service", actions: [
+            { action: "execute-terminal", params: { command: "sudo systemctl restart mai-deploy 2>&1 || echo 'SERVICE_NOT_FOUND'" }, label: "Restart systemd service", optional: true },
+          ]},
+          { id: "manual", condition: "Manual deployment", actions: [] },
         ],
         fallbackBranch: "manual",
       },
@@ -278,41 +571,25 @@ Choose: docker, pm2, systemd, static, or manual.`,
     {
       id: "dep_verify",
       kind: "actions",
-      name: "Post-deploy Verification",
-      description: "Check that the deployment is healthy",
+      name: "Post-deploy Health Check",
+      description: "Verify the deployment is healthy",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "sleep 2 && curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || echo 'UNREACHABLE'" },
-          label: "Health check",
-          optional: true,
-        },
-        {
-          action: "get-process-list",
-          params: {},
-          label: "Check running processes",
-          optional: true,
-        },
+        { action: "execute-terminal", params: { command: "sleep 2 && curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || echo 'UNREACHABLE'" }, label: "Health check", optional: true },
       ],
+      retry: { pollUntil: { variable: "deployPlan", contains: "healthy", maxAttempts: 5, intervalMs: 3000 } },
     },
     {
       id: "dep_report",
       kind: "brain",
       name: "Deployment Summary",
-      prompt: `Summarize the deployment result. The project at {{projectPath}} was just deployed.
-
-Deploy plan:
-{{deployPlan}}
-
-Include: what was deployed, how to access it, and any issues found.
-Keep it concise (2-4 sentences).`,
+      prompt: `Summarize the deployment. Project at {{projectPath}}. Deploy plan: {{deployPlan}}
+Include: what was deployed, how to access it, any issues. 2-4 sentences.`,
     },
   ],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SYSTEM SCAN / DIAGNOSTICS WORKFLOW
-// Triggered when user asks to check system health, run diagnostics, or scan.
+// SYSTEM DIAGNOSTICS WORKFLOW
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const systemScan: WorkflowTemplate = {
@@ -344,11 +621,7 @@ const systemScan: WorkflowTemplate = {
       name: "Disk & Memory Usage",
       description: "Check disk and memory status",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "df -h / 2>/dev/null && echo '---' && free -h 2>/dev/null || echo 'N/A'" },
-          label: "Disk and memory usage",
-        },
+        { action: "execute-terminal", params: { command: "df -h / 2>/dev/null && echo '---' && free -h 2>/dev/null || echo 'N/A'" }, label: "Disk and memory usage" },
       ],
     },
     {
@@ -368,7 +641,6 @@ Keep it to 3-5 bullet points. Be specific with numbers.`,
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FILE ORGANIZE WORKFLOW
-// Triggered when user asks to clean up, organize, or sort files.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const fileOrganize: WorkflowTemplate = {
@@ -389,7 +661,6 @@ const fileOrganize: WorkflowTemplate = {
       id: "org_scan",
       kind: "actions",
       name: "Scan Directory",
-      description: "List current file structure",
       actions: [
         { action: "list-files-detailed", params: { path: "{{targetDir}}" }, label: "List files" },
       ],
@@ -398,16 +669,8 @@ const fileOrganize: WorkflowTemplate = {
       id: "org_plan",
       kind: "brain",
       name: "Create Organization Plan",
-      description: "Brain analyzes files and proposes an organization scheme",
-      prompt: `I need to organize the files in {{targetDir}}. Based on the file listing above, propose:
-1. What categories/groupings make sense (by type, date, project, etc.)
-2. What directories to create
-3. What files to move where
-
-Output ONLY the exact mv commands, one per line. Example:
-mkdir -p archives
-mv old-file.txt archives/
-
+      prompt: `I need to organize the files in {{targetDir}}. Based on the file listing above, propose reorganization.
+Output ONLY the exact mv/mkdir commands, one per line.
 Do NOT include files that are already well-organized.`,
       saveAs: "orgCommands",
     },
@@ -415,30 +678,14 @@ Do NOT include files that are already well-organized.`,
       id: "org_confirm",
       kind: "decision",
       name: "Review Changes",
-      description: "Show the plan to the user and confirm before executing",
       decision: {
         id: "org_confirm_decision",
-        question: `Here's the organization plan I came up with. Should I execute these changes?
-
-Commands to run:
-{{orgCommands}}`,
+        question: "Organization plan for {{targetDir}}:\n\n{{orgCommands}}\n\nExecute these changes?",
         branches: [
-          {
-            id: "execute",
-            condition: "Execute the organization plan",
-            actions: [
-              {
-                action: "execute-terminal",
-                params: { command: "cd {{targetDir}} && {{orgCommands}}" },
-                label: "Execute organization",
-              },
-            ],
-          },
-          {
-            id: "skip",
-            condition: "Cancel, don't change anything",
-            actions: [],
-          },
+          { id: "execute", condition: "Execute the plan", actions: [
+            { action: "execute-terminal", params: { command: "cd {{targetDir}} && {{orgCommands}}" }, label: "Execute organization" },
+          ]},
+          { id: "skip", condition: "Cancel", actions: [] },
         ],
         fallbackBranch: "skip",
       },
@@ -447,7 +694,6 @@ Commands to run:
       id: "org_verify",
       kind: "actions",
       name: "Verify Result",
-      description: "Show the new directory structure",
       actions: [
         { action: "list-files-detailed", params: { path: "{{targetDir}}" }, label: "Verify new structure" },
       ],
@@ -456,8 +702,7 @@ Commands to run:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CYBER SECURITY SCAN WORKFLOW
-// Triggered when user asks for a security scan or vulnerability check.
+// SECURITY SCAN WORKFLOW
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const cyberScan: WorkflowTemplate = {
@@ -471,67 +716,44 @@ const cyberScan: WorkflowTemplate = {
     },
   ],
   variables: [
-    { name: "scanTarget", description: "Target path or project to scan", required: true, default: ".", prompt: 'What should I scan? (path or "." for current directory)' },
+    { name: "scanTarget", description: "Target path", required: true, default: ".", prompt: "What should I scan?" },
   ],
   steps: [
     {
       id: "sec_deps",
       kind: "parallel",
       name: "Dependency & Config Scan",
-      description: "Check for known vulnerabilities in dependencies and config issues",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{scanTarget}} && npm audit --json 2>/dev/null | head -100 || echo 'NO_PACKAGE_JSON'" },
-          label: "NPM audit",
-          optional: true,
-        },
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{scanTarget}} && find . -name '.env' -o -name '*.pem' -o -name '*.key' -o -name 'credentials*' -o -name 'id_rsa*' 2>/dev/null | head -20 || echo 'CLEAN'" },
-          label: "Sensitive file check",
-        },
-        {
-          action: "execute-terminal",
-          params: { command: "cd {{scanTarget}} && find . -name 'package.json' -exec grep -l 'http://' {} \; 2>/dev/null | head -10 || echo 'NO_HTTP_DEPS'" },
-          label: "Insecure dependency check",
-          optional: true,
-        },
+        { action: "execute-terminal", params: { command: "cd {{scanTarget}} && npm audit --json 2>/dev/null | head -100 || echo 'NO_PACKAGE_JSON'" }, label: "NPM audit", optional: true },
+        { action: "execute-terminal", params: { command: "cd {{scanTarget}} && find . -name '.env' -o -name '*.pem' -o -name '*.key' -o -name 'credentials*' -o -name 'id_rsa*' 2>/dev/null | head -20 || echo 'CLEAN'" }, label: "Sensitive file check" },
+        { action: "execute-terminal", params: { command: "cd {{scanTarget}} && find . -name 'package.json' -exec grep -l 'http://' {} \\; 2>/dev/null | head -10 || echo 'NO_HTTP_DEPS'" }, label: "Insecure dependency check", optional: true },
       ],
     },
     {
       id: "sec_network",
       kind: "actions",
       name: "Network Exposure Check",
-      description: "Check for open ports and network exposure",
       actions: [
-        {
-          action: "execute-terminal",
-          params: { command: "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || echo 'NO_NETWORK_TOOLS'" },
-          label: "Open ports check",
-          optional: true,
-        },
+        { action: "execute-terminal", params: { command: "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || echo 'NO_NETWORK_TOOLS'" }, label: "Open ports", optional: true },
       ],
     },
     {
       id: "sec_report",
       kind: "brain",
       name: "Security Assessment",
-      prompt: `Based on the security scan results for {{scanTarget}}, provide a security assessment:
-- Critical/High vulnerabilities found
+      prompt: `Based on the security scan for {{scanTarget}}, provide an assessment:
+- Critical/High vulnerabilities
 - Exposed sensitive files
 - Network exposure risks
 - Recommended immediate actions
 
-Rate overall security as: CLEAN / LOW RISK / MEDIUM RISK / HIGH RISK / CRITICAL
-Be specific about any issues found.`,
+Rate: CLEAN / LOW RISK / MEDIUM RISK / HIGH RISK / CRITICAL`,
     },
   ],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RESEARCH WORKFLOW
-// Triggered when user asks for deep research on a topic.
+// DEEP RESEARCH WORKFLOW
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const research: WorkflowTemplate = {
@@ -549,36 +771,21 @@ const research: WorkflowTemplate = {
       id: "res_web",
       kind: "brain",
       name: "Formulate Search Queries",
-      description: "Brain creates targeted search queries based on the user's topic",
-      prompt: `The user wants to research a topic. Based on their message, generate 2-3 specific, targeted search queries that would find the most relevant and up-to-date information. Output ONLY the queries, one per line, without numbering or quotes.`,
+      prompt: `The user wants to research a topic. Generate 2-3 specific, targeted search queries. Output ONLY the queries, one per line, without numbering.`,
       saveAs: "searchQueries",
     },
     {
       id: "res_search",
       kind: "brain",
       name: "Execute Searches",
-      description: "Perform web searches to gather information",
-      prompt: `I need to research the following. Run web searches for each of these queries and compile the findings:
-
-{{searchQueries}}
-
-Use the web-search tool for each query. Compile key findings, facts, and source URLs.`,
+      prompt: `Research the following using web-search:\n\n{{searchQueries}}\n\nCompile key findings, facts, and source URLs.`,
       saveAs: "searchResults",
     },
     {
       id: "res_synthesize",
       kind: "brain",
       name: "Synthesize Findings",
-      prompt: `Based on the research results, synthesize a comprehensive but concise analysis.
-
-Search results:
-{{searchResults}}
-
-Structure your response as:
-1. Executive Summary (2-3 sentences)
-2. Key Findings (bullet points with specifics)
-3. Sources / References
-4. Recommended Next Steps (if applicable)`,
+      prompt: `Based on the research results, synthesize a concise analysis.\n\nSearch results:\n{{searchResults}}\n\nStructure:\n1. Executive Summary (2-3 sentences)\n2. Key Findings (bullet points)\n3. Sources / References\n4. Next Steps`,
     },
   ],
 };
@@ -590,6 +797,11 @@ Structure your response as:
 export function getBuiltinTemplates(): WorkflowTemplate[] {
   return [
     projectBuild,
+    investigateError,
+    setupDevEnv,
+    gitWorkflow,
+    morningBriefing,
+    codeReview,
     deploy,
     systemScan,
     fileOrganize,

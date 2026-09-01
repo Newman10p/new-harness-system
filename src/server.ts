@@ -456,6 +456,30 @@ async function main() {
       return;
     }
 
+    // POST /api/workflows/input — provide input for a waiting workflow step
+    if (req.method === "POST" && req.url === "/api/workflows/input") {
+      let body = "";
+      req.on("data", (chunk) => { body += chunk; });
+      req.on("end", () => {
+        try {
+          const { workflowId, value } = JSON.parse(body);
+          const wfEngine = loop.getWorkflowEngine();
+          if (!wfEngine || !workflowId || value === undefined) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: "Missing workflowId or value" }));
+            return;
+          }
+          const resolved = wfEngine.resolveWorkflowInput(workflowId, String(value));
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, resolved }));
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Invalid JSON" }));
+        }
+      });
+      return;
+    }
+
     // POST /api/voice-call — toggle voice call state (deferred to hudServer)
     if (req.method === "POST" && req.url === "/api/voice-call") {
       let body = "";

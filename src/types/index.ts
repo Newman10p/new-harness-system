@@ -641,6 +641,41 @@ export interface WorkflowDecision {
   fallbackBranch?: string;
 }
 
+/** Condition that controls whether a step executes. */
+export interface WorkflowCondition {
+  /** Variable name to check (e.g. "buildPlan" checks instance.variables["buildPlan"]). */
+  variable?: string;
+  /** If set, step runs only when the variable's value contains this substring. */
+  contains?: string;
+  /** If set, step runs only when the variable equals this value exactly. */
+  equals?: string;
+  /** If set, step runs only when the variable does NOT equal this value. */
+  notEquals?: string;
+  /** If set, step runs only when this previous step failed. */
+  stepFailed?: string;
+  /** If set, step runs only when this previous step succeeded. */
+  stepSucceeded?: string;
+  /** If true, invert the entire condition (skip when condition is true). */
+  invert?: boolean;
+}
+
+/** Retry/loop configuration for a step. */
+export interface WorkflowRetry {
+  /** Maximum number of retries (default: 1). */
+  maxRetries?: number;
+  /** Delay between retries in ms (default: 2000). */
+  delayMs?: number;
+  /** If true, retry on any failure. If a string, retry only when error message contains it. */
+  onFail?: boolean | string;
+  /** Poll: repeat the step every delayMs until a condition is met. */
+  pollUntil?: {
+    variable: string;
+    contains: string;
+    maxAttempts?: number;
+    intervalMs?: number;
+  };
+}
+
 /** Definition of a single step inside a workflow template. */
 export type WorkflowStepDef = {
   /** Unique step ID within the template. */
@@ -649,11 +684,19 @@ export type WorkflowStepDef = {
   name: string;
   /** Optional description of what this step accomplishes. */
   description?: string;
+  /** If set, this step only executes when the condition evaluates to true. */
+  condition?: WorkflowCondition;
+  /** Retry/loop configuration for this step. */
+  retry?: WorkflowRetry;
+  /** If true and this step fails, the workflow continues (marks step as skipped). */
+  optional?: boolean;
 } & (
   | { kind: "actions"; actions: WorkflowAction[] }
   | { kind: "decision"; decision: WorkflowDecision }
   | { kind: "brain"; prompt: string; saveAs?: string }
   | { kind: "parallel"; actions: WorkflowAction[] }
+  | { kind: "file-write"; sourceVar: string; /** Brain output format: ---FILE: path---\ncontent\n---END FILE--- */ parseFiles?: boolean; fallbackPath?: string }
+  | { kind: "input"; prompt: string; saveAs: string; /** Optional default if user doesn't respond in time. */ default?: string }
 );
 
 /** A workflow template is a reusable, named sequence of steps. */
@@ -695,7 +738,7 @@ export interface WorkflowVariable {
 
 // ─── Workflow Instance (a running execution of a template) ───────────────────
 
-export type WorkflowStepStatus = "pending" | "running" | "waiting_brain" | "completed" | "skipped" | "failed";
+export type WorkflowStepStatus = "pending" | "running" | "waiting_brain" | "waiting_input" | "completed" | "skipped" | "failed";
 export type WorkflowStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
 
 /** Runtime state of a single step. */
@@ -736,6 +779,8 @@ export interface WorkflowInstance {
   triggerMessage: string;
   /** Accumulated results text (injected into conversation context). */
   summary: string;
+  /** @internal Resolver for input steps — not part of the public type. */
+  _inputResolve?: (value: string) => void;
 }
 
 // ─── Workflow Engine (the orchestrator) ─────────────────────────────────────
