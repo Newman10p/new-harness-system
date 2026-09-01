@@ -222,14 +222,18 @@ export class ActionRegistry {
 
     try {
       // Race the handler against a hard timeout
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const result = await Promise.race([
         handler(action, ctx),
-        new Promise<ActionResult>((_resolve) => {
-          setTimeout(() => {
-            return { ok: false, error: `Action timed out after ${ACTION_TIMEOUT_MS}ms` };
+        new Promise<ActionResult>((resolve) => {
+          timeoutId = setTimeout(() => {
+            resolve({ ok: false, error: `Action timed out after ${ACTION_TIMEOUT_MS}ms` });
           }, ACTION_TIMEOUT_MS);
         }),
       ]);
+
+      // Clear timeout if handler resolved first
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
 
       const duration = Date.now() - start;
 

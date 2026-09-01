@@ -393,7 +393,16 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
 
   const raw = fs.readFileSync(resolvedPath, "utf8");
   try {
-    const parsed = JSON.parse(raw) as Partial<HarnessConfig>;
+    // Resolve __ENV:VAR__ placeholders before parsing
+    const resolved = raw.replace(/"__ENV:([A-Z_]+)__"/g, (_, varName) => {
+      const val = process.env[varName];
+      if (!val) {
+        console.warn(`[Config] __ENV:${varName}__ referenced but ${varName} is not set in environment`);
+        return '""';
+      }
+      return JSON.stringify(val);
+    });
+    const parsed = JSON.parse(resolved) as Partial<HarnessConfig>;
     return {
       ...defaultConfig,
       ...parsed,

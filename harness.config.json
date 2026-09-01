@@ -47,7 +47,7 @@
         "smtpHost": "smtp.gmail.com",
         "smtpPort": 465,
         "username": "bulega.farid@lightacademy.ac.ug",
-        "password": "Farid.b10",
+        "password": "__ENV:GMAIL_PASSWORD__",
         "tls": true
       }
     ],

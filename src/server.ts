@@ -454,8 +454,9 @@ async function main() {
       if (err) {
         fs.readFile(path.join(PUBLIC_DIR, "index.html"), (_err2, indexData) => {
           if (indexData) {
+            const html = indexData.toString().replace("__WS_TOKEN__", WS_TOKEN);
             res.writeHead(200, { "Content-Type": "text/html" });
-            res.end(indexData);
+            res.end(html);
           } else {
             res.writeHead(404);
             res.end("Not Found");
@@ -463,10 +464,19 @@ async function main() {
         });
         return;
       }
-      res.writeHead(200, {
-        "Content-Type": mimeTypes[ext] ?? "application/octet-stream",
-      });
-      res.end(data);
+      // For index.html, inject the WS auth token
+      if (filePath.endsWith("index.html")) {
+        const html = data.toString().replace("__WS_TOKEN__", WS_TOKEN);
+        res.writeHead(200, {
+          "Content-Type": "text/html",
+        });
+        res.end(html);
+      } else {
+        res.writeHead(200, {
+          "Content-Type": mimeTypes[ext] ?? "application/octet-stream",
+        });
+        res.end(data);
+      }
     });
   });
 
@@ -477,6 +487,9 @@ async function main() {
   // 9. Start WebSocket HUD server
   const hudServer = new HudServer(httpServer, WS_PORT);
   hudServer.wireAgentLoop(loop);
+
+  // 9a. Inject WS auth token into index.html at serve time
+  const WS_TOKEN = hudServer.getAuthToken();
 
   // Initialize neural TTS if configured (env vars or harness.config.json)
   const ttsEngine = process.env.TTS_ENGINE;

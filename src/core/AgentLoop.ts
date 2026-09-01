@@ -64,6 +64,7 @@ import { FileMutationQueue, getFileMutationQueue } from "./FileMutationQueue.js"
 import { planToolExecution } from "./ToolExecutionPlanner.js";
 import { formatToolResult } from "./ToolResultTruncator.js";
 import { getLogger, setGlobalSession } from "./MaiLogger.js";
+import { ModelRouter, type RoutingDecision } from "./ModelRouter.js";
 
 // Module-level logger (Hermes pattern: one per file)
 const log = getLogger("AgentLoop");
@@ -154,6 +155,7 @@ export class AgentLoop {
   private inboxAppender: (event: InboxEvent) => Promise<void> = async () => {};
   private audit: (entry: AuditEntry) => Promise<void> = async () => {};
   private useFallback: boolean;
+  private modelRouter: ModelRouter; // Multi-model router
   private interactionCount = 0;
   private sessionStart = Date.now();
   private recentErrors = 0;
@@ -203,6 +205,13 @@ export class AgentLoop {
         this.userModel = new UserModel();
         if (this.userModel?.init) this.userModel.init().catch(() => {});
       } catch { /* non-fatal */ }
+    }
+
+    // Initialize multi-model router (uses ROUTER_MODEL/HANDS_MODEL env vars)
+    this.modelRouter = ModelRouter.fromEnv();
+    const routerInfo = this.modelRouter.getInfo();
+    if (routerInfo.router || routerInfo.hands) {
+      log.info("Multi-model router active", { data: routerInfo });
     }
 
     this.clients = createClients(providers);
@@ -267,6 +276,22 @@ export class AgentLoop {
         this.processQueue();
       }
       return;
+    }
+
+    // ── Multi-model routing ──
+    // If a router model is configured, try to handle simple messages directly
+    // without entering the full agent loop (saves API credits on the brain model).
+    if (this.modelRouter.hasRouter()) {
+      const routeResult = await this.modelRouter.route(input);
+      if (routeResult.handled) {
+        log.info("Message handled by router model", { category: routeResult.decision.category });
+        this.hudEmitter("jarvis_speech", { text: routeResult.response });
+        this.state.messages.push({ role: "user", content: input });
+        this.state.messages.push({ role: "assistant", content: routeResult.response });
+        return;
+      }
+      // Not handled by router — continue to full agent loop with brain model
+      log.info("Routing to brain model", { category: routeResult.decision.category, role: routeResult.decision.role });
     }
 
     // Reset for new user turn

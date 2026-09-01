@@ -18,6 +18,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
+import crypto from "node:crypto";
 import type {
   HudChannel,
   HudPayloads,
@@ -136,6 +138,9 @@ export class HudServer {
   private kokoroReady = false;
   private activeTtsEngine: "piper" | "kokoro" | "browser" = "browser";
 
+  // Auth token — generated at startup, clients must present it to connect
+  private authToken: string;
+
   // Dedup guard: track last synthesis to detect and skip duplicates
   private _lastSynthText = "";
   private _lastSynthTime = 0;
@@ -148,10 +153,13 @@ export class HudServer {
     // Always create a standalone WebSocket server on its own port.
     // Sharing the HTTP server port causes the WS to end up on HTTP_PORT
     // instead of WS_PORT, breaking the HUD frontend connection.
+    this.authToken = HudServer.generateToken();
+    console.log(`[HUD] Auth token: ${this.authToken}`);
+
     this.wss = new WebSocketServer({ port });
 
-    this.wss.on("connection", (ws) => {
-      this.handleConnection(ws);
+    this.wss.on("connection", (ws, req) => {
+      this.handleConnection(ws, req);
     });
 
     this.wss.on("listening", () => {
@@ -279,6 +287,17 @@ export class HudServer {
   }
 
   /**
+   * Get the auth token for this session.
+   */
+  getAuthToken(): string {
+    return this.authToken;
+  }
+
+  private static generateToken(): string {
+    return crypto.randomBytes(24).toString("hex");
+  }
+
+  /**
    * Get the number of connected clients.
    */
   getClientCount(): number {
@@ -298,10 +317,24 @@ export class HudServer {
   }
 
   // ─── Private: Connection Handler ─────────────────────────────────────────
-  private handleConnection(ws: WebSocket): void {
+  private handleConnection(ws: WebSocket, req: any): void {
+    // Validate auth token from query string
+    try {
+      const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
+      const clientToken = url.searchParams.get("token");
+      if (clientToken !== this.authToken) {
+        log.warn("Rejected unauthenticated connection", { data: { hasToken: !!clientToken } });
+        ws.close(4001, "Authentication required");
+        return;
+      }
+    } catch {
+      ws.close(4001, "Invalid request");
+      return;
+    }
+
     this.clients.add(ws);
     const clientAddr = (ws as any)._socket?.remoteAddress || "unknown";
-    console.log(`[HUD] Client connected (${this.clients.size} total) from ${clientAddr}`);
+    console.log(`[HUD] Client authenticated (${this.clients.size} total) from ${clientAddr}`);
     log.info("Client connected", { data: { clientCount: this.clients.size, address: clientAddr, totalConnections: this.wss.clients.size } });
 
     // Send initial state

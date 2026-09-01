@@ -145,26 +145,14 @@ export class PolicyEngine {
       }
     }
 
-    // Rule 4: Auto-approved actions skip the approval gate
-    // (checked before require_approval so auto_approve takes precedence)
-    if (
-      this.config.auto_approve &&
-      this.config.auto_approve.includes(name)
-    ) {
-      // Still must be a known action (Rule 6/7 below)
-      // But if it reaches Rule 5, it won't be flagged for approval
+    // Rule 4: Auto-approved actions — early return, skip approval entirely
+    if (this.isAutoApproved(name)) {
+      return { allowed: true };
     }
 
-    // Rule 5: Require approval — pause the loop for confirmation
-    // Only triggers if NOT in auto_approve list
-    if (
-      this.config.require_approval &&
-      this.config.require_approval.includes(name) &&
-      !this.isAutoApproved(name)
-    ) {
-      // NOT denied — but flagged for approval gate
-      // The AgentLoop handles the approval flow separately
-    }
+    // Rule 5: Require approval — action is allowed but needs user confirmation
+    // The AgentLoop checks requiresApproval() separately to trigger the approval flow.
+    // We fall through to Rule 6/7 so the action is not blocked here.
 
     // Rule 6: Known actions are allowed
     if (knownActions && knownActions.includes(name as ActionName)) {
