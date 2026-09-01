@@ -232,7 +232,12 @@ export type HudChannel =
   | "interim_message"
   | "turn_start"
   | "turn_end"
-  | "promotion_request";
+  | "promotion_request"
+  | "workflow_started"
+  | "workflow_step_update"
+  | "workflow_completed"
+  | "workflow_failed"
+  | "workflow_cancelled";
 
 // ─── Search Engine ──────────────────────────────────────────────────────
 export interface SearchEngineConfig {
@@ -290,6 +295,11 @@ export interface HudPayloads {
   };
   context_occupancy: { percent: number; usedTokens: number; contextWindow: number };
   step_info: { turnIteration: number; stepNumber: number; actionCount: number; phase: string; durationMs?: number };
+  workflow_started: { workflowId: string; templateId: string; templateName: string; totalSteps: number; estimatedDurationSec?: number; triggerMessage: string };
+  workflow_step_update: { workflowId: string; stepIndex: number; stepName: string; stepStatus: string; totalSteps: number; detail?: string; percent?: number };
+  workflow_completed: { workflowId: string; templateName: string; durationMs: number; stepsCompleted: number; stepsTotal: number; summary: string };
+  workflow_failed: { workflowId: string; templateName: string; stepName: string; error: string; stepsCompleted: number; stepsTotal: number };
+  workflow_cancelled: { workflowId: string; templateName: string; stepsCompleted: number; stepsTotal: number };
 }
 
 export type HudMessage<C extends HudChannel> = {
@@ -587,3 +597,214 @@ export type ExtendedAuditEventType =
   | "file_mutation_queued"
   | "tool_prepared"
   | "tool_finalized";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ORCHESTRATED WORKFLOW ENGINE (Mai Autonomy)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Predefined workflow templates with decision points.
+// Unlike full LLM-generated plans, these are reliable, testable, and
+// the brain model only handles decisions that the template cannot.
+
+// ─── Workflow Template (the blueprint) ──────────────────────────────────────
+
+/** A single primitive action invocation within a workflow step. */
+export interface WorkflowAction {
+  /** Which primitive to invoke. */
+  action: ActionName;
+  /** Parameters forwarded to the primitive. Supports {{variable}} interpolation. */
+  params?: Record<string, unknown>;
+  /** Human-readable label for HUD progress display. */
+  label?: string;
+  /** If true, failure is non-fatal — logs a warning and continues. */
+  optional?: boolean;
+  /** If true, run in parallel with other parallel-marked actions in the same step. */
+  parallel?: boolean;
+}
+
+/** A decision branch inside a workflow step. */
+export interface WorkflowDecision {
+  /** Unique ID for this decision point. */
+  id: string;
+  /** Question posed to the brain model to make the decision. */
+  question: string;
+  /** Available branches. The brain picks one by ID. */
+  branches: Array<{
+    id: string;
+    /** Human-readable condition description (shown in HUD). */
+    condition: string;
+    /** Actions to execute if this branch is chosen. */
+    actions: WorkflowAction[];
+    /** Optional: sub-steps to execute after actions. */
+    then?: WorkflowStepDef[];
+  }>;
+  /** Fallback branch ID if the brain is unavailable or returns garbage. */
+  fallbackBranch?: string;
+}
+
+/** Definition of a single step inside a workflow template. */
+export type WorkflowStepDef = {
+  /** Unique step ID within the template. */
+  id: string;
+  /** Human-readable step name shown in HUD. */
+  name: string;
+  /** Optional description of what this step accomplishes. */
+  description?: string;
+} & (
+  | { kind: "actions"; actions: WorkflowAction[] }
+  | { kind: "decision"; decision: WorkflowDecision }
+  | { kind: "brain"; prompt: string; saveAs?: string }
+  | { kind: "parallel"; actions: WorkflowAction[] }
+);
+
+/** A workflow template is a reusable, named sequence of steps. */
+export interface WorkflowTemplate {
+  /** Unique template identifier (e.g. "project-build", "deploy"). */
+  id: string;
+  /** Human-readable name. */
+  name: string;
+  /** When should this template be auto-triggered? */
+  triggers: WorkflowTrigger[];
+  /** Variable slots the user must provide (or that are extracted from context). */
+  variables?: WorkflowVariable[];
+  /** Ordered steps. */
+  steps: WorkflowStepDef[];
+  /** Estimated duration in seconds (for HUD display). */
+  estimatedDurationSec?: number;
+}
+
+/** What activates a workflow template. */
+export interface WorkflowTrigger {
+  /** Keyword/phrase matching (case-insensitive substring match). */
+  keywords?: string[];
+  /** Intent classification from IntentClassifier. */
+  intentTypes?: string[];
+  /** MessageCategory from ModelRouter. */
+  categories?: string[];
+}
+
+/** A variable slot in a workflow template. */
+export interface WorkflowVariable {
+  name: string;
+  description: string;
+  required: boolean;
+  /** Default value if not provided. */
+  default?: string;
+  /** Prompt shown to user to collect the value (if required and missing). */
+  prompt?: string;
+}
+
+// ─── Workflow Instance (a running execution of a template) ───────────────────
+
+export type WorkflowStepStatus = "pending" | "running" | "waiting_brain" | "completed" | "skipped" | "failed";
+export type WorkflowStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
+
+/** Runtime state of a single step. */
+export interface WorkflowStepState {
+  stepId: string;
+  name: string;
+  status: WorkflowStepStatus;
+  startedAt?: number;
+  completedAt?: number;
+  /** Actions executed and their results. */
+  actionResults?: Array<{ action: string; ok: boolean; durationMs: number; truncated?: string }>;
+  /** If decision step, which branch was chosen. */
+  chosenBranch?: string;
+  /** If brain step, the brain's response. */
+  brainResponse?: string;
+  /** Error message if failed. */
+  error?: string;
+}
+
+/** Runtime state of a running workflow. */
+export interface WorkflowInstance {
+  /** Unique instance ID. */
+  id: string;
+  /** Which template this runs. */
+  templateId: string;
+  templateName: string;
+  status: WorkflowStatus;
+  /** Resolved variable values. */
+  variables: Record<string, string>;
+  /** Step states in order. */
+  steps: WorkflowStepState[];
+  /** Current step index (0-based). */
+  currentStepIndex: number;
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  /** The original user message that triggered this workflow. */
+  triggerMessage: string;
+  /** Accumulated results text (injected into conversation context). */
+  summary: string;
+}
+
+// ─── Workflow Engine (the orchestrator) ─────────────────────────────────────
+
+export interface WorkflowEngineConfig {
+  /** Directory containing workflow template definitions (JSON files). */
+  templatesDir?: string;
+  /** Maximum concurrent workflows. */
+  maxConcurrent?: number;
+  /** Timeout per step in ms (default: 120000). */
+  stepTimeoutMs?: number;
+  /** Timeout per entire workflow in ms (default: 600000 = 10min). */
+  workflowTimeoutMs?: number;
+}
+
+export interface WorkflowMatchResult {
+  template: WorkflowTemplate;
+  variables: Record<string, string>;
+  confidence: number;
+}
+
+// ─── HUD extensions for workflow progress ───────────────────────────────────
+
+export type WorkflowHudChannel =
+  | "workflow_started"
+  | "workflow_step_update"
+  | "workflow_completed"
+  | "workflow_failed"
+  | "workflow_cancelled";
+
+// We extend HudChannel to include workflow channels
+export type WorkflowHudPayloads = {
+  workflow_started: {
+    workflowId: string;
+    templateId: string;
+    templateName: string;
+    totalSteps: number;
+    estimatedDurationSec?: number;
+    triggerMessage: string;
+  };
+  workflow_step_update: {
+    workflowId: string;
+    stepIndex: number;
+    stepName: string;
+    stepStatus: WorkflowStepStatus;
+    totalSteps: number;
+    detail?: string;
+    percent?: number;
+  };
+  workflow_completed: {
+    workflowId: string;
+    templateName: string;
+    durationMs: number;
+    stepsCompleted: number;
+    stepsTotal: number;
+    summary: string;
+  };
+  workflow_failed: {
+    workflowId: string;
+    templateName: string;
+    stepName: string;
+    error: string;
+    stepsCompleted: number;
+    stepsTotal: number;
+  };
+  workflow_cancelled: {
+    workflowId: string;
+    templateName: string;
+    stepsCompleted: number;
+    stepsTotal: number;
+  };
+};

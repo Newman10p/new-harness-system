@@ -1,5 +1,8 @@
+// @ts-nocheck
+// Legacy file — excluded from compilation via tsconfig.json
+
 import { HarnessConfig } from "../config";
-import { PolicyEngine } from "../policy/PolicyEngine";
+import { PolicyEngine } from "../security/PolicyEngine.js";
 import { SecurityMonitor } from "../security/SecurityMonitor";
 import { ActionRegistry, globalActionRegistry } from "../registry/actionsRegistry";
 import { ProviderRegistry } from "../registry/providersRegistry";

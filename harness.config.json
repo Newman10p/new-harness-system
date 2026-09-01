@@ -17,7 +17,7 @@
       "backend": "piper",
       "enabled": true,
       "piper": {
-        "model": "/home/deadman/piper-models/en_US-lessac-medium.onnx"
+        "model": "__ENV:PIPER_MODEL_PATH__"
       }
     }
   },
@@ -46,7 +46,7 @@
         "port": 993,
         "smtpHost": "smtp.gmail.com",
         "smtpPort": 465,
-        "username": "bulega.farid@lightacademy.ac.ug",
+        "username": "__ENV:GMAIL_USERNAME__",
         "password": "__ENV:GMAIL_PASSWORD__",
         "tls": true
       }

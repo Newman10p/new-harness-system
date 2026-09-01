@@ -65,6 +65,7 @@ import { planToolExecution } from "./ToolExecutionPlanner.js";
 import { formatToolResult } from "./ToolResultTruncator.js";
 import { getLogger, setGlobalSession } from "./MaiLogger.js";
 import { ModelRouter, type RoutingDecision } from "./ModelRouter.js";
+import { WorkflowEngine, type BrainQueryFn } from "./WorkflowEngine.js";
 
 // Module-level logger (Hermes pattern: one per file)
 const log = getLogger("AgentLoop");
@@ -156,6 +157,7 @@ export class AgentLoop {
   private audit: (entry: AuditEntry) => Promise<void> = async () => {};
   private useFallback: boolean;
   private modelRouter: ModelRouter; // Multi-model router
+  private workflowEngine: WorkflowEngine | null = null; // Orchestrated workflow engine
   private interactionCount = 0;
   private sessionStart = Date.now();
   private recentErrors = 0;
@@ -319,6 +321,41 @@ export class AgentLoop {
       } catch { /* non-fatal */ }
     }
 
+    // ── Orchestrated Workflow Check ──
+    // Before entering the normal AgentLoop, check if a workflow template
+    // matches the user's intent. If so, run the workflow and inject results.
+    if (this.workflowEngine) {
+      const match = this.workflowEngine.matchWorkflow(input, intent?.type);
+      if (match) {
+        log.info("Workflow matched", { data: { template: match.template.id, confidence: match.confidence } });
+
+        this.hudEmitter("interim_message", { type: "tool_call", detail: `Starting workflow: ${match.template.name}` });
+
+        try {
+          const workflowSummary = await this.workflowEngine.executeWorkflow(match, input);
+
+          // Inject workflow results into the conversation
+          this.state.messages.push({ role: "user", content: input });
+          this.state.messages.push({ role: "assistant", content: workflowSummary });
+
+          this.hudEmitter("jarvis_speech", { text: workflowSummary });
+          this.callbacks.onText?.(workflowSummary);
+          this.callbacks.onLoopEnd?.(0, "workflow completed");
+
+          // If the workflow wants the brain to elaborate, continue to normal loop
+          // Otherwise we're done — the workflow handled it completely
+          this.state.isRunning = false;
+          this.state.lastActivityAt = Date.now();
+          this.scheduleSessionSave();
+          return;
+        } catch (err) {
+          // Workflow failed — the executeWorkflow method already returns a fallback
+          // message, but if it throws, we fall through to normal AgentLoop
+          log.warn("Workflow execution threw — falling back to normal loop", { error: err });
+        }
+      }
+    }
+
     // Build user message — keep it clean (context goes in volatile tier now)
     const userContent = intent
       ? `[Intent: ${intent.type}, Urgency: ${intent.urgency}]\n\n${input}`
@@ -452,6 +489,45 @@ export class AgentLoop {
   getProviderInfo(): { count: number; names: string[] } {
     return { count: this.clients.length, names: this.clients.map((c) => c.name) };
   }
+
+  /** Wire in the workflow engine (called from server.ts after initialization). */
+  setWorkflowEngine(engine: WorkflowEngine): void {
+    this.workflowEngine = engine;
+
+    // Wire the engine's dependencies
+    engine.setHudEmitter(this.hudEmitter);
+    engine.setAudit(this.audit);
+    engine.setInboxAppender(this.inboxAppender);
+
+    // Wire the brain query function — lets the engine ask the brain model questions
+    const brainQuery: BrainQueryFn = async (messages) => {
+      if (this.useFallback) {
+        const result = await callWithFallback(this.clients, messages);
+        return result.content;
+      }
+      const client = this.clients[0];
+      if (!client) return "[No LLM client available]";
+      const result = await callWithFallback(this.clients, messages);
+      return result.content;
+    };
+    engine.setBrainQuery(brainQuery);
+
+    // Wire the action executor — lets the engine invoke primitives through the registry
+    const actionCtx: ActionContext = {
+      emitHud: this.hudEmitter,
+      appendInbox: this.inboxAppender,
+      audit: this.audit,
+      llm: this.clients[0]?.client,
+      model: this.primaryModel,
+      state: this.state,
+    };
+    engine.setActionExecutor((action, ctx) => this.registry.execute(action, ctx));
+
+    log.info("Workflow engine wired to AgentLoop");
+  }
+
+  /** Get the workflow engine instance. */
+  getWorkflowEngine(): WorkflowEngine | null { return this.workflowEngine; }
 
   /** Export session for persistence. */
   exportSession(): object {

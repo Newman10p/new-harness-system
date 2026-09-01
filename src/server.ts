@@ -18,6 +18,7 @@ import { PolicyEngine } from "./security/PolicyEngine.js";
 import { ActionRegistry, setTaskRunner } from "./actions/index.js";
 import { HudServer } from "./ui/HudServer.js";
 import { initAuditLog, readAuditLog } from "./core/AuditLogger.js";
+import { initWorkflowEngine } from "./core/WorkflowEngine.js";
 import { createRequire } from "node:module";
 import {
   INBOX_PATH,
@@ -188,6 +189,13 @@ async function main() {
   } else {
     console.log(`[Session] Fresh session ${loop.getState().sessionId}`);
   }
+  console.log();
+
+  // 6c. Initialize workflow engine (orchestrated autonomy)
+  const workflowEngine = initWorkflowEngine({ templatesDir: WORKFLOWS_DIR });
+  const templateCount = await workflowEngine.loadTemplates();
+  loop.setWorkflowEngine(workflowEngine);
+  console.log(`[Workflows] ${templateCount} templates loaded (${workflowEngine.listTemplates().map(t => t.id).join(", ")})`);
   console.log();
 
   // 6. Wire scheduled task runner
@@ -403,6 +411,48 @@ async function main() {
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, overall, subsystems, budget: budgetStat }));
+      return;
+    }
+
+    // GET /api/workflows — list workflow templates and active workflows
+    if (req.method === "GET" && req.url === "/api/workflows") {
+      const wfEngine = loop.getWorkflowEngine();
+      if (!wfEngine) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, templates: [], active: [], stats: null }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        ok: true,
+        templates: wfEngine.listTemplates().map(t => ({ id: t.id, name: t.name, steps: t.steps.length })),
+        active: wfEngine.getActiveWorkflows(),
+        stats: wfEngine.getStats(),
+      }));
+      return;
+    }
+
+    // POST /api/workflows/cancel — cancel a running workflow
+    if (req.method === "POST" && req.url === "/api/workflows/cancel") {
+      let body = "";
+      req.on("data", (chunk) => { body += chunk; });
+      req.on("end", () => {
+        try {
+          const { workflowId } = JSON.parse(body);
+          const wfEngine = loop.getWorkflowEngine();
+          if (!wfEngine || !workflowId) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: "No workflow engine or missing workflowId" }));
+            return;
+          }
+          const cancelled = wfEngine.cancelWorkflow(workflowId);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, cancelled }));
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Invalid JSON" }));
+        }
+      });
       return;
     }
 
