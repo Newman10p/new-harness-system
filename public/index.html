@@ -2,3659 +2,502 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>M.A.I. — Agentic Interface v3.0</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    /* ═══════════════════════════════════════════════════════════════════════
-       ROOT VARIABLES & BASE
-    ═══════════════════════════════════════════════════════════════════════ */
-    :root {
-      --bg: #020817;
-      --primary: #00d4ff;
-      --secondary: #00ffcc;
-      --text: #c8f0ff;
-      --dim: #5a7d99;
-      --danger: #ff3366;
-      --warning: #ffaa00;
-      --success: #00ff88;
-      --glass-bg: rgba(2, 15, 35, 0.55);
-      --glass-border: rgba(0, 212, 255, 0.18);
-      --glass-blur: 18px;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Rajdhani, sans-serif;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       SCANLINE CRT OVERLAY
-    ═══════════════════════════════════════════════════════════════════════ */
-    #scanlines {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 9999;
-      background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.03) 0px,
-        rgba(0, 0, 0, 0.03) 1px,
-        transparent 1px,
-        transparent 3px
-      );
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       THREE.JS CANVAS — Behind everything
-    ═══════════════════════════════════════════════════════════════════════ */
-    #globe-canvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 0;
-      opacity: 0.45;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       PARTICLE SYSTEM
-    ═══════════════════════════════════════════════════════════════════════ */
-    #particles {
-      position: fixed;
-      inset: 0;
-      z-index: 1;
-      pointer-events: none;
-      overflow: hidden;
-    }
-
-    .particle {
-      position: absolute;
-      bottom: -10px;
-      width: 3px;
-      height: 3px;
-      border-radius: 50%;
-      background: var(--primary);
-      box-shadow: 0 0 6px var(--primary), 0 0 12px rgba(0, 212, 255, 0.3);
-      opacity: 0;
-      animation: floatUp linear infinite;
-    }
-
-    @keyframes floatUp {
-      0% { opacity: 0; transform: translateY(0) translateX(0); }
-      10% { opacity: 0.8; }
-      90% { opacity: 0.3; }
-      100% { opacity: 0; transform: translateY(-105vh) translateX(var(--drift, 30px)); }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       GRID BACKGROUND
-    ═══════════════════════════════════════════════════════════════════════ */
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      opacity: .12;
-      background-image:
-        linear-gradient(rgba(0,212,255,.12) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,212,255,.12) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: radial-gradient(circle, black, transparent 80%);
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       TYPOGRAPHY
-    ═══════════════════════════════════════════════════════════════════════ */
-    .display { font-family: Orbitron, sans-serif; }
-    .mono { font-family: "JetBrains Mono", monospace; }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       GLASSMORPHISM PANELS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .glass {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
-      box-shadow:
-        inset 0 0 30px rgba(0, 212, 255, .03),
-        0 0 40px rgba(0, 0, 0, .5),
-        0 8px 32px rgba(0, 0, 0, .3);
-      transition: transform 0.15s ease-out, box-shadow 0.3s ease;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       HOLOGRAPHIC RAINBOW EDGE ON HOVER
-    ═══════════════════════════════════════════════════════════════════════ */
-    .holo-edge {
-      position: relative;
-      overflow: hidden;
-    }
-    .holo-edge::before {
-      content: "";
-      position: absolute;
-      inset: -2px;
-      z-index: -1;
-      border-radius: inherit;
-      background: linear-gradient(
-        135deg,
-        rgba(0, 212, 255, 0.0) 0%,
-        rgba(0, 212, 255, 0.0) 35%,
-        rgba(0, 255, 204, 0.5) 42%,
-        rgba(0, 212, 255, 0.7) 50%,
-        rgba(138, 43, 226, 0.5) 58%,
-        rgba(0, 212, 255, 0.0) 65%,
-        rgba(0, 212, 255, 0.0) 100%
-      );
-      background-size: 300% 300%;
-      opacity: 0;
-      transition: opacity 0.4s ease, background-position 0.4s ease;
-    }
-    .holo-edge:hover::before {
-      opacity: 1;
-      background-position: 100% 100%;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       GLOW EFFECTS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .glow {
-      text-shadow: 0 0 8px currentColor, 0 0 20px rgba(0,212,255,.45);
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       CORE REACTOR
-    ═══════════════════════════════════════════════════════════════════════ */
-    .core-wrapper {
-      position: relative;
-      width: min(40vw, 300px);
-      height: min(40vw, 300px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .core-ring {
-      position: absolute;
-      border-radius: 50%;
-      border: 1px solid rgba(0, 212, 255, 0.35);
-      animation: pulseRing 3s ease-in-out infinite;
-    }
-    .core-ring-1 { inset: 0; }
-    .core-ring-2 { inset: 8%; border-color: rgba(0, 255, 204, 0.2); animation-delay: -0.5s; }
-    .core-ring-3 { inset: 16%; border-color: rgba(0, 212, 255, 0.12); animation-delay: -1s; }
-
-    .core {
-      width: 58%;
-      height: 58%;
-      border-radius: 50%;
-      border: 1px solid rgba(0,212,255,.55);
-      box-shadow:
-        0 0 30px rgba(0,212,255,.5),
-        0 0 60px rgba(0,212,255,.2),
-        inset 0 0 40px rgba(0,255,204,.35);
-      animation: corePulse 2.8s ease-in-out infinite;
-      position: relative;
-      z-index: 2;
-    }
-
-    .core::after {
-      content: "";
-      display: block;
-      width: 30%;
-      height: 30%;
-      margin: 35%;
-      border-radius: 50%;
-      background: white;
-      box-shadow: 0 0 25px 12px var(--secondary), 0 0 60px 20px rgba(0, 255, 204, 0.3);
-    }
-
-    .core.speaking {
-      animation-duration: .75s;
-      box-shadow:
-        0 0 60px rgba(0,255,204,.85),
-        0 0 120px rgba(0,255,204,.3),
-        inset 0 0 50px rgba(0,255,204,.55);
-    }
-
-    .core.thinking {
-      animation-duration: 1.2s;
-      border-color: rgba(0,150,255,.7);
-      box-shadow:
-        0 0 40px rgba(0,150,255,.6),
-        0 0 80px rgba(0,150,255,.2),
-        inset 0 0 40px rgba(0,150,255,.3);
-    }
-
-    .core.call-active {
-      animation-duration: 0.6s;
-      border-color: rgba(255, 51, 102, 0.6);
-      box-shadow:
-        0 0 50px rgba(255, 51, 102, 0.5),
-        0 0 100px rgba(255, 51, 102, 0.2),
-        inset 0 0 40px rgba(255, 51, 102, 0.25);
-    }
-
-    .core.error {
-      animation-duration: 0.5s;
-      border-color: rgba(255, 51, 102, 0.8);
-      box-shadow:
-        0 0 40px rgba(255, 51, 102, 0.7),
-        inset 0 0 30px rgba(255, 51, 102, 0.4);
-    }
-
-    @keyframes corePulse {
-      0%, 100% { transform: scale(.93); opacity: .75; }
-      50% { transform: scale(1); opacity: 1; }
-    }
-
-    @keyframes pulseRing {
-      0%, 100% { transform: scale(.96); opacity: .4; }
-      50% { transform: scale(1.04); opacity: .8; }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       CONNECTION STATUS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .conn-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      transition: background .3s, box-shadow .3s;
-    }
-    .conn-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
-    .conn-dot.disconnected { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
-    .conn-dot.connecting { background: var(--warning); animation: blink 1s infinite; }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: .3; }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       MIC & CALL BUTTONS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .mic.active,
-    .voice-recording {
-      border-color: var(--danger) !important;
-      background: rgba(255,51,102,.2) !important;
-      box-shadow: 0 0 25px rgba(255,51,102,.6);
-    }
-    .voice-error {
-      border-color: #f59e0b !important;
-      background: rgba(245,158,11,.15) !important;
-      box-shadow: 0 0 15px rgba(245,158,11,.4);
-    }
-    .voice-loading {
-      opacity: .7;
-    }
-
-    .call-btn.active {
-      border-color: var(--danger) !important;
-      background: rgba(255,51,102,.25) !important;
-      box-shadow: 0 0 25px rgba(255,51,102,.6);
-      animation: callPulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes callPulse {
-      0%, 100% { box-shadow: 0 0 15px rgba(255,51,102,.4); }
-      50% { box-shadow: 0 0 35px rgba(255,51,102,.8); }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       METRIC BARS & SPARKLINES
-    ═══════════════════════════════════════════════════════════════════════ */
-    .metric-bar {
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(0,212,255,.12);
-      overflow: hidden;
-    }
-    .metric-bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      transition: width .5s ease, background .5s ease;
-      background: var(--success);
-    }
-    .metric-bar-fill.warn { background: var(--warning); }
-    .metric-bar-fill.critical { background: var(--danger); }
-
-    .sparkline {
-      width: 100%;
-      height: 24px;
-      display: block;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       LOG SCROLLBAR
-    ═══════════════════════════════════════════════════════════════════════ */
-    .log {
-      scrollbar-width: thin;
-      scrollbar-color: rgba(0,212,255,.4) transparent;
-    }
-    .log::-webkit-scrollbar { width: 4px; }
-    .log::-webkit-scrollbar-track { background: transparent; }
-    .log::-webkit-scrollbar-thumb { background: rgba(0,212,255,.4); border-radius: 2px; }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       COMMAND INPUT
-    ═══════════════════════════════════════════════════════════════════════ */
-    .command-input {
-      width: 100%;
-      outline: none;
-      border: 0;
-      color: var(--text);
-      background: transparent;
-      font: 14px "JetBrains Mono", monospace;
-    }
-    .command-input::placeholder { color: var(--dim); }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       APPROVAL BANNER
-    ═══════════════════════════════════════════════════════════════════════ */
-    .approval-banner {
-      display: none;
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
-      animation: slideUp .3s ease-out;
-    }
-    '.approval-banner.visible { display: flex; }
-
-  .context-meter {
-    height: 3px;
-    background: rgba(0,255,255,0.08);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 4px;
-  }
-  .context-meter-fill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.5s ease, background-color 0.5s ease;
-  }
-  .context-meter-label {
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    margin-top: 2px;
-    opacity: 0.5;
-  }
-
-  .promotion-banner {
-    display: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 60;
-    flex-direction: column;
-    align-items: stretch;
-    max-width: 520px;
-    width: 90vw;
-    gap: 12px;
-    animation: fadeIn 0.3s ease;
-  }
-  .promotion-banner.visible { display: flex; }
-  .promotion-file-list {
-    max-height: 180px;
-    overflow-y: auto;
-    font-size: 10px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0,255,255,0.3) transparent;
-  }
-  .promotion-file-list::-webkit-scrollbar { width: 4px; }
-  .promotion-file-list::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.3); border-radius: 2px; }
-  .promotion-file-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 3px 0;
-    border-bottom: 1px solid rgba(0,255,255,0.08);
-  }
-  .promotion-file-item:last-child { border-bottom: none; }
-  .file-change-created { color: #34d399; }
-  .file-change-modified { color: #fbbf24; }
-  .file-change-deleted { color: #f87171; }
-
-    @keyframes slideUp {
-      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
-      to { transform: translateX(-50%) translateY(0); opacity: 1; }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       THREAT LEVEL COLORS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .threat-green { color: var(--success); }
-    .threat-yellow { color: var(--warning); }
-    .threat-orange { color: #ff6600; }
-    .threat-red { color: var(--danger); }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       WAVEFORM VISUALIZER
-    ═══════════════════════════════════════════════════════════════════════ */
-    #waveformCanvas {
-      width: 100%;
-      height: 60px;
-      border-radius: 6px;
-      border: 1px solid rgba(0, 212, 255, 0.15);
-      background: rgba(0, 10, 25, 0.5);
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       FILE MANAGER
-    ═══════════════════════════════════════════════════════════════════════ */
-    .file-list {
-      scrollbar-width: thin;
-      scrollbar-color: rgba(0,212,255,.3) transparent;
-    }
-    .file-list::-webkit-scrollbar { width: 3px; }
-    .file-list::-webkit-scrollbar-track { background: transparent; }
-    .file-list::-webkit-scrollbar-thumb { background: rgba(0,212,255,.3); border-radius: 2px; }
-
-    .file-item {
-      padding: 6px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-    }
-    .file-item:hover {
-      background: rgba(0, 212, 255, 0.08);
-      box-shadow: inset 0 0 12px rgba(0, 212, 255, 0.05);
-    }
-
-    .file-color-md { color: #00ffcc; }
-    .file-color-ts { color: #3b82f6; }
-    .file-color-js { color: #eab308; }
-    .file-color-json { color: #f59e0b; }
-    .file-color-py { color: #10b981; }
-    .file-color-html { color: #f97316; }
-    .file-color-css { color: #8b5cf6; }
-    .file-color-default { color: var(--dim); }
-    .file-color-folder { color: var(--primary); }
-    .file-color-img { color: #ec4899; }
-    .file-color-lock { color: #ef4444; }
-    .file-color-git { color: #6b7280; }
-    .file-color-yml { color: #a78bfa; }
-    .file-color-toml { color: #7c3aed; }
-    .file-color-prisma { color: #0ea5e9; }
-    .file-color-sql { color: #06b6d4; }
-    .file-color-sh { color: #22c55e; }
-    .file-color-docker { color: #0ea5e9; }
-    .file-color-env { color: #d4d4d4; }
-    .file-color-svg { color: #fb923c; }
-    .file-color-wasm { color: #7c3aed; }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       GPU GAUGE
-    ═══════════════════════════════════════════════════════════════════════ */
-    .temp-gauge {
-      width: 100%;
-      height: 6px;
-      border-radius: 3px;
-      background: linear-gradient(90deg, #00ff88 0%, #ffaa00 50%, #ff3366 100%);
-      position: relative;
-      overflow: visible;
-    }
-    .temp-gauge-indicator {
-      position: absolute;
-      top: -3px;
-      width: 12px; height: 12px;
-      border-radius: 50%;
-      background: white;
-      box-shadow: 0 0 8px rgba(255,255,255,0.6);
-      transform: translateX(-50%);
-      transition: left 0.5s ease;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       NETWORK ARROWS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .net-arrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-    }
-    .net-arrow-up { color: var(--success); }
-    .net-arrow-down { color: var(--primary); }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       CALL STATUS INDICATOR
-    ═══════════════════════════════════════════════════════════════════════ */
-    .call-status {
-      display: none;
-      align-items: center;
-      gap: 6px;
-    }
-    .call-status.visible {
-      display: flex;
-    }
-    .call-status-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--danger);
-      animation: blink 1s infinite;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       VOICE PERSONALITY SWITCHER
-    ═══════════════════════════════════════════════════════════════════════ */
-    .voice-switcher {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(0, 10, 25, 0.6);
-      border: 1px solid rgba(0, 212, 255, 0.2);
-      border-radius: 20px;
-      padding: 3px 4px;
-    }
-    .voice-option {
-      padding: 3px 10px;
-      border-radius: 16px;
-      font-family: Orbitron, sans-serif;
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      border: 1px solid transparent;
-      color: var(--dim);
-    }
-    .voice-option:hover {
-      color: var(--primary);
-      border-color: rgba(0, 212, 255, 0.3);
-    }
-    .voice-option.active {
-      color: var(--primary);
-      background: rgba(0, 212, 255, 0.12);
-      border-color: rgba(0, 212, 255, 0.5);
-      box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
-    }
-    .voice-option.active-jarvis {
-      color: #4da6ff;
-      background: rgba(77, 166, 255, 0.12);
-      border-color: rgba(77, 166, 255, 0.5);
-      box-shadow: 0 0 10px rgba(77, 166, 255, 0.2);
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       SECTION SEPARATOR
-    ═══════════════════════════════════════════════════════════════════════ */
-    .section-sep {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(0,212,255,0.2), transparent);
-      margin: 8px 0;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       FILE SEARCH
-    ═══════════════════════════════════════════════════════════════════════ */
-    .file-search {
-      width: 100%;
-      outline: none;
-      border: 1px solid rgba(0,212,255,0.15);
-      border-radius: 4px;
-      padding: 5px 8px;
-      background: rgba(0, 10, 25, 0.5);
-      color: var(--text);
-      font: 11px "JetBrains Mono", monospace;
-      transition: border-color 0.2s;
-    }
-    .file-search::placeholder { color: var(--dim); }
-    .file-search:focus { border-color: rgba(0,212,255,0.4); }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       BREADCRUMBS
-    ═══════════════════════════════════════════════════════════════════════ */
-    .breadcrumb {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      flex-wrap: wrap;
-    }
-    .breadcrumb-item {
-      color: var(--dim);
-      cursor: pointer;
-      transition: color 0.2s;
-    }
-    .breadcrumb-item:hover { color: var(--primary); }
-    .breadcrumb-item.active { color: var(--primary); }
-    .breadcrumb-sep { color: rgba(0,212,255,0.3); }
-
-    /* ═══════════════════════════════════════════════════════════════════════
-       RESPONSIVE
-    ═══════════════════════════════════════════════════════════════════════ */
-    /* ═══════════════════════════════════════════════════════════
-       RICH TEXT / MARKDOWN RENDERED OUTPUT
-    ═══════════════════════════════════════════════════════════ */
-    .rich-output {
-      scrollbar-width: thin;
-      scrollbar-color: rgba(0,212,255,.35) transparent;
-    }
-    .rich-output::-webkit-scrollbar { width: 4px; }
-    .rich-output::-webkit-scrollbar-track { background: transparent; }
-    .rich-output::-webkit-scrollbar-thumb { background: rgba(0,212,255,.35); border-radius: 2px; }
-
-    .chat-bubble {
-      padding: 10px 14px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      animation: fadeSlideIn .3s ease-out;
-      line-height: 1.6;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    .chat-bubble.ai {
-      background: rgba(0, 212, 255, 0.06);
-      border-left: 3px solid rgba(0, 212, 255, 0.35);
-    }
-    .chat-bubble.user {
-      background: rgba(255, 170, 0, 0.06);
-      border-left: 3px solid rgba(255, 170, 0, 0.35);
-    }
-    .chat-bubble.system {
-      background: rgba(255, 51, 102, 0.06);
-      border-left: 3px solid rgba(255, 51, 102, 0.25);
-      font-size: 11px;
-    }
-    .chat-bubble-label {
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      margin-bottom: 4px;
-      font-family: Orbitron, sans-serif;
-    }
-    .chat-bubble.ai .chat-bubble-label { color: var(--primary); }
-    .chat-bubble.user .chat-bubble-label { color: var(--warning); }
-    .chat-bubble.system .chat-bubble-label { color: var(--danger); }
-
-    /* Markdown rendered elements inside chat */
-    .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
-      font-family: Orbitron, sans-serif;
-      color: var(--primary);
-      margin: 12px 0 6px 0;
-      font-weight: 700;
-    }
-    .md h1 { font-size: 16px; }
-    .md h2 { font-size: 14px; }
-    .md h3 { font-size: 13px; }
-    .md h4, .md h5, .md h6 { font-size: 12px; }
-    .md p { margin: 4px 0; }
-    .md strong { color: var(--secondary); font-weight: 700; }
-    .md em { color: #a0d2ff; font-style: italic; }
-    .md del { color: var(--dim); text-decoration: line-through; }
-    .md code {
-      font-family: "JetBrains Mono", monospace;
-      background: rgba(0, 212, 255, 0.1);
-      border: 1px solid rgba(0, 212, 255, 0.15);
-      border-radius: 3px;
-      padding: 1px 5px;
-      font-size: 11px;
-      color: #00ffcc;
-    }
-    .md pre {
-      background: rgba(0, 5, 15, 0.7);
-      border: 1px solid rgba(0, 212, 255, 0.12);
-      border-radius: 6px;
-      padding: 10px 12px;
-      margin: 8px 0;
-      overflow-x: auto;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(0,212,255,.3) transparent;
-    }
-    .md pre code {
-      background: none;
-      border: none;
-      padding: 0;
-      font-size: 11px;
-      color: #c8f0ff;
-      line-height: 1.5;
-    }
-    .md ul, .md ol {
-      padding-left: 18px;
-      margin: 6px 0;
-    }
-    .md li { margin: 2px 0; }
-    .md li::marker { color: var(--primary); }
-    .md blockquote {
-      border-left: 3px solid rgba(0, 212, 255, 0.3);
-      padding-left: 10px;
-      margin: 6px 0;
-      color: var(--dim);
-    }
-    .md a {
-      color: var(--primary);
-      text-decoration: underline;
-      text-decoration-color: rgba(0,212,255,.3);
-      text-underline-offset: 2px;
-    }
-    .md a:hover { text-decoration-color: var(--primary); }
-    .md hr {
-      border: none;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(0,212,255,.25), transparent);
-      margin: 10px 0;
-    }
-    .md table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 8px 0;
-      font-size: 11px;
-    }
-    .md th, .md td {
-      border: 1px solid rgba(0,212,255,.15);
-      padding: 4px 8px;
-      text-align: left;
-    }
-    .md th {
-      background: rgba(0,212,255,.08);
-      font-family: Orbitron, sans-serif;
-      font-size: 10px;
-      color: var(--primary);
-    }
-
-    @keyframes fadeSlideIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       BACKGROUND ACTIVITIES PANEL
-    ═══════════════════════════════════════════════════════════ */
-    .bg-activity-panel {
-      max-height: 200px;
-      overflow-y: auto;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(0,212,255,.3) transparent;
-    }
-    .bg-activity-panel::-webkit-scrollbar { width: 3px; }
-    .bg-activity-panel::-webkit-scrollbar-thumb { background: rgba(0,212,255,.3); border-radius: 2px; }
-
-    .bg-activity-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 5px;
-      background: rgba(0, 10, 25, 0.4);
-      border: 1px solid rgba(0, 212, 255, 0.08);
-      margin-bottom: 6px;
-      animation: fadeSlideIn .25s ease-out;
-      transition: opacity .3s;
-    }
-    .bg-activity-item.completed,
-    .bg-activity-item.failed {
-      opacity: 0.5;
-    }
-    .bg-activity-icon {
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      font-size: 10px;
-      font-family: "JetBrains Mono", monospace;
-    }
-    .bg-activity-icon.running {
-      background: rgba(0, 212, 255, 0.15);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      color: var(--primary);
-      animation: spin 1.2s linear infinite;
-    }
-    .bg-activity-icon.queued {
-      background: rgba(255, 170, 0, 0.15);
-      border: 1px solid rgba(255, 170, 0, 0.3);
-      color: var(--warning);
-    }
-    .bg-activity-icon.completed {
-      background: rgba(0, 255, 136, 0.15);
-      border: 1px solid rgba(0, 255, 136, 0.3);
-      color: var(--success);
-    }
-    .bg-activity-icon.failed {
-      background: rgba(255, 51, 102, 0.15);
-      border: 1px solid rgba(255, 51, 102, 0.3);
-      color: var(--danger);
-    }
-    .bg-activity-icon.started {
-      background: rgba(0, 255, 204, 0.15);
-      border: 1px solid rgba(0, 255, 204, 0.3);
-      color: var(--secondary);
-    }
-    .bg-activity-name {
-      font-family: "JetBrains Mono", monospace;
-      font-size: 11px;
-      color: var(--text);
-      flex: 1;
-    }
-    .bg-activity-status {
-      font-size: 9px;
-      letter-spacing: 0.08em;
-      font-family: Orbitron, sans-serif;
-      flex-shrink: 0;
-    }
-    .bg-activity-status.running { color: var(--primary); }
-    .bg-activity-status.queued { color: var(--warning); }
-    .bg-activity-status.completed { color: var(--success); }
-    .bg-activity-status.failed { color: var(--danger); }
-    .bg-activity-status.started { color: var(--secondary); }
-    .bg-activity-detail {
-      font-size: 10px;
-      color: var(--dim);
-      width: 100%;
-      margin-top: 2px;
-    }
-    .bg-activity-progress {
-      width: 100%;
-      height: 3px;
-      background: rgba(0,212,255,.1);
-      border-radius: 2px;
-      margin-top: 4px;
-      overflow: hidden;
-    }
-    .bg-activity-progress-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--primary);
-      transition: width .4s ease;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @media (max-width: 768px) {
-      .core-wrapper {
-        width: min(55vw, 220px);
-        height: min(55vw, 220px);
-      }
-      .bg-activity-panel { max-height: 150px; }
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#020817">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MAI">
+  <meta name="description" content="M.A.I. — Multiple Array Intelligence">
+  <title>M.A.I. — Agentic Interface</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- ═══ THREE.JS GLOBE CANVAS ═══ -->
-  <canvas id="globe-canvas"></canvas>
+  <div id="app" class="app">
+    <!-- ─── Particles Background ────────────────────────────────────────── -->
+    <div id="particles" class="particles" aria-hidden="true"></div>
 
-  <!-- ═══ PARTICLE SYSTEM ═══ -->
-  <div id="particles"></div>
+    <!-- ─── Sidebar Overlay (mobile) ────────────────────────────────────── -->
+    <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
 
-  <!-- ═══ SCANLINE OVERLAY ═══ -->
-  <div id="scanlines"></div>
-
-  <!-- ═══ MAIN UI ═══ -->
-  <main id="mainUI" class="relative z-10 flex h-screen flex-col gap-3 p-3 md:p-4 lg:p-5">
-
-    <!-- ════════════════════════════════════════════════════════════════════
-         HEADER
-    ════════════════════════════════════════════════════════════════════ -->
-    <header class="glass rounded-lg flex items-center justify-between px-4 py-3">
-      <div class="flex items-center gap-3">
-        <div id="connDot" class="conn-dot disconnected"></div>
-        <span id="headerTitle" class="display text-xs font-bold tracking-[.25em] text-cyan-300 md:text-sm">M.A.I.//FRIDAY</span>
-        <span id="agentLabel" class="mono hidden text-xs text-cyan-600 md:inline">AGENTIC INTERFACE v3.0</span>
-        <!-- Voice Personality Switcher -->
-        <div class="voice-switcher ml-2">
-          <div id="voiceFriday" class="voice-option active" onclick="switchVoice('friday')">F.R.I.D.A.Y</div>
-          <div id="voiceJarvis" class="voice-option" onclick="switchVoice('jarvis')">J.A.R.V.I.S</div>
+    <!-- ─── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside id="sidebar" class="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <div class="brand-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="var(--accent)" stroke-width="1.5" opacity="0.5"/>
+              <circle cx="12" cy="12" r="6" stroke="var(--accent)" stroke-width="1" opacity="0.35"/>
+              <circle cx="12" cy="12" r="3" fill="var(--accent)" opacity="0.9"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-name">M.A.I.</span>
+            <span class="brand-sub" id="header-subtitle">Agentic AI</span>
+          </div>
         </div>
-        <!-- TTS Engine Switcher -->
-        <div class="voice-switcher ml-2" id="ttsSwitcher" style="display:none">
-          <div id="ttsBrowser" class="voice-option active" onclick="switchTts('browser')">BROWSER</div>
-          <div id="ttsPiper" class="voice-option" onclick="switchTts('piper')">PIPER</div>
+        <button id="sidebar-close" class="icon-btn sidebar-close-btn" aria-label="Close sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active" data-panel="chat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span>Chat</span>
+          <kbd class="sidebar-kbd">1</kbd>
+        </button>
+        <button class="sidebar-item" data-panel="hud">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span>HUD</span>
+          <kbd class="sidebar-kbd">2</kbd>
+        </button>
+        <button class="sidebar-item" data-panel="dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Dashboard</span>
+          <kbd class="sidebar-kbd">3</kbd>
+        </button>
+        <button class="sidebar-item" data-panel="files">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          <span>Files</span>
+          <kbd class="sidebar-kbd">4</kbd>
+        </button>
+      </nav>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-status">
+        <div class="sidebar-status-row" id="sidebar-conn">
+          <span class="spip disconnected"></span>
+          <span class="sval">Disconnected</span>
         </div>
-        <!-- Call Status -->
-        <div id="callStatus" class="call-status ml-3">
-          <div class="call-status-dot"></div>
-          <span class="display text-xs tracking-widest" style="color:var(--danger)">CALL ACTIVE</span>
+        <div class="sidebar-status-row" id="health-indicator" style="display:none">
+          <span class="spip green"></span>
+          <span class="sval">Healthy</span>
+        </div>
+        <div class="sidebar-status-row" id="tts-status" style="display:none">
+          <span class="spip green"></span>
+          <span class="sval">Browser TTS</span>
+        </div>
+        <div class="sidebar-status-row" id="voice-personality" style="display:none">
+          <span class="spip cyan"></span>
+          <span class="sval">Jarvis</span>
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <div class="hidden text-right sm:block">
-          <div id="dateDisplay" class="mono text-xs text-cyan-600"></div>
-          <div id="timeDisplay" class="display text-cyan-300 glow"></div>
-        </div>
+      <div class="sidebar-divider"></div>
 
-        <!-- File Manager Toggle -->
-        <button id="fileMgrBtn"
-          class="holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
-          aria-label="Toggle File Manager">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-          </svg>
-        </button>
-
-        <!-- Voice Call Button -->
-        <button id="callBtn"
-          class="call-btn holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
-          aria-label="Toggle Voice Call">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-          </svg>
-        </button>
-
-        <!-- Mic Button -->
-        <button id="micBtn"
-          class="mic holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
-          aria-label="Toggle voice input">
-          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/>
-            <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 0 0 2 0v-3.08A7 7 0 0 0 19 11Z"/>
-          </svg>
-        </button>
-
-        <!-- Settings Button -->
-        <button id="settingsBtn" onclick="openSettings()"
-          class="holo-edge glass flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 text-cyan-300 transition hover:text-cyan-200"
-          aria-label="Settings">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
+      <div class="sidebar-actions">
+        <button class="sidebar-item" data-action="settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          <span>Settings</span>
         </button>
       </div>
-    </header>
+    </aside>
 
-    <!-- ════════════════════════════════════════════════════════════════════
-         3-COLUMN GRID
-    ════════════════════════════════════════════════════════════════════ -->
-    <section class="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-12">
-
-      <!-- ════════════════════════════════════════════════════════════════
-           LEFT: ACTIVITY LOG
-      ════════════════════════════════════════════════════════════════ -->
-      <aside class="glass holo-edge order-2 flex min-h-0 flex-col rounded-lg p-4 md:order-1 md:col-span-3" data-parallax>
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="display text-xs tracking-widest text-cyan-400">ACTIVITY LOG</h2>
-          <span id="logLive" class="mono text-xs text-emerald-400">LIVE</span>
+    <!-- ─── Main Content ───────────────────────────────────────────────── -->
+    <div class="main-content">
+      <!-- Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="header-identity">
+            <h1 class="header-title display" id="header-title">M.A.I.</h1>
+            <span class="header-agent-label mono" id="agent-label">AGENTIC INTERFACE</span>
+          </div>
+          <!-- Voice Personality Switcher -->
+          <div class="voice-switcher" id="voice-switcher">
+            <div class="voice-option active" id="voice-friday" data-voice="friday">F.R.I.D.A.Y</div>
+            <div class="voice-option" id="voice-jarvis" data-voice="jarvis">J.A.R.V.I.S</div>
+          </div>
+          <!-- TTS Engine Switcher -->
+          <div class="voice-switcher" id="tts-switcher" style="display:none">
+            <div class="voice-option active" id="tts-browser" data-tts="browser">BROWSER</div>
+            <div class="voice-option" id="tts-piper" data-tts="piper">PIPER</div>
+            <div class="voice-option" id="tts-kokoro" data-tts="kokoro">KOKORO</div>
+          </div>
+          <!-- Call Status -->
+          <div class="call-status" id="call-status" style="display:none">
+            <div class="call-status-dot"></div>
+            <span class="display call-status-label">CALL ACTIVE</span>
+          </div>
+          <!-- Ambient Listening Indicator -->
+          <div class="ambient-indicator" id="ambient-indicator" style="display:none"></div>
         </div>
-        <div id="logContainer" class="log flex-1 space-y-1.5 overflow-y-auto mono text-xs pr-1"></div>
-      </aside>
 
-      <!-- ════════════════════════════════════════════════════════════════
-           CENTER: CORE DISPLAY + RICH CHAT + BACKGROUND ACTIVITIES
-      ════════════════════════════════════════════════════════════════ -->
-      <section class="relative order-1 flex min-h-0 flex-col md:order-2 md:col-span-5 lg:col-span-6">
+        <div class="header-center">
+          <!-- Action Progress Bar -->
+          <div id="action-progress-bar" class="action-progress-bar" style="display:none">
+            <div class="progress-fill" style="width:0%"></div>
+            <span class="progress-text">Working...</span>
+          </div>
+        </div>
 
-        <!-- Top Row: Core Reactor + Status -->
-        <div class="flex items-center justify-center gap-4 flex-shrink-0 py-2">
-          <div class="core-wrapper" style="width:min(28vw,160px);height:min(28vw,160px)">
+        <div class="header-right">
+          <div class="header-clock" id="header-clock">
+            <span class="clock-date mono" id="date-display"></span>
+            <span class="clock-time display glow" id="time-display"></span>
+          </div>
+          <button id="btn-search" class="icon-btn" aria-label="Search" title="Search (Ctrl+K)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <div class="header-voice-group">
+            <button id="btn-voice" class="icon-btn voice-btn" aria-label="Voice Input" title="Voice">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button id="btn-call" class="icon-btn call-btn" aria-label="Voice Call" title="Voice Call" style="display:none">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+            </button>
+          </div>
+          <button id="btn-settings" class="icon-btn" aria-label="Settings" title="Settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Search Bar -->
+      <div id="search-bar" class="search-bar hidden">
+        <div class="search-bar-inner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="search-input" type="text" placeholder="Search messages..." autocomplete="off">
+          <button id="search-clear" class="icon-btn small" aria-label="Clear search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="search-results" class="search-results"></div>
+      </div>
+
+      <!-- ═══ CHAT PANEL ═══ -->
+      <section id="panel-chat" class="panel-view">
+        <!-- Core Reactor (compact) -->
+        <div class="core-section">
+          <div class="core-wrapper-compact" id="core-wrapper">
             <div class="core-ring core-ring-1"></div>
             <div class="core-ring core-ring-2"></div>
             <div class="core-ring core-ring-3"></div>
             <div id="core" class="core"></div>
           </div>
-          <div class="text-center">
-            <div id="status" class="display mb-1 text-sm tracking-[.35em] text-cyan-300 glow">
-              CONNECTING...
+          <div class="core-status">
+            <div id="status-text" class="display status-text">CONNECTING...</div>
+            <div id="interim-text" class="mono interim-text"></div>
+          </div>
+          <!-- Context Meter -->
+          <div class="context-meter-wrap" id="context-meter-wrap" style="display:none">
+            <div class="context-meter"><div class="context-meter-fill" id="context-meter-fill" style="width:0%"></div></div>
+            <span class="context-meter-label" id="context-meter-label">0%</span>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <main id="message-area" class="message-area" role="log" aria-label="Chat messages" aria-live="polite">
+          <div id="message-list" class="message-list"></div>
+          <div id="typing-indicator" class="typing-indicator hidden">
+            <div class="typing-avatar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="3" fill="var(--accent)" opacity="0.9"/>
+              </svg>
             </div>
-            <div id="interimText" class="mono text-xs text-cyan-600/70 italic" style="min-height:16px"></div>
+            <div class="typing-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
           </div>
-        </div>
+          <div id="scroll-anchor"></div>
+        </main>
 
-        <!-- Rich Chat Output Area -->
-        <div id="chatContainer" class="rich-output flex-1 min-h-0 overflow-y-auto px-2 md:px-4 space-y-0">
-          <!-- Chat bubbles are dynamically added here -->
-        </div>
-
-        <!-- Background Activities Panel -->
-        <div id="bgPanelWrapper" class="flex-shrink-0" style="display:none">
-          <div class="flex items-center justify-between px-2 pt-2 pb-1">
-            <h3 class="display text-[10px] tracking-[.2em] text-cyan-500/70">BACKGROUND ACTIVITIES</h3>
-            <span id="bgCount" class="mono text-[10px] text-cyan-600">0</span>
+        <!-- Background Activities -->
+        <div id="bg-activities" class="bg-activities" style="display:none">
+          <div class="bg-activities-header">
+            <span class="display bg-activities-title">BACKGROUND ACTIVITIES</span>
+            <span class="mono bg-activities-count" id="bg-count">0</span>
           </div>
-          <div id="bgActivityPanel" class="bg-activity-panel px-2 pb-2"></div>
+          <div id="bg-activities-list" class="bg-activities-list"></div>
         </div>
 
         <!-- Waveform Visualizer (shown during call) -->
-        <div id="waveformWrapper" class="absolute bottom-16 w-64 opacity-0 transition-opacity duration-500" style="max-width:80%">
-          <canvas id="waveformCanvas"></canvas>
+        <div id="waveform-wrapper" class="waveform-wrapper" style="display:none">
+          <canvas id="waveform-canvas"></canvas>
         </div>
 
         <!-- Approval Banner -->
-        <div id="approvalBanner" class="approval-banner glass gap-3 rounded-lg px-4 py-3">
-          <div class="flex items-center gap-2">
-            <span class="display text-xs tracking-widest text-amber-400">APPROVAL REQUIRED</span>
-          </div>
-          <span id="approvalAction" class="mono text-xs text-cyan-400"></span>
-          <span id="approvalDetail" class="mono text-xs text-cyan-600" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-          <div class="flex gap-2">
-            <button id="approveBtn"
-              class="holo-edge rounded border border-emerald-400/50 px-3 py-1 display text-xs tracking-wider text-emerald-400 transition hover:bg-emerald-400/15">
-              APPROVE
-            </button>
-            <button id="denyBtn"
-              class="holo-edge rounded border border-red-400/50 px-3 py-1 display text-xs tracking-wider text-red-400 transition hover:bg-red-400/15">
-              DENY
-            </button>
+        <div id="approval-banner" class="approval-banner glass">
+          <span class="display approval-label">APPROVAL REQUIRED</span>
+          <span class="approval-detail" id="approval-detail"></span>
+          <div class="approval-actions">
+            <button id="approval-deny" class="btn btn-danger">Deny</button>
+            <button id="approval-approve" class="btn btn-success">Approve</button>
           </div>
         </div>
 
         <!-- Promotion Banner -->
-        <div id="promotionBanner" class="promotion-banner glass gap-3 rounded-lg px-5 py-4">
-          <div class="flex items-center justify-between">
-            <span class="display text-xs tracking-widest text-purple-400">SANDBOX PROMOTION</span>
-            <span id="promoSize" class="mono text-xs text-cyan-600"></span>
+        <div id="promotion-banner" class="promotion-banner glass" style="display:none">
+          <div class="promotion-header">
+            <span class="display promotion-label">FILE CHANGES READY</span>
+            <span class="mono promotion-count" id="promotion-count"></span>
           </div>
-          <div id="promoReason" class="mono text-xs text-cyan-300" style="display:none"></div>
-          <div class="flex items-center gap-2 mono text-xs">
-            <span class="text-cyan-500">Sandbox:</span>
-            <span id="promoSandboxDir" class="text-cyan-300" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-            <span class="text-purple-400 mx-1">→</span>
-            <span class="text-cyan-500">Target:</span>
-            <span id="promoTargetDir" class="text-emerald-300" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <div id="promotion-files" class="promotion-files"></div>
+          <div class="promotion-actions">
+            <button id="promotion-deny" class="btn btn-danger">Cancel</button>
+            <button id="promotion-approve" class="btn btn-success">Commit</button>
           </div>
-          <div id="promoFileList" class="promotion-file-list mono text-cyan-400 mt-1"></div>
-          <div class="flex gap-2 justify-end mt-1">
-            <button id="promoDenyBtn"
-              class="holo-edge rounded border border-red-400/50 px-3 py-1 display text-xs tracking-wider text-red-400 transition hover:bg-red-400/15">
-              CANCEL
-            </button>
-            <button id="promoApproveBtn"
-              class="holo-edge rounded border border-purple-400/50 px-4 py-1 display text-xs tracking-wider text-purple-300 transition hover:bg-purple-400/15">
-              APPLY TO REAL FS
+        </div>
+
+        <!-- File Preview -->
+        <div id="file-preview" class="file-preview hidden">
+          <div class="file-preview-inner">
+            <img id="preview-image" src="" alt="Preview" class="preview-image hidden">
+            <div class="file-preview-info">
+              <span id="preview-filename" class="preview-filename"></span>
+              <span id="preview-size" class="preview-size"></span>
+            </div>
+            <button id="preview-remove" class="icon-btn small" aria-label="Remove attachment">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
         </div>
 
-        <button id="wakeBtn"
-          class="holo-edge glass absolute bottom-3 rounded border border-cyan-400/40 px-5 py-2 display text-xs tracking-widest text-cyan-300 transition hover:bg-cyan-400/10">
-          ENGAGE FRIDAY
-        </button>
+        <!-- Input Area -->
+        <div class="input-area">
+          <div class="input-area-inner">
+            <button id="btn-attach" class="icon-btn" aria-label="Attach file" title="Attach">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <div class="input-wrapper">
+              <textarea id="message-input" placeholder="Message M.A.I...." rows="1" aria-label="Message input"></textarea>
+            </div>
+            <button id="btn-send" class="send-btn" aria-label="Send" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+          </div>
+        </div>
       </section>
 
-      <!-- ════════════════════════════════════════════════════════════════
-           RIGHT: SYSTEM METRICS + FILE MANAGER
-      ════════════════════════════════════════════════════════════════ -->
-      <aside class="glass holo-edge order-3 flex min-h-0 flex-col rounded-lg p-4 md:col-span-4 lg:col-span-3" data-parallax>
-
-        <!-- SYSTEM METRICS -->
-        <div>
-          <h2 class="display mb-3 text-xs tracking-widest text-cyan-400">SYSTEM METRICS</h2>
-          <!-- Context Occupancy Meter (DSH pattern) -->
-          <div class="context-meter">
-            <div id="contextMeterFill" class="context-meter-fill" style="width:0%;background:#22d3ee"></div>
+      <!-- ═══ HUD PANEL ═══ -->
+      <section id="panel-hud" class="panel-view hidden">
+        <div class="hud-grid">
+          <!-- CPU Card -->
+          <div class="glass hud-card holo-edge" data-parallax>
+            <div class="hud-card-header"><span class="display hud-card-label">CPU</span><span class="mono hud-card-value" id="hud-cpu">—</span></div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="hud-cpu-bar" style="width:0%"></div></div>
+            <svg id="spark-cpu" class="sparkline"></svg>
           </div>
-          <div class="flex justify-between">
-            <span class="context-meter-label display text-cyan-500">CONTEXT</span>
-            <span id="contextMeterLabel" class="context-meter-label display text-cyan-600">0%</span>
+          <!-- Memory Card -->
+          <div class="glass hud-card holo-edge" data-parallax>
+            <div class="hud-card-header"><span class="display hud-card-label">MEMORY</span><span class="mono hud-card-value" id="hud-mem">—</span></div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="hud-mem-bar" style="width:0%"></div></div>
+            <svg id="spark-mem" class="sparkline"></svg>
           </div>
-          <div class="space-y-3 text-xs">
-
-            <!-- CPU -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">CPU</span>
-                <span id="cpuVal" class="mono text-cyan-300">--</span>
-              </div>
-              <div class="metric-bar"><div id="cpuBar" class="metric-bar-fill" style="width:0%"></div></div>
-              <svg id="cpuSparkline" class="sparkline mt-1" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+          <!-- GPU Card -->
+          <div class="glass hud-card holo-edge" data-parallax>
+            <div class="hud-card-header"><span class="display hud-card-label">GPU</span><span class="mono hud-card-value" id="hud-gpu">—</span></div>
+            <div class="temp-gauge"><div class="temp-gauge-indicator" id="hud-gpu-temp" style="left:0%"></div></div>
+            <div class="hud-gpu-detail mono" id="hud-gpu-detail"></div>
+          </div>
+          <!-- Threat Level Card -->
+          <div class="glass hud-card holo-edge">
+            <div class="hud-card-header"><span class="display hud-card-label">THREAT LEVEL</span></div>
+            <div class="threat-display" id="hud-threat"><span class="display threat-text">—</span></div>
+          </div>
+          <!-- Network Card -->
+          <div class="glass hud-card holo-edge">
+            <div class="hud-card-header"><span class="display hud-card-label">NETWORK</span></div>
+            <div class="network-stats">
+              <div class="net-arrow net-arrow-up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span class="mono" id="net-up">—</span></div>
+              <div class="net-arrow net-arrow-down"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg><span class="mono" id="net-down">—</span></div>
             </div>
-
-            <!-- MEMORY -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">MEMORY</span>
-                <span id="memVal" class="mono text-cyan-300">--</span>
-              </div>
-              <div class="metric-bar"><div id="memBar" class="metric-bar-fill" style="width:0%"></div></div>
-              <svg id="memSparkline" class="sparkline mt-1" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
+          </div>
+          <!-- Router Status Card -->
+          <div class="glass hud-card holo-edge">
+            <div class="hud-card-header"><span class="display hud-card-label">ROUTER</span></div>
+            <div class="router-info" id="router-info"><span class="mono">—</span></div>
+          </div>
+          <!-- Activity Log Card -->
+          <div class="glass hud-card holo-edge hud-card-wide">
+            <div class="hud-card-header">
+              <span class="display hud-card-label">ACTIVITY LOG</span>
+              <span class="mono hud-live">LIVE</span>
             </div>
-
-            <!-- GPU TEMPERATURE -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">GPU TEMP</span>
-                <span id="gpuTempVal" class="mono text-cyan-300">--°C</span>
-              </div>
-              <div class="temp-gauge">
-                <div id="gpuTempIndicator" class="temp-gauge-indicator" style="left:0%"></div>
-              </div>
-              <div class="flex justify-between mt-0.5">
-                <span class="mono" style="font-size:9px;color:var(--success)">30°C</span>
-                <span id="gpuUtilVal" class="mono" style="font-size:9px;color:var(--dim)">Util: --</span>
-                <span class="mono" style="font-size:9px;color:var(--danger)">95°C</span>
-              </div>
-            </div>
-
-            <!-- NETWORK I/O -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">NETWORK I/O</span>
-              </div>
-              <div class="flex gap-3">
-                <div class="flex-1 flex items-center gap-1.5">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
-                  <span class="net-arrow net-arrow-up mono" id="netUpVal">↑ 0 B/s</span>
-                </div>
-                <div class="flex-1 flex items-center gap-1.5">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                  <span class="net-arrow net-arrow-down mono" id="netDownVal">↓ 0 B/s</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- DISK USAGE -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">DISK</span>
-                <span id="diskVal" class="mono text-cyan-300">--</span>
-              </div>
-              <div class="metric-bar"><div id="diskBar" class="metric-bar-fill" style="width:0%"></div></div>
-            </div>
-
-            <!-- THREAT -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">THREAT</span>
-                <span id="threat" class="threat-green">NOMINAL</span>
-              </div>
-            </div>
-
-            <!-- REACTOR -->
-            <div>
-              <div class="mb-1 flex justify-between items-center">
-                <span class="text-cyan-500">REACTOR</span>
-                <span id="reactorVal" class="mono text-cyan-300">--</span>
-              </div>
-              <div class="metric-bar"><div id="reactorBar" class="metric-bar-fill" style="width:100%"></div></div>
+            <div id="hud-log" class="hud-log"></div>
+          </div>
+          <!-- Reactor Pulse Card -->
+          <div class="glass hud-card holo-edge">
+            <div class="hud-card-header"><span class="display hud-card-label">REACTOR</span></div>
+            <div class="reactor-stats">
+              <div class="reactor-stat"><span class="mono reactor-stat-value" id="reactor-power">—</span><span class="reactor-stat-label">POWER</span></div>
+              <div class="reactor-stat"><span class="mono reactor-stat-value" id="reactor-status">—</span><span class="reactor-stat-label">STATUS</span></div>
             </div>
           </div>
         </div>
+      </section>
 
-        <div class="section-sep"></div>
-
-        <!-- QUICK COMMANDS -->
-        <div>
-          <h2 class="display mb-2 text-xs tracking-widest text-cyan-400">QUICK COMMANDS</h2>
-          <div id="suggestions" class="flex flex-wrap gap-1.5"></div>
+      <!-- ═══ DASHBOARD PANEL ═══ -->
+      <section id="panel-dashboard" class="panel-view hidden">
+        <div class="panel-header">
+          <h2 class="display">System Dashboard</h2>
+          <p class="panel-subtitle">Real-time system metrics and status</p>
         </div>
-
-        <div class="section-sep"></div>
-
-        <!-- ═══ FILE MANAGER ═══ -->
-        <div id="fileManagerSection" class="flex-1 flex flex-col min-h-0">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="display text-xs tracking-widest text-cyan-400">FILE MANAGER</h2>
-            <button id="fileMgrCollapseBtn" class="text-cyan-600 hover:text-cyan-300 transition" aria-label="Collapse file manager">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-              </svg>
-            </button>
-          </div>
-          <div id="fileManagerBody" class="flex-1 flex flex-col min-h-0 gap-2">
-            <!-- Search -->
-            <input id="fileSearch" class="file-search" placeholder="Search files..." type="text">
-            <!-- Breadcrumbs -->
-            <div id="fileBreadcrumbs" class="breadcrumb mono"></div>
-            <!-- File List -->
-            <div id="fileList" class="file-list flex-1 overflow-y-auto space-y-0.5 min-h-0"></div>
-          </div>
+        <div class="dashboard-grid">
+          <div class="dash-card glass holo-edge"><div class="dash-card-label">CPU Usage</div><div class="dash-card-value" id="dash-cpu">—</div><div class="dash-card-bar"><div class="dash-card-fill" id="dash-cpu-bar" style="width:0%"></div></div></div>
+          <div class="dash-card glass holo-edge"><div class="dash-card-label">Memory</div><div class="dash-card-value" id="dash-mem">—</div><div class="dash-card-bar"><div class="dash-card-fill" id="dash-mem-bar" style="width:0%"></div></div></div>
+          <div class="dash-card glass holo-edge"><div class="dash-card-label">Threat Level</div><div class="dash-card-value" id="dash-threat">—</div></div>
+          <div class="dash-card glass holo-edge"><div class="dash-card-label">Health</div><div class="dash-card-value" id="dash-health">—</div></div>
+          <div class="dash-card glass holo-edge dash-card-wide"><div class="dash-card-label">Active Connections</div><div class="dash-card-value" id="dash-conn">—</div></div>
+          <div class="dash-card glass holo-edge dash-card-wide"><div class="dash-card-label">Tunnel Status</div><div class="dash-card-value" id="dash-tunnel">—</div></div>
+          <div class="dash-card glass holo-edge dash-card-wide"><div class="dash-card-label">Analytics</div><div class="dash-card-value" id="dash-analytics">—</div></div>
         </div>
+      </section>
 
-      </aside>
-    </section>
+      <!-- ═══ FILES PANEL ═══ -->
+      <section id="panel-files" class="panel-view hidden">
+        <div class="panel-header">
+          <h2 class="display">Files</h2>
+          <p class="panel-subtitle">Workspace files on M.A.I.</p>
+        </div>
+        <div class="files-toolbar">
+          <div class="breadcrumb" id="file-breadcrumb"></div>
+          <input type="text" class="file-search" id="file-search" placeholder="Search files..." autocomplete="off">
+        </div>
+        <div id="files-list" class="files-list">
+          <div class="panel-empty">Connect to M.A.I. to browse files.</div>
+        </div>
+      </section>
+    </div>
 
-    <!-- ════════════════════════════════════════════════════════════════════
-         COMMAND FOOTER
-    ════════════════════════════════════════════════════════════════════ -->
-    <footer class="glass rounded-lg px-4 py-3">
-      <div class="flex items-center gap-3">
-        <span id="footerLabel" class="display text-sm tracking-widest text-cyan-400">FRIDAY<span class="text-cyan-600">&gt;</span></span>
-        <input id="commandInput" class="command-input flex-1"
-          placeholder="Type a command or use the microphone..."
-          autocomplete="off">
-        <button id="submitBtn"
-          class="holo-edge glass rounded border border-cyan-400/40 px-3 py-2 display text-xs tracking-widest text-cyan-300 transition hover:bg-cyan-400/10">
-          EXECUTE
-        </button>
+    <!-- ─── Command Palette ────────────────────────────────────────────── -->
+    <div id="cmd-palette" class="cmd-palette" aria-hidden="true" role="dialog">
+      <div class="cmd-palette-backdrop"></div>
+      <div class="cmd-palette-content">
+        <div class="cmd-palette-input-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="cmd-input" type="text" placeholder="Type a command..." autocomplete="off" aria-label="Command palette">
+        </div>
+        <div id="cmd-results" class="cmd-results"></div>
       </div>
-    </footer>
-  </main>
+    </div>
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-       JAVASCRIPT
-  ═══════════════════════════════════════════════════════════════════════ -->
-  <script>
-  (function() {
-    "use strict";
-
-    // ─── Utility ──────────────────────────────────────────────────────────
-    const $ = id => document.getElementById(id);
-
-    // ─── State ─────────────────────────────────────────────────────────────
-    const state = {
-      listening: false,
-      speaking: false,
-      callActive: false,
-      voice: null,
-      ws: null,
-      wsUrl: `ws://${window.location.hostname}:8080?token=__WS_TOKEN__`,
-      reconnectTimer: null,
-      reconnectAttempts: 0,
-      maxReconnectDelay: 15000,
-      // Sparkline data (last 30 points)
-      cpuHistory: [],
-      memHistory: [],
-      // System status for globe reactivity
-      systemStatus: "idle", // idle, active, error
-      reactorPower: 0,
-      // File manager
-      fileManagerOpen: true,
-      files: [],
-      currentPath: "/",
-      fileSearchQuery: "",
-      // Audio context for waveform
-      audioContext: null,
-      analyser: null,
-      mediaStream: null,
-      // Globe reference
-      globeRotationSpeed: 0.001,
-      globeMaterial: null,
-      globeLight: null,
-      // Chat bubbles
-      chatBubbles: [],
-      maxBubbles: 80,
-      // Background activities tracking
-      bgActivities: new Map(), // id -> { action, status, detail, progress, element }
-      // TTS engine state
-      ttsEngine: localStorage.getItem("mai-tts-engine") || "browser", // "browser" or "piper"
-      piperReady: false,
-      piperAudioContext: null,
-      // Voice state machine (Jarvis-UI pattern: 4 visual states)
-      voiceState: "ready", // loading | ready | error | recording
-    };
-
-    // Voice state icons mapping (Jarvis-UI pattern)
-    const VOICE_STATE_ICONS = {
-      loading: '<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>',
-      ready: '<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/><path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 0 0 2 0v-3.08A7 7 0 0 0 19 11Z"/></svg>',
-      error: '<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>',
-      recording: '<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
-    };
-
-    function updateVoiceState(newState) {
-      state.voiceState = newState;
-      const btn = $("micBtn");
-      btn.innerHTML = VOICE_STATE_ICONS[newState] || VOICE_STATE_ICONS.ready;
-      // Visual classes per state (Jarvis-UI pattern)
-      btn.classList.toggle("voice-loading", newState === "loading");
-      btn.classList.toggle("voice-error", newState === "error");
-      btn.classList.toggle("voice-recording", newState === "recording");
-      // Recording: red border; Error: amber border
-      if (newState === "recording") {
-        btn.classList.add("border-red-400/60", "text-red-300");
-        btn.classList.remove("border-cyan-400/40", "text-cyan-300", "border-amber-400/60", "text-amber-300");
-      } else if (newState === "error") {
-        btn.classList.add("border-amber-400/60", "text-amber-300");
-        btn.classList.remove("border-cyan-400/40", "text-cyan-300", "border-red-400/60", "text-red-300");
-      } else {
-        btn.classList.add("border-cyan-400/40", "text-cyan-300");
-        btn.classList.remove("border-red-400/60", "text-red-300", "border-amber-400/60", "text-amber-300");
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  MARKDOWN → HTML RENDERER
-    // ═══════════════════════════════════════════════════════════════════════
-    function renderMarkdown(text) {
-      if (!text) return "";
-      let html = text;
-
-      // Fenced code blocks (```lang ... ```) — extract first to protect from inner processing
-      const codeBlocks = [];
-      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-        const idx = codeBlocks.length;
-        codeBlocks.push(`<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`);
-        return `%%CODEBLOCK_${idx}%%`;
-      });
-
-      // Tables
-      html = html.replace(/^(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)+)/gm, (_, header, sep, body) => {
-        const headers = header.split("|").filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join("");
-        const rows = body.trim().split("\n").map(row => {
-          const cols = row.split("|").filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join("");
-          return `<tr>${cols}</tr>`;
-        }).join("");
-        const align = sep.includes(":") ? (sep.includes(":-:") ? "center" : sep.includes("-:") ? "right" : "left") : "left";
-        return `<table style="text-align:${align}"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
-      });
-
-      // Headings
-      html = html.replace(/^######\s+(.+)/gm, '<h6>$1</h6>');
-      html = html.replace(/^#####\s+(.+)/gm, '<h5>$1</h5>');
-      html = html.replace(/^####\s+(.+)/gm, '<h4>$1</h4>');
-      html = html.replace(/^###\s+(.+)/gm, '<h3>$1</h3>');
-      html = html.replace(/^##\s+(.+)/gm, '<h2>$1</h2>');
-      html = html.replace(/^#\s+(.+)/gm, '<h1>$1</h1>');
-
-      // Horizontal rule
-      html = html.replace(/^---+$/gm, '<hr>');
-
-      // Blockquotes
-      html = html.replace(/^>\s+(.+)/gm, '<blockquote>$1</blockquote>');
-
-      // Bold + italic combo
-      html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
-      // Bold
-      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      // Italic
-      html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-      // Strikethrough
-      html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
-
-      // Inline code (backtick)
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-      // Links
-      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-
-      // Unordered lists
-      html = html.replace(/^[\s]*[-*+]\s+(.+)/gm, '<li>$1</li>');
-      html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-      // Ordered lists
-      html = html.replace(/^\d+\.\s+(.+)/gm, '<li>$1</li>');
-
-      // Paragraphs: wrap lines that are not already wrapped in block elements
-      html = html.replace(/^(?!<[a-z]|%%CODEBLOCK)(.*\S.*)$/gm, '<p>$1</p>');
-
-      // Clean up empty paragraphs
-      html = html.replace(/<p>\s*<\/p>/g, '');
-
-      // Collapse multiple newlines
-      html = html.replace(/\n{3,}/g, '\n\n');
-
-      // Restore code blocks
-      codeBlocks.forEach((block, idx) => {
-        html = html.replace(`%%CODEBLOCK_${idx}%%`, block);
-      });
-
-      return html;
-    }
-
-    function escapeHtml(str) {
-      return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  CHAT BUBBLE SYSTEM
-    // ═══════════════════════════════════════════════════════════════════════
-    function addChatBubble(type, text, label) {
-      const container = $("chatContainer");
-      const profile = getProfile();
-
-      const bubble = document.createElement("div");
-      bubble.className = `chat-bubble ${type}`;
-
-      const timeStr = new Date().toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      const labelText = label || (type === "ai" ? profile.logPrefix : type === "user" ? "YOU" : "SYS");
-
-      bubble.innerHTML = `
-        <div class="chat-bubble-label">${labelText} <span style="color:var(--dim);margin-left:6px">${timeStr}</span></div>
-        <div class="md mono text-xs leading-relaxed">${renderMarkdown(text)}</div>
-      `;
-
-      container.appendChild(bubble);
-      state.chatBubbles.push(bubble);
-
-      // Trim old bubbles
-      while (state.chatBubbles.length > state.maxBubbles) {
-        const old = state.chatBubbles.shift();
-        if (old && old.parentNode) old.parentNode.removeChild(old);
-      }
-
-      // Auto-scroll to bottom
-      container.scrollTop = container.scrollHeight;
-      return bubble;
-    }
-
-    function updateLastAIBubble(text) {
-      // Update the content of the last AI bubble (for streaming tokens)
-      const container = $("chatContainer");
-      const bubbles = container.querySelectorAll(".chat-bubble.ai");
-      if (bubbles.length === 0) return null;
-
-      const last = bubbles[bubbles.length - 1];
-      const contentDiv = last.querySelector(".md");
-      if (contentDiv) {
-        contentDiv.innerHTML = renderMarkdown(text);
-        container.scrollTop = container.scrollHeight;
-      }
-      return last;
-    }
-
-    function addChatStreamingPlaceholder() {
-      // Add an empty AI bubble for streaming content to fill into
-      const bubble = document.createElement("div");
-      bubble.className = "chat-bubble ai";
-      const timeStr = new Date().toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      bubble.innerHTML = `
-        <div class="chat-bubble-label">${getProfile().logPrefix} <span style="color:var(--dim);margin-left:6px">${timeStr}</span></div>
-        <div class="md mono text-xs leading-relaxed"></div>
-      `;
-      $("chatContainer").appendChild(bubble);
-      state.chatBubbles.push(bubble);
-      $("chatContainer").scrollTop = $("chatContainer").scrollHeight;
-      return bubble;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  BACKGROUND ACTIVITIES TRACKER
-    // ═══════════════════════════════════════════════════════════════════════
-    function updateBgActivity(id, action, status, detail, progress) {
-      const wrapper = $("bgPanelWrapper");
-      const panel = $("bgActivityPanel");
-      const countEl = $("bgCount");
-
-      wrapper.style.display = "block";
-
-      const icons = {
-        started: "&#9679;",
-        running: "&#9696;",
-        queued: "&#9671;",
-        completed: "&#10003;",
-        failed: "&#10007;"
-      };
-
-      let entry = state.bgActivities.get(id);
-      if (!entry) {
-        // Create new activity item
-        const el = document.createElement("div");
-        el.className = `bg-activity-item ${status}`;
-        el.innerHTML = `
-          <div class="bg-activity-icon ${status}">${icons[status] || icons.running}</div>
-          <div style="flex:1;min-width:0">
-            <div class="bg-activity-name">${action}</div>
-            <div class="bg-activity-detail">${detail || ""}</div>
-            <div class="bg-activity-progress" style="display:${progress !== undefined ? 'block' : 'none'}">
-              <div class="bg-activity-progress-fill" style="width:${progress || 0}%"></div>
+    <!-- ─── Settings Modal ─────────────────────────────────────────────── -->
+    <div id="settings-modal" class="modal-overlay" style="display:none">
+      <div class="modal-panel glass">
+        <div class="modal-header">
+          <h2 class="display">Settings</h2>
+          <button id="settings-close" class="icon-btn" aria-label="Close settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">General</button>
+          <button class="settings-tab" data-tab="voice">Voice</button>
+          <button class="settings-tab" data-tab="browser">Browser</button>
+          <button class="settings-tab" data-tab="email">Email</button>
+          <button class="settings-tab" data-tab="system">System</button>
+        </div>
+        <div class="settings-body">
+          <!-- General Tab -->
+          <div class="settings-content" data-tab="general">
+            <div class="setting-group">
+              <h3>Appearance</h3>
+              <div class="setting-item"><label for="setting-theme">Theme</label><select id="setting-theme"><option value="dark" selected>Dark</option><option value="light">Light</option></select></div>
+            </div>
+            <div class="setting-group">
+              <h3>Notifications</h3>
+              <div class="setting-item"><label for="setting-notifications">Push Notifications</label><input type="checkbox" id="setting-notifications" checked></div>
+              <div class="setting-item"><label for="setting-sound">Sound</label><input type="checkbox" id="setting-sound" checked></div>
+            </div>
+            <div class="setting-group">
+              <h3>Connection</h3>
+              <div class="setting-item"><label for="setting-ws-url">WebSocket URL</label><input type="text" id="setting-ws-url" value="ws://localhost:8080" placeholder="ws://host:port"></div>
+              <button id="btn-reconnect" class="settings-action-btn">Reconnect</button>
+            </div>
+            <div class="setting-group">
+              <h3>Data</h3>
+              <button id="btn-clear-history" class="settings-action-btn danger">Clear Chat History</button>
+              <p class="setting-hint">Stores last 500 messages locally</p>
             </div>
           </div>
-          <div class="bg-activity-status ${status}">${status.toUpperCase()}</div>
-        `;
-        panel.appendChild(el);
-        entry = { el, action };
-        state.bgActivities.set(id, entry);
-
-        // Auto-scroll panel
-        panel.scrollTop = panel.scrollHeight;
-      } else {
-        // Update existing item
-        entry.el.className = `bg-activity-item ${status}`;
-        const iconEl = entry.el.querySelector(".bg-activity-icon");
-        if (iconEl) {
-          iconEl.className = `bg-activity-icon ${status}`;
-          iconEl.innerHTML = icons[status] || icons.running;
-        }
-        const nameEl = entry.el.querySelector(".bg-activity-name");
-        if (nameEl && action) nameEl.textContent = action;
-        const detailEl = entry.el.querySelector(".bg-activity-detail");
-        if (detailEl) detailEl.textContent = detail || "";
-        const statusEl = entry.el.querySelector(".bg-activity-status");
-        if (statusEl) {
-          statusEl.className = `bg-activity-status ${status}`;
-          statusEl.textContent = status.toUpperCase();
-        }
-        if (progress !== undefined) {
-          const progressWrap = entry.el.querySelector(".bg-activity-progress");
-          const progressFill = entry.el.querySelector(".bg-activity-progress-fill");
-          if (progressWrap) progressWrap.style.display = "block";
-          if (progressFill) progressFill.style.width = progress + "%";
-        }
-      }
-
-      // Update count
-      countEl.textContent = state.bgActivities.size;
-
-      // Remove completed/failed items after a delay to keep panel clean
-      if (status === "completed" || status === "failed") {
-        setTimeout(() => {
-          if (entry.el && entry.el.parentNode) {
-            entry.el.parentNode.removeChild(entry.el);
-          }
-          state.bgActivities.delete(id);
-          countEl.textContent = state.bgActivities.size;
-          if (state.bgActivities.size === 0) {
-            wrapper.style.display = "none";
-          }
-        }, 5000);
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  THREE.JS 3D GLOBE
-    // ═══════════════════════════════════════════════════════════════════════
-    function initGlobe() {
-      const canvas = $("globe-canvas");
-      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.z = 4.5;
-
-      // Globe wireframe
-      const geometry = new THREE.SphereGeometry(1.5, 32, 24);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0x00d4ff,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.15,
-      });
-      state.globeMaterial = material;
-      const globe = new THREE.Mesh(geometry, material);
-      scene.add(globe);
-
-      // Inner glow sphere
-      const innerGlow = new THREE.Mesh(
-        new THREE.SphereGeometry(1.48, 32, 24),
-        new THREE.MeshBasicMaterial({
-          color: 0x00ffcc,
-          transparent: true,
-          opacity: 0.03,
-        })
-      );
-      scene.add(innerGlow);
-
-      // Point light for glow effect
-      const light = new THREE.PointLight(0x00d4ff, 0.8, 8);
-      light.position.set(0, 0, 0);
-      scene.add(light);
-      state.globeLight = light;
-
-      // Ambient particles in 3D scene
-      const particlesGeo = new THREE.BufferGeometry();
-      const pCount = 300;
-      const pPositions = new Float32Array(pCount * 3);
-      for (let i = 0; i < pCount * 3; i++) {
-        pPositions[i] = (Math.random() - 0.5) * 12;
-      }
-      particlesGeo.setAttribute("position", new THREE.BufferAttribute(pPositions, 3));
-      const particlesMat = new THREE.PointsMaterial({
-        color: 0x00d4ff,
-        size: 0.02,
-        transparent: true,
-        opacity: 0.5,
-      });
-      const particles = new THREE.Points(particlesGeo, particlesMat);
-      scene.add(particles);
-
-      // Orbiting rings
-      const ringGeo = new THREE.RingGeometry(2.0, 2.05, 64);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0x00d4ff,
-        transparent: true,
-        opacity: 0.08,
-        side: THREE.DoubleSide,
-      });
-      const ring1 = new THREE.Mesh(ringGeo, ringMat);
-      ring1.rotation.x = Math.PI * 0.4;
-      ring1.rotation.y = Math.PI * 0.1;
-      scene.add(ring1);
-
-      const ring2 = ring1.clone();
-      ring2.rotation.x = Math.PI * 0.6;
-      ring2.rotation.y = -Math.PI * 0.2;
-      ring2.material = ringMat.clone();
-      ring2.material.opacity = 0.05;
-      scene.add(ring2);
-
-      // Animation loop
-      function animate() {
-        requestAnimationFrame(animate);
-
-        globe.rotation.y += state.globeRotationSpeed;
-        innerGlow.rotation.y -= state.globeRotationSpeed * 0.5;
-        particles.rotation.y += 0.0002;
-        ring1.rotation.z += 0.0005;
-        ring2.rotation.z -= 0.0003;
-
-        renderer.render(scene, camera);
-      }
-      animate();
-
-      // Handle resize
-      window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  CSS PARTICLE SYSTEM
-    // ═══════════════════════════════════════════════════════════════════════
-    function createParticle() {
-      const container = $("particles");
-      const p = document.createElement("div");
-      p.className = "particle";
-      const x = Math.random() * 100;
-      const duration = 8 + Math.random() * 12;
-      const size = 1.5 + Math.random() * 2.5;
-      const drift = (Math.random() - 0.5) * 80;
-      p.style.cssText = `
-        left: ${x}%;
-        width: ${size}px;
-        height: ${size}px;
-        animation-duration: ${duration}s;
-        animation-delay: ${Math.random() * duration}s;
-        --drift: ${drift}px;
-      `;
-      container.appendChild(p);
-
-      // Remove after animation ends to prevent memory leak
-      setTimeout(() => {
-        if (p.parentNode) p.parentNode.removeChild(p);
-      }, (duration + duration) * 1000);
-    }
-
-    function initParticles() {
-      // Initial batch
-      for (let i = 0; i < 30; i++) createParticle();
-      // Continuously create new particles
-      setInterval(() => {
-        const count = state.systemStatus === "active" ? 3 : state.systemStatus === "error" ? 1 : 1;
-        for (let i = 0; i < count; i++) createParticle();
-      }, 800);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  SPARKLINE RENDERER
-    // ═══════════════════════════════════════════════════════════════════════
-    function renderSparkline(svgId, data, color) {
-      const svg = $(svgId);
-      if (!svg || data.length < 2) return;
-
-      const maxVal = Math.max(...data, 1);
-      const w = 200, h = 24;
-      const step = w / (30 - 1);
-
-      // Pad to 30 points
-      const points = [];
-      for (let i = 0; i < 30; i++) {
-        const idx = data.length - 30 + i;
-        points.push(idx >= 0 ? data[idx] : 0);
-      }
-
-      let pathD = "";
-      let fillD = `M0,${h} `;
-
-      points.forEach((val, i) => {
-        const x = i * step;
-        const y = h - (val / maxVal) * (h - 2);
-        if (i === 0) {
-          pathD += `M${x},${y}`;
-          fillD += `L${x},${y}`;
-        } else {
-          const prevX = (i - 1) * step;
-          const prevIdx = i - 1;
-          const prevY = h - (points[prevIdx] / maxVal) * (h - 2);
-          const cpX = (prevX + x) / 2;
-          pathD += ` C${cpX},${prevY} ${cpX},${y} ${x},${y}`;
-          fillD += ` C${cpX},${prevY} ${cpX},${y} ${x},${y}`;
-        }
-      });
-
-      fillD += ` L${w},${h} Z`;
-
-      svg.innerHTML = `
-        <defs>
-          <linearGradient id="${svgId}-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="${color}" stop-opacity="0.4"/>
-            <stop offset="100%" stop-color="${color}" stop-opacity="0.0"/>
-          </linearGradient>
-        </defs>
-        <path d="${fillD}" fill="url(#${svgId}-grad)" />
-        <path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" />
-      `;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  GLOBE STATUS REACTIVITY
-    // ═══════════════════════════════════════════════════════════════════════
-    function updateGlobeForStatus(status) {
-      state.systemStatus = status;
-      if (!state.globeMaterial) return;
-
-      switch (status) {
-        case "active":
-          state.globeRotationSpeed = 0.004;
-          state.globeMaterial.color.setHex(0x00d4ff);
-          state.globeMaterial.opacity = 0.25;
-          if (state.globeLight) state.globeLight.color.setHex(0x00ffcc);
-          if (state.globeLight) state.globeLight.intensity = 1.2;
-          $("globe-canvas").style.opacity = "0.55";
-          break;
-        case "error":
-          state.globeRotationSpeed = 0.006;
-          state.globeMaterial.color.setHex(0xff3366);
-          state.globeMaterial.opacity = 0.2;
-          if (state.globeLight) state.globeLight.color.setHex(0xff3366);
-          if (state.globeLight) state.globeLight.intensity = 0.8;
-          $("globe-canvas").style.opacity = "0.5";
-          break;
-        default: // idle
-          state.globeRotationSpeed = 0.001;
-          state.globeMaterial.color.setHex(0x00d4ff);
-          state.globeMaterial.opacity = 0.12;
-          if (state.globeLight) state.globeLight.color.setHex(0x00d4ff);
-          if (state.globeLight) state.globeLight.intensity = 0.5;
-          $("globe-canvas").style.opacity = "0.35";
-          break;
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  VOICE PERSONALITY SYSTEM
-    // ═══════════════════════════════════════════════════════════════════════
-
-    const VOICE_PROFILES = {
-      friday: {
-        name: "F.R.I.D.A.Y",
-        headerTitle: "M.A.I.//FRIDAY",
-        footerLabel: "FRIDAY<span class=\"text-cyan-600\">&gt;</span>",
-        wakeBtn: "ENGAGE FRIDAY",
-        logPrefix: "FRIDAY",
-        voiceClass: "friday",
-        // British female voice selection
-        selectVoice: (voices) => {
-          const british = voices.filter(v => /^en-GB/i.test(v.lang));
-          return voices.find(v => /Google UK English Female/i.test(v.name)) ||
-            voices.find(v => /^Microsoft.*(Hazel|Libby|Sonia)/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
-            british.find(v => /female|serena|kate|susan|hazel|libby|sonia/i.test(v.name)) ||
-            british[0] ||
-            voices.find(v => /^en-US/i.test(v.lang)) ||
-            voices[0];
-        },
-        rate: 0.94,
-        pitch: 1.08,
-        greeting: "Good day. M.A.I. systems online and at your service. The new holographic interface is fully operational. How may I assist you?",
-        responseGreeting: "Yes, how may I help?",
-        greetHour: (h) => h < 12 ? "Good morning." : h < 18 ? "Good afternoon." : "Good evening.",
-      },
-      jarvis: {
-        name: "J.A.R.V.I.S",
-        headerTitle: "M.A.I.//JARVIS",
-        footerLabel: "JARVIS<span class=\"text-cyan-600\">&gt;</span>",
-        wakeBtn: "ENGAGE JARVIS",
-        logPrefix: "JARVIS",
-        voiceClass: "friday",
-        // British male voice selection
-        selectVoice: (voices) => {
-          const british = voices.filter(v => /^en-GB/i.test(v.lang));
-          return voices.find(v => /Google UK English Male/i.test(v.name)) ||
-            voices.find(v => /^Microsoft.*(Daniel|George)/i.test(v.name) && /^en-GB/i.test(v.lang)) ||
-            british.find(v => /male|daniel|george|james|oliver/i.test(v.name)) ||
-            british[0] ||
-            voices.find(v => /^en-US/i.test(v.lang) && /male/i.test(v.name)) ||
-            voices.find(v => /^en-US/i.test(v.lang)) ||
-            voices[0];
-        },
-        rate: 0.88,
-        pitch: 0.82,
-        greeting: "All systems are online and fully operational. The holographic interface is at your disposal. How may I be of service, sir?",
-        responseGreeting: "At your service, sir.",
-        greetHour: (h) => h < 12 ? "Good morning, sir." : h < 18 ? "Good afternoon, sir." : "Good evening, sir.",
-      }
-    };
-
-    // Current voice personality
-    state.personality = localStorage.getItem("mai-personality") || "friday";
-
-    function getProfile() {
-      return VOICE_PROFILES[state.personality] || VOICE_PROFILES.friday;
-    }
-
-    function switchVoice(personality) {
-      state.personality = personality;
-      localStorage.setItem("mai-personality", personality);
-      const profile = getProfile();
-
-      // Update all UI labels
-      $("headerTitle").textContent = profile.headerTitle;
-      $("footerLabel").innerHTML = profile.footerLabel;
-      $("wakeBtn").textContent = profile.wakeBtn;
-
-      // Update switcher button states
-      $("voiceFriday").className = "voice-option" + (personality === "friday" ? " active" : "");
-      $("voiceJarvis").className = "voice-option" + (personality === "jarvis" ? " active-jarvis" : "");
-
-      // Reload voice
-      loadVoices();
-
-      // Notify backend of personality change
-      sendWS({ type: "voice_switch", personality });
-
-      // Announce switch
-      addLog(`Voice switched to ${profile.name}`, "system");
-      speak(profile.greetHour(new Date().getHours()) + ` ${profile.name} interface active.`);
-    }
-    // Expose to global scope for HTML onclick attributes
-    window.switchVoice = switchVoice;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  TTS ENGINE SWITCHER (Browser SpeechSynthesis vs Piper)
-    // ═══════════════════════════════════════════════════════════════════════
-    function switchTts(engine) {
-      state.ttsEngine = engine;
-      localStorage.setItem("mai-tts-engine", engine);
-
-      // Update UI
-      $("ttsBrowser").className = "voice-option" + (engine === "browser" ? " active" : "");
-      $("ttsPiper").className = "voice-option" + (engine === "piper" ? " active" : "");
-
-      // Notify backend
-      sendWS({ type: "tts_switch", engine });
-
-      const label = engine === "browser" ? "Browser SpeechSynthesis" : "Piper Neural TTS";
-      addLog(`TTS engine switched to: ${label}${engine === "piper" && !state.piperReady ? " (not available — using browser fallback)" : ""}`, "system");
-    }
-    window.switchTts = switchTts;
-
-    /**
-     * Play Piper audio from base64-encoded WAV data.
-     * Uses Web Audio API for low-latency playback.
-     */
-    function playPiperAudio(base64Audio) {
-      try {
-        // Create audio context if needed
-        if (!state.piperAudioContext) {
-          state.piperAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        const ctx = state.piperAudioContext;
-
-        // Decode base64 WAV to ArrayBuffer
-        const binaryString = atob(base64Audio);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        ctx.decodeAudioData(bytes.buffer.slice(0), (buffer) => {
-          // Stop any currently playing Piper source before starting new one
-          if (state._piperSource) {
-            try { state._piperSource.stop(); } catch { /* already stopped */ }
-          }
-          const source = ctx.createBufferSource();
-          state._piperSource = source;
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          source.start(0);
-
-          source.onended = () => {
-            state._piperSource = null;
-            // Resolve the queue promise so next item can play
-            if (state._piperResolve) {
-              const resolve = state._piperResolve;
-              state._piperResolve = null;
-              resolve();
-            }
-          };
-        }, (err) => {
-          console.error("[Piper] Audio decode error:", err);
-          // Log first bytes of received data for debugging
-          const headerHint = bytes.length > 12
-            ? `Header: ${String.fromCharCode(...bytes.slice(0, 4))} (expected RIFF)`
-            : `Data too short: ${bytes.length} bytes`;
-          addLog(`Piper audio decode failed — ${headerHint}`, "warning");
-          // Still resolve so the queue doesn't stall
-          if (state._piperResolve) {
-            const resolve = state._piperResolve;
-            state._piperResolve = null;
-            resolve();
-          }
-        });
-      } catch (err) {
-        console.error("[Piper] Playback error:", err);
-        if (state._piperResolve) {
-          const resolve = state._piperResolve;
-          state._piperResolve = null;
-          resolve();
-        }
-      }
-    }
-
-    function loadVoices() {
-      if (!("speechSynthesis" in window)) return;
-      const voices = speechSynthesis.getVoices();
-      const profile = getProfile();
-      state.voice = profile.selectVoice(voices);
-    }
-
-    if ("speechSynthesis" in window) {
-      loadVoices();
-      speechSynthesis.addEventListener("voiceschanged", loadVoices);
-    }
-
-    // Strip markdown formatting for clean TTS output
-    function stripMarkdown(text) {
-      return text
-        .replace(/#{1,6}\s+/g, "")                          // headings
-        .replace(/\*{1,3}(.*?)\*{1,3}/g, "$1")               // bold/italic
-        .replace(/~~(.*?)~~/g, "$1")                          // strikethrough
-        .replace(/`[^`]+`/g, "")                              // remove inline code (file paths)
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")            // links
-        .replace(/^\s*[-*+]\s+/gm, "")                       // list items
-        .replace(/^\s*\d+\.\s+/gm, "")                      // numbered lists
-        .replace(/^---+$/gm, "")                               // horizontal rules
-        .replace(/^\s*>\s+/gm, "")                            // blockquotes
-        .replace(/M\.A\.I\./g, "Mai")                          // correct pronunciation
-        .replace(/M\.A\.I/g, "Mai")
-        .replace(/\n{2,}/g, ". ")                             // collapse multiple newlines
-        .replace(/\n/g, ", ")                                  // newlines to commas
-        .replace(/\s{2,}/g, " ")                               // collapse spaces
-        .trim();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  SPEECH QUEUE — sentence-level pipelined playback (Hermes UX pattern)
-    //  Text is split into sentences. First sentence plays immediately while
-    //  the next is being synthesized, creating a real-time streaming feel.
-    // ═══════════════════════════════════════════════════════════════════════
-    state._speakQueue = [];           // [{text, callback, engine, piperReady}]
-    state._speakActive = false;
-    state._piperReqId = 0;            // monotonic request ID counter
-    state._piperWaitingId = null;     // ID we're currently waiting for
-    state._piperResolve = null;       // resolves when current audio finishes playing
-    state._piperCache = new Map();    // reqId -> base64 audio (pre-fetched)
-    state._piperSpeakTimeout = null;
-    state._piperSource = null;        // current Web Audio source node
-
-    /** Split text into sentence-level chunks for pipelined TTS. */
-    function splitIntoSentences(text) {
-      const chunks = [];
-      // Split on sentence boundaries (. ! ? ;) followed by space or end
-      const regex = /[^.!?;]+[.!?;]+\s*|[^.!?;]+$/g;
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        const chunk = match[0].trim();
-        // Skip tiny fragments (file extensions, abbreviations like "md.", "e.g.")
-        // Merge them back into the previous chunk instead of synthesizing separately
-        if (chunk && chunk.length > 8) {
-          chunks.push(chunk);
-        } else if (chunk && chunks.length > 0) {
-          chunks[chunks.length - 1] += " " + chunk;
-        } else if (chunk) {
-          chunks.push(chunk);
-        }
-      }
-      // If nothing found, use whole text
-      if (chunks.length === 0) {
-        chunks.push(text);
-      }
-      return chunks;
-    }
-
-    function speak(text, callback) {
-      // Client-side dedup: skip if same text was spoken in the last 300ms
-      const now = Date.now();
-      if (text === state._lastSpeakText && (now - (state._lastSpeakTime || 0)) < 300) {
-        console.log("[Speak] Dedup: skipping duplicate speak()", text.slice(0, 60));
-        return;
-      }
-      state._lastSpeakText = text;
-      state._lastSpeakTime = now;
-
-      const cleanText = stripMarkdown(text);
-      addChatBubble("ai", text);
-      $("interimText").textContent = "";
-      const profile = getProfile();
-      addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
-
-      // Split into sentence-level chunks for pipelined playback
-      const sentences = splitIntoSentences(cleanText);
-      for (const sentence of sentences) {
-        state._speakQueue.push({
-          text: sentence,
-          callback: sentences.indexOf(sentence) === sentences.length - 1 ? callback : null,
-          engine: state.ttsEngine,
-          piperReady: state.piperReady,
-        });
-      }
-      processSpeakQueue();
-    }
-
-    async function processSpeakQueue() {
-      if (state._speakActive || state._speakQueue.length === 0) return;
-      state._speakActive = true;
-      state.speaking = true;
-      $("core").removeAttribute("class");
-      $("core").classList.add("speaking");
-      updateStatus("SPEAKING");
-
-      while (state._speakQueue.length > 0) {
-        const item = state._speakQueue.shift();
-        try {
-          if (item.engine !== "piper" || !item.piperReady) {
-            await speakWithBrowser(item.text);
-          } else {
-            await speakWithPiper(item.text);
-          }
-        } catch (err) {
-          console.error("[Speak] Queue item error:", err);
-          try { await speakWithBrowser(item.text); } catch { /* skip */ }
-        }
-
-        // No prefetch — synthesizes on demand to avoid doubled requests
-      }
-
-      // All done
-      state.speaking = false;
-      state._speakActive = false;
-      state._wasMutedForSpeech = false;
-      $("core").classList.remove("speaking");
-      if (state.callActive) {
-        $("core").classList.add("call-active");
-        updateStatus("CALL ACTIVE");
-      } else {
-        updateStatus(state.listening ? "LISTENING" : "STANDBY");
-      }
-      if (state._voiceBuffer && state._voiceBuffer.length > 0) {
-        const buffered = state._voiceBuffer.join(" ");
-        state._voiceBuffer = [];
-        processCommand(buffered);
-        $("commandInput").value = "";
-      }
-    }
-
-
-    /**
-     * Speak with Piper/Kokoro - request, wait, play. Resolves when playback ends.
-     */
-    function speakWithPiper(cleanText) {
-      return new Promise((resolve) => {
-        const id = ++state._piperReqId;
-        state._piperWaitingId = id;
-        state._piperResolve = resolve;
-        sendWS({ type: "piper_speak", text: cleanText, id });
-
-        // Timeout: if no audio in 6s, fall back to browser TTS
-        state._piperSpeakTimeout = setTimeout(() => {
-          if (state._piperWaitingId === id) {
-            state._piperWaitingId = null;
-            state._piperResolve = null;
-            resolve();
-          }
-        }, 6000);
-      });
-    }
-
-
-    /**
-     * Speak with browser SpeechSynthesis. Returns promise, resolves when done.
-     */
-    function speakWithBrowser(cleanText) {
-      return new Promise((resolve) => {
-        if (!("speechSynthesis" in window)) { resolve(); return; }
-        speechSynthesis.cancel();
-        const profile = getProfile();
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        if (state.voice) utterance.voice = state.voice;
-        utterance.lang = "en-GB";
-        utterance.rate = profile.rate;
-        utterance.pitch = profile.pitch;
-        utterance.volume = 1;
-        utterance.onend = resolve;
-        utterance.onerror = resolve;
-        setTimeout(() => speechSynthesis.speak(utterance), 60);
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  UI HELPERS
-    // ═══════════════════════════════════════════════════════════════════════
-    function updateStatus(text) {
-      $("status").textContent = text;
-    }
-
-    function setConnStatus(status) {
-      const dot = $("connDot");
-      dot.className = "conn-dot " + status;
-      if (status === "connected") updateStatus("STANDBY");
-      else if (status === "connecting") updateStatus("CONNECTING...");
-      else updateStatus("DISCONNECTED");
-    }
-
-    function addLog(text, type = "system") {
-      const colors = {
-        system: "text-cyan-400/75",
-        user: "text-amber-300",
-        friday: "text-cyan-300",
-        action: "text-emerald-400/80",
-        error: "text-red-400/80",
-        warning: "text-amber-400/80",
-        policy: "text-orange-400/80"
-      };
-      const item = document.createElement("div");
-      item.className = colors[type] || colors.system;
-      item.textContent = `[${new Date().toLocaleTimeString("en-GB", { hour12: false })}] ${text}`;
-
-      const container = $("logContainer");
-      container.appendChild(item);
-      while (container.children.length > 200) container.removeChild(container.firstChild);
-      container.scrollTop = container.scrollHeight;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  WEBSOCKET
-    // ═══════════════════════════════════════════════════════════════════════
-    function connectWS() {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) return;
-
-      setConnStatus("connecting");
-      addLog(`Connecting to ${state.wsUrl}...`);
-
-      try {
-        state.ws = new WebSocket(state.wsUrl);
-      } catch (err) {
-        addLog("WebSocket creation failed: " + err.message, "error");
-        scheduleReconnect();
-        return;
-      }
-
-      state.ws.onopen = () => {
-        state.reconnectAttempts = 0;
-        setConnStatus("connected");
-        addLog("Connected to M.A.I. agent", "friday");
-        $("core").classList.remove("thinking", "error");
-      };
-
-      state.ws.onclose = () => {
-        setConnStatus("disconnected");
-        addLog("Disconnected from M.A.I.", "warning");
-        scheduleReconnect();
-      };
-
-      state.ws.onerror = () => {
-        addLog("WebSocket error", "error");
-      };
-
-      state.ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          handleWSMessage(msg);
-        } catch { /* ignore non-JSON */ }
-      };
-    }
-
-    function scheduleReconnect() {
-      if (state.reconnectTimer) return;
-      const delay = Math.min(1000 * Math.pow(1.5, state.reconnectAttempts), state.maxReconnectDelay);
-      state.reconnectAttempts++;
-      addLog(`Reconnecting in ${Math.round(delay / 1000)}s (attempt ${state.reconnectAttempts})...`, "warning");
-      state.reconnectTimer = setTimeout(() => {
-        state.reconnectTimer = null;
-        connectWS();
-      }, delay);
-    }
-
-    function sendWS(data) {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.send(JSON.stringify(data));
-      } else {
-        addLog("Cannot send — not connected", "error");
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  HANDLE INCOMING HUD MESSAGES
-    // ═══════════════════════════════════════════════════════════════════════
-    function handleWSMessage(msg) {
-      switch (msg.channel) {
-        // ── Existing channels ──
-        case "jarvis_speech": {
-          const text = msg.payload?.text || "";
-          if (text) speak(text);
-          break;
-        }
-
-        case "activity_log": {
-          const level = msg.payload?.level || "info";
-          const message = msg.payload?.message || "";
-          if (message) {
-            const typeMap = { info: "system", warn: "warning", error: "error" };
-            addLog(message, typeMap[level] || "system");
-
-            // Detect action-related activity logs and show in bg panel
-            const actionMatch = message.match(/(?:Executing|Running|Starting|Processing)\s+(.+)/i);
-            if (actionMatch) {
-              updateBgActivity(
-                "log_" + Date.now(),
-                actionMatch[1].trim().slice(0, 40),
-                level === "error" ? "failed" : "running",
-                message.slice(0, 80)
-              );
-            }
-
-            // Detect completion messages
-            const completeMatch = message.match(/(?:Completed|Finished|Done|Success)\s+(.+)/i);
-            if (completeMatch) {
-              updateBgActivity(
-                "log_" + Date.now(),
-                completeMatch[1].trim().slice(0, 40),
-                "completed",
-                message.slice(0, 80)
-              );
-            }
-
-            // Detect approval requests in activity log messages
-            if (message.includes("Approval required") || message.includes("approval")) {
-              const match = message.match(/Approval required for:\s*(\S+)/);
-              if (match) {
-                showApproval(match[1]);
-              }
-            }
-          }
-          break;
-        }
-
-        case "silent_text": {
-          // Text to display but NOT speak — shown as system bubble
-          const text = msg.payload?.text || "";
-          if (text) {
-            addChatBubble("system", text, "INFO");
-            $("interimText").textContent = "";
-            const profile = getProfile();
-            addLog(`${profile.logPrefix}: ${text.slice(0, 120)}`, profile.voiceClass);
-          }
-          break;
-        }
-
-        case "bg_activity": {
-          const id = msg.payload?.id || ("bg_" + Date.now());
-          const action = msg.payload?.action || "unknown";
-          const status = msg.payload?.status || "running";
-          const detail = msg.payload?.detail || "";
-          updateBgActivity(id, action, status, detail);
-          break;
-        }
-
-        // ── Hermes-style UX channels ──
-        case "interim_message": {
-          const type = msg.payload?.type || "thinking";
-          const detail = msg.payload?.detail || "";
-          const interimEl = $("interimText");
-          const typeLabels = {
-            thinking: "\u{1F504} Thinking",
-            tool_call: "\u2699\uFE0F Working",
-            compressing: "\u{1F4CA} Compressing context",
-            waiting_approval: "\u23F3 Awaiting approval",
-            retrying: "\u{1F504} Retrying",
-            streaming: "\u{1F4E1} Streaming"
-          };
-          interimEl.textContent = (typeLabels[type] || type) + (detail ? `: ${detail}` : "");
-          interimEl.style.opacity = "1";
-          // Auto-fade interim after 3s if no update
-          clearTimeout(state._interimFadeTimeout);
-          state._interimFadeTimeout = setTimeout(() => {
-            interimEl.style.opacity = "0.4";
-          }, 3000);
-          break;
-        }
-
-        case "turn_start": {
-          // Show brief iteration indicator in activity
-          const iter = msg.payload?.iteration || 1;
-          const tokens = msg.payload?.contextTokens || 0;
-          const budget = msg.payload?.budgetRemaining || 0;
-          if (iter > 1) {
-            addLog(`Iteration ${iter} (${tokens} tokens, ${budget} remaining)`, "system");
-          }
-          break;
-        }
-
-        case "turn_end": {
-          // Clear interim text on turn end
-          const detail = msg.payload?.reason || "done";
-          const duration = msg.payload?.durationMs || 0;
-          if (duration > 0) {
-            addLog(`Turn completed in ${(duration/1000).toFixed(1)}s (${detail})`, "system");
-          }
-          const interimEl = $("interimText");
-          interimEl.style.opacity = "0";
-          interimEl.textContent = "";
-          break;
-        }
-
-        case "action_progress": {
-          const id = msg.payload?.id || ("ap_" + Date.now());
-          const action = msg.payload?.action || "task";
-          const step = msg.payload?.step || "";
-          const percent = msg.payload?.percent;
-          const detail = msg.payload?.detail || "";
-          updateBgActivity(id, action, "running", step || detail, percent);
-          break;
-        }
-
-        case "approval_request": {
-          // Direct approval request from backend
-          const actionName = msg.payload?.action || msg.payload?.name || "unknown-action";
-          const detail = msg.payload?.detail || "";
-          showApproval(actionName, detail);
-          if (detail) addLog(`Approval detail: ${detail}`, "warning");
-          break;
-        }
-
-        case "promotion_request": {
-          // Sandbox promotion request — show detailed file list for user to approve
-          const files = msg.payload?.files || [];
-          const totalSize = msg.payload?.totalSize || 0;
-          const sandboxDir = msg.payload?.sandboxDir || "";
-          const targetDir = msg.payload?.targetDir || "";
-          const reason = msg.payload?.reason || "";
-          showPromotion(sandboxDir, targetDir, files, totalSize, reason);
-          addLog(`Promotion requested: ${files.length} files (${(totalSize / 1024).toFixed(1)} KB)`, "policy");
-          break;
-        }
-
-        case "voice_switch": {
-          // Sync personality from another client or backend
-          const personality = msg.payload?.personality;
-          if (personality && personality !== state.personality) {
-            state.personality = personality;
-            localStorage.setItem("mai-personality", personality);
-            const profile = getProfile();
-            $("headerTitle").textContent = profile.headerTitle;
-            $("footerLabel").innerHTML = profile.footerLabel;
-            $("wakeBtn").textContent = profile.wakeBtn;
-            $("voiceFriday").className = "voice-option" + (personality === "friday" ? " active" : "");
-            $("voiceJarvis").className = "voice-option" + (personality === "jarvis" ? " active-jarvis" : "");
-            loadVoices();
-            addLog(`Voice synced to ${profile.name}`, "system");
-          }
-          break;
-        }
-
-        case "piper_audio": {
-          // Piper/Kokoro audio received — route by request ID
-          const audioData = msg.payload?.audio;
-          const reqId = msg.payload?.id;
-
-          if (!audioData) {
-            // No audio — if we were waiting, resolve to unblock queue
-            if (state._piperWaitingId === reqId && state._piperResolve) {
-              clearTimeout(state._piperSpeakTimeout);
-              state._piperWaitingId = null;
-              const r = state._piperResolve;
-              state._piperResolve = null;
-              r();
-            }
-            break;
-          }
-
-          if (state._piperWaitingId === reqId) {
-            // We're actively waiting for this audio — play now
-            clearTimeout(state._piperSpeakTimeout);
-            state._piperWaitingId = null;
-            playPiperAudio(audioData);
-            // playPiperAudio will call state._piperResolve when done
-          }
-          // else: stale audio for a previous request — ignore
-          break;
-        }
-
-        case "tts_engine_status": {
-          // Server reports neural TTS availability (Piper or Kokoro)
-          const engine = msg.payload?.engine;
-          const ready = msg.payload?.ready;
-          const error = msg.payload?.error;
-          if (engine === "piper" || engine === "kokoro") {
-            state.piperReady = ready;
-            if (ready) {
-              $("ttsSwitcher").style.display = "flex";
-              const label = engine === "kokoro" ? "Kokoro Neural TTS (ready)" : "Piper Neural TTS (ready)";
-              $("ttsPiper").title = label;
-              // Update the PIPER label if engine is Kokoro
-              if (engine === "kokoro") {
-                $("ttsPiper").textContent = "KOKORO";
-              }
-              addLog(`${engine.charAt(0).toUpperCase() + engine.slice(1)} TTS engine available`, "system");
-            } else {
-              $("ttsPiper").title = error ? `${engine}: ${error}` : `${engine}: not configured`;
-              addLog(`${engine.charAt(0).toUpperCase() + engine.slice(1)} TTS: ${error || "not available"}`, "warning");
-            }
-            // Restore saved engine preference
-            const savedEngine = localStorage.getItem("mai-tts-engine");
-            if (savedEngine === engine && !ready) {
-              switchTts("browser");
-            } else if (savedEngine) {
-              switchTts(savedEngine);
-            }
-          }
-          break;
-        }
-
-        case "tts_engine_switch": {
-          // Sync engine switch from another client
-          const swEngine = msg.payload?.engine;
-          if (swEngine && swEngine !== state.ttsEngine) {
-            state.ttsEngine = swEngine;
-            localStorage.setItem("mai-tts-engine", swEngine);
-            $("ttsBrowser").className = "voice-option" + (swEngine === "browser" ? " active" : "");
-            $("ttsPiper").className = "voice-option" + (swEngine === "piper" ? " active" : "");
-            addLog(`TTS engine synced to: ${swEngine === "browser" ? "Browser" : "Piper"}`, "system");
-          }
-          break;
-        }
-
-        case "system_metrics": {
-          const cpu = msg.payload?.cpu ?? 0;
-          const mem = msg.payload?.memory ?? 0;
-          const disk = msg.payload?.disk ?? 0;
-          const memTotal = msg.payload?.memory_total_gb ?? 16;
-          const memUsed = msg.payload?.memory_used_gb ?? 0;
-
-          // CPU
-          $("cpuVal").textContent = cpu.toFixed(1) + "%";
-          $("cpuBar").style.width = cpu + "%";
-          $("cpuBar").className = "metric-bar-fill" + (cpu > 80 ? " critical" : cpu > 60 ? " warn" : "");
-          state.cpuHistory.push(cpu);
-          if (state.cpuHistory.length > 30) state.cpuHistory.shift();
-          renderSparkline("cpuSparkline", state.cpuHistory, cpu > 80 ? "#ff3366" : cpu > 60 ? "#ffaa00" : "#00d4ff");
-
-          // Memory
-          if (memUsed > 0) {
-            $("memVal").textContent = `${memUsed.toFixed(1)}/${memTotal} GB`;
-          } else {
-            $("memVal").textContent = mem.toFixed(1) + "%";
-          }
-          $("memBar").style.width = mem + "%";
-          $("memBar").className = "metric-bar-fill" + (mem > 85 ? " critical" : mem > 70 ? " warn" : "");
-          state.memHistory.push(mem);
-          if (state.memHistory.length > 30) state.memHistory.shift();
-          renderSparkline("memSparkline", state.memHistory, mem > 85 ? "#ff3366" : mem > 70 ? "#ffaa00" : "#00ffcc");
-
-          // Disk
-          if (disk > 0) {
-            const diskTotal = msg.payload?.disk_total_gb ?? 0;
-            const diskUsed = msg.payload?.disk_used_gb ?? 0;
-            if (diskUsed > 0 && diskTotal > 0) {
-              $("diskVal").textContent = `${diskUsed.toFixed(1)}/${diskTotal} GB`;
-            } else {
-              $("diskVal").textContent = disk.toFixed(1) + "%";
-            }
-            $("diskBar").style.width = disk + "%";
-            $("diskBar").className = "metric-bar-fill" + (disk > 90 ? " critical" : disk > 75 ? " warn" : "");
-          }
-
-          break;
-        }
-
-        case "threat_level": {
-          const level = msg.payload?.level || "green";
-          const detail = msg.payload?.detail || "";
-          const threatEl = $("threat");
-          threatEl.textContent = level.toUpperCase();
-          threatEl.className = "threat-" + level;
-          if (detail) addLog(`Threat: ${detail}`, level === "green" ? "system" : "warning");
-
-          if (level === "red" || level === "orange") {
-            updateGlobeForStatus("error");
-            $("core").classList.add("error");
-          }
-          break;
-        }
-
-        case "reactor_pulse": {
-          const power = msg.payload?.power ?? 0;
-          const rstatus = msg.payload?.status || "idle";
-          state.reactorPower = power;
-
-          $("reactorVal").textContent = power + "% — " + rstatus.toUpperCase();
-          $("reactorBar").style.width = power + "%";
-
-          $("core").classList.remove("thinking", "error");
-          if (rstatus === "active") {
-            $("core").classList.add("thinking");
-            updateStatus("PROCESSING");
-            updateGlobeForStatus("active");
-          } else {
-            if (!state.speaking && !state.listening) {
-              updateStatus(state.callActive ? "CALL ACTIVE" : "STANDBY");
-            }
-            updateGlobeForStatus("idle");
-          }
-          break;
-        }
-
-        // ── NEW channels ──
-        case "file_list": {
-          const files = msg.payload?.files || [];
-          state.files = files;
-          renderFileList();
-          break;
-        }
-
-        case "voice_call_state": {
-          const active = msg.payload?.active ?? false;
-          const transcript = msg.payload?.transcript || "";
-          if (active && !state.callActive) {
-            startCallMode();
-          } else if (!active && state.callActive) {
-            stopCallMode();
-          }
-          if (transcript && !state.speaking) {
-            $("interimText").textContent = transcript;
-          }
-          break;
-        }
-
-        case "network_stats": {
-          const up = msg.payload?.upload_bps ?? 0;
-          const down = msg.payload?.download_bps ?? 0;
-          $("netUpVal").textContent = "↑ " + formatBytes(up) + "/s";
-          $("netDownVal").textContent = "↓ " + formatBytes(down) + "/s";
-          break;
-        }
-
-        case "gpu_stats": {
-          const temp = msg.payload?.temperature ?? 0;
-          const util = msg.payload?.utilization ?? 0;
-          const memUsed = msg.payload?.memory_used ?? 0;
-          const memTotal = msg.payload?.memory_total ?? 0;
-
-          $("gpuTempVal").textContent = temp + "°C";
-          $("gpuTempVal").style.color = temp > 80 ? "var(--danger)" : temp > 60 ? "var(--warning)" : "var(--text)";
-
-          // Position indicator: 30°C = 0%, 95°C = 100%
-          const pct = Math.max(0, Math.min(100, ((temp - 30) / 65) * 100));
-          $("gpuTempIndicator").style.left = pct + "%";
-
-          $("gpuUtilVal").textContent = `Util: ${util.toFixed(0)}% | VRAM: ${memUsed.toFixed(1)}/${memTotal.toFixed(1)} GB`;
-          break;
-        }
-
-        default:
-          addLog(`Unknown channel: ${msg.channel}`, "warning");
-      }
-    }
-
-    // ─── Format bytes helper ──────────────────────────────────────────────
-    function formatBytes(bytes) {
-      if (bytes === 0) return "0 B";
-      const k = 1024;
-      const sizes = ["B", "KB", "MB", "GB", "TB"];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  USER COMMANDS
-    // ═══════════════════════════════════════════════════════════════════════
-    function processCommand(input) {
-      const text = input.trim();
-      if (!text) return;
-      addLog(`USER: ${text}`, "user");
-      addChatBubble("user", text);
-      sendWS({ type: "user_input", text });
-      updateStatus("PROCESSING");
-      $("core").classList.remove("speaking");
-      $("core").classList.add("thinking");
-      updateGlobeForStatus("active");
-    }
-
-    function showApproval(actionName, detail) {
-      $("approvalAction").textContent = actionName;
-      $("approvalDetail").textContent = detail || "";
-      $("approvalBanner").classList.add("visible");
-      addLog(`Approval requested: ${actionName}`, "policy");
-    }
-
-    function resolveApproval(approved) {
-      sendWS({ type: "approval_response", approved });
-      $("approvalBanner").classList.remove("visible");
-      addLog(approved ? "Action APPROVED" : "Action DENIED", approved ? "action" : "error");
-    }
-
-    function showPromotion(sandboxDir, targetDir, files, totalSize, reason) {
-      $("promoSandboxDir").textContent = sandboxDir;
-      $("promoTargetDir").textContent = targetDir;
-      $("promoSize").textContent = `${files.length} files • ${(totalSize / 1024).toFixed(1)} KB`;
-
-      if (reason) {
-        $("promoReason").textContent = reason;
-        $("promoReason").style.display = "block";
-      } else {
-        $("promoReason").style.display = "none";
-      }
-
-      const list = $("promoFileList");
-      list.innerHTML = "";
-      for (const f of files) {
-        const changeClass = f.change === "created" ? "file-change-created"
-          : f.change === "modified" ? "file-change-modified"
-          : "file-change-deleted";
-        const changeLabel = f.change === "created" ? "+NEW"
-          : f.change === "modified" ? "~MOD"
-          : "-DEL";
-        const sizeStr = f.size > 1024 ? `${(f.size / 1024).toFixed(1)}KB` : `${f.size}B`;
-        const item = document.createElement("div");
-        item.className = "promotion-file-item";
-        item.innerHTML = `<span class="${changeClass}">${changeLabel}</span><span style="flex:1;margin-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.path}">${f.path}</span><span style="opacity:0.5">${sizeStr}</span>`;
-        list.appendChild(item);
-      }
-
-      $("promotionBanner").classList.add("visible");
-    }
-
-    function resolvePromotion(approved) {
-      sendWS({ type: "promotion_response", approved });
-      $("promotionBanner").classList.remove("visible");
-      addLog(approved ? "Promotion APPROVED — changes applied" : "Promotion CANCELLED", approved ? "action" : "error");
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  VOICE CALL MODE
-    // ═══════════════════════════════════════════════════════════════════════
-    async function startCallMode() {
-      // Check mic permission before activating call mode
-      const hasPermission = await checkMicPermission();
-      if (!hasPermission) {
-        addLog("Microphone permission required for voice call. Grant access in browser settings and reload.", "warning");
-        return;
-      }
-
-      state.callActive = true;
-      $("callBtn").classList.add("active");
-      $("callStatus").classList.add("visible");
-      $("waveformWrapper").style.opacity = "1";
-      $("core").classList.remove("speaking", "thinking");
-      $("core").classList.add("call-active");
-      updateStatus("CALL ACTIVE");
-      addLog("Voice call mode ACTIVATED", "friday");
-
-      // Start mic if not already listening
-      if (!state.listening && recognition) {
-        try { recognition.start(); } catch (_) {}
-        state.listening = true;
-        updateVoiceState("recording");
-      }
-
-      // Start audio visualizer
-      startWaveformVisualizer();
-    }
-
-    function stopCallMode() {
-      state.callActive = false;
-      $("callBtn").classList.remove("active");
-      $("callStatus").classList.remove("visible");
-      $("waveformWrapper").style.opacity = "0";
-      $("core").classList.remove("call-active");
-      updateStatus(state.listening ? "LISTENING" : "STANDBY");
-      addLog("Voice call mode DEACTIVATED", "friday");
-
-      stopWaveformVisualizer();
-    }
-
-    function toggleCallMode() {
-      if (state.callActive) {
-        stopCallMode();
-        sendWS({ type: "voice_call", operation: "stop" });
-      } else {
-        startCallMode();
-        sendWS({ type: "voice_call", operation: "start" });
-        speak("Voice call link established. I'm listening.");
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  WAVEFORM VISUALIZER
-    // ═══════════════════════════════════════════════════════════════════════
-    let waveformAnimId = null;
-
-    function startWaveformVisualizer() {
-      const canvas = $("waveformCanvas");
-      canvas.width = canvas.offsetWidth * 2;
-      canvas.height = canvas.offsetHeight * 2;
-      const ctx = canvas.getContext("2d");
-
-      // Create audio context and analyser
-      if (!state.audioContext) {
-        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      state.audioContext.resume();
-
-      if (!state.analyser) {
-        state.analyser = state.audioContext.createAnalyser();
-        state.analyser.fftSize = 256;
-      }
-
-      // Get mic stream
-      if (!state.mediaStream) {
-        navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(stream => {
-          state.mediaStream = stream;
-          const source = state.audioContext.createMediaStreamSource(stream);
-          source.connect(state.analyser);
-        }).catch(() => {});
-      }
-
-      const bufferLength = state.analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      function drawWaveform() {
-        if (!state.callActive) return;
-        waveformAnimId = requestAnimationFrame(drawWaveform);
-
-        state.analyser.getByteTimeDomainData(dataArray);
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw waveform
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "rgba(255, 51, 102, 0.8)";
-        ctx.shadowColor = "rgba(255, 51, 102, 0.5)";
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-
-        const sliceWidth = canvas.width / bufferLength;
-        let x = 0;
-
-        for (let i = 0; i < bufferLength; i++) {
-          const v = dataArray[i] / 128.0;
-          const y = v * canvas.height / 2;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-          x += sliceWidth;
-        }
-
-        ctx.lineTo(canvas.width, canvas.height / 2);
-        ctx.stroke();
-
-        // Secondary glow line
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = "rgba(0, 212, 255, 0.3)";
-        ctx.shadowColor = "rgba(0, 212, 255, 0.3)";
-        ctx.shadowBlur = 4;
-        ctx.beginPath();
-        x = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          const v = dataArray[i] / 128.0;
-          const y = v * canvas.height / 2 + 3;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-          x += sliceWidth;
-        }
-        ctx.lineTo(canvas.width, canvas.height / 2 + 3);
-        ctx.stroke();
-      }
-
-      drawWaveform();
-    }
-
-    function stopWaveformVisualizer() {
-      if (waveformAnimId) {
-        cancelAnimationFrame(waveformAnimId);
-        waveformAnimId = null;
-      }
-
-      if (state.mediaStream) {
-        state.mediaStream.getTracks().forEach(t => t.stop());
-        state.mediaStream = null;
-      }
-
-      const canvas = $("waveformCanvas");
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  FILE MANAGER
-    // ═══════════════════════════════════════════════════════════════════════
-    function getFileColorClass(filename) {
-      const ext = filename.split(".").pop().toLowerCase();
-      const map = {
-        md: "file-color-md",
-        ts: "file-color-ts", tsx: "file-color-ts",
-        js: "file-color-js", jsx: "file-color-js", mjs: "file-color-js",
-        json: "file-color-json", jsonl: "file-color-json",
-        py: "file-color-py", pyw: "file-color-py",
-        html: "file-color-html", htm: "file-color-html",
-        css: "file-color-css", scss: "file-color-css", less: "file-color-css",
-        yml: "file-color-yml", yaml: "file-color-yml",
-        toml: "file-color-toml",
-        prisma: "file-color-prisma",
-        sql: "file-color-sql",
-        sh: "file-color-sh", bash: "file-color-sh",
-        svg: "file-color-svg",
-        wasm: "file-color-wasm",
-        png: "file-color-img", jpg: "file-color-img", jpeg: "file-color-img",
-        gif: "file-color-img", webp: "file-color-img", ico: "file-color-img",
-        lock: "file-color-lock",
-        gitignore: "file-color-git",
-        dockerfile: "file-color-docker", env: "file-color-env",
-      };
-      // Special filenames
-      if (filename === ".gitignore" || filename === ".git") return "file-color-git";
-      if (filename === "Dockerfile" || filename.startsWith("docker-compose")) return "file-color-docker";
-      if (filename.startsWith(".env")) return "file-color-env";
-      return map[ext] || "file-color-default";
-    }
-
-    function getFileIcon(type) {
-      if (type === "directory" || type === "folder") {
-        return `<svg class="w-3.5 h-3.5 flex-shrink-0 file-color-folder" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>`;
-      }
-      return `<svg class="w-3.5 h-3.5 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
-    }
-
-    function renderBreadcrumbs() {
-      const container = $("fileBreadcrumbs");
-      const parts = state.currentPath.split("/").filter(Boolean);
-      let html = `<span class="breadcrumb-item ${parts.length === 0 ? "active" : ""}" data-path="/">/</span>`;
-      let pathSoFar = "";
-      parts.forEach((part, i) => {
-        pathSoFar += "/" + part;
-        const isLast = i === parts.length - 1;
-        html += `<span class="breadcrumb-sep">/</span>`;
-        html += `<span class="breadcrumb-item ${isLast ? "active" : ""}" data-path="${pathSoFar}">${part}</span>`;
-      });
-      container.innerHTML = html;
-
-      container.querySelectorAll(".breadcrumb-item").forEach(el => {
-        el.addEventListener("click", () => {
-          state.currentPath = el.dataset.path;
-          sendWS({ type: "file_request", path: state.currentPath });
-          renderBreadcrumbs();
-        });
-      });
-    }
-
-    function renderFileList() {
-      const container = $("fileList");
-      let files = state.files || [];
-
-      // Filter by search
-      if (state.fileSearchQuery) {
-        const q = state.fileSearchQuery.toLowerCase();
-        files = files.filter(f => f.name.toLowerCase().includes(q));
-      }
-
-      // Sort: folders first, then files
-      files = [...files].sort((a, b) => {
-        const aDir = (a.type === "directory" || a.type === "folder") ? 0 : 1;
-        const bDir = (b.type === "directory" || b.type === "folder") ? 0 : 1;
-        if (aDir !== bDir) return aDir - bDir;
-        return a.name.localeCompare(b.name);
-      });
-
-      if (files.length === 0) {
-        container.innerHTML = `<div class="mono text-xs text-cyan-600/60 py-4 text-center">${state.fileSearchQuery ? "No matches found" : "No files loaded"}</div>`;
-        return;
-      }
-
-      container.innerHTML = files.map(f => {
-        const isDir = f.type === "directory" || f.type === "folder";
-        const colorClass = isDir ? "file-color-folder" : getFileColorClass(f.name);
-        const sizeStr = isDir ? "—" : (f.size ? formatBytes(f.size) : "—");
-        const modStr = f.modified ? new Date(f.modified).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "";
-        return `
-          <div class="file-item mono" data-name="${f.name}" data-path="${f.path || ""}" data-type="${f.type || "file"}">
-            ${getFileIcon(f.type)}
-            <span class="flex-1 ${colorClass} truncate" title="${f.path || f.name}">${f.name}</span>
-            ${modStr ? `<span class="text-cyan-700 text-xs flex-shrink-0" style="font-size:10px">${modStr}</span>` : ""}
-            ${!isDir ? `<span class="text-cyan-600 text-xs flex-shrink-0" style="font-size:10px">${sizeStr}</span>` : ""}
+          <!-- Voice Tab -->
+          <div class="settings-content" data-tab="voice" style="display:none">
+            <div class="setting-group">
+              <h3>Text-to-Speech</h3>
+              <div class="setting-item"><label for="set-tts-backend">TTS Backend</label>
+                <select id="set-tts-backend"><option value="browser">Browser (default)</option><option value="piper">Piper Neural</option><option value="kokoro">Kokoro Neural</option><option value="http">Custom HTTP</option></select></div>
+              <div class="setting-item"><label for="set-tts-voice">Voice</label><input type="text" id="set-tts-voice" placeholder="Auto"></div>
+              <div class="setting-item"><label for="set-tts-speed">Speed</label><input type="range" id="set-tts-speed" min="0.5" max="2" step="0.1" value="1"><span id="speed-val" class="setting-range-val">1.0x</span></div>
+            </div>
+            <div class="setting-group">
+              <h3>Speech-to-Text</h3>
+              <div class="setting-item"><label for="set-stt-backend">STT Backend</label>
+                <select id="set-stt-backend"><option value="browser">Browser (Web Speech)</option><option value="whisper">Whisper</option><option value="disabled">Disabled</option></select></div>
+            </div>
           </div>
-        `;
-      }).join("");
-
-      container.querySelectorAll(".file-item").forEach(el => {
-        el.addEventListener("click", () => {
-          const type = el.dataset.type;
-          const name = el.dataset.name;
-          const path = el.dataset.path;
-          if (type === "directory" || type === "folder") {
-            state.currentPath = path || (state.currentPath === "/" ? "/" + name : state.currentPath + "/" + name);
-            sendWS({ type: "file_request", path: state.currentPath });
-            renderBreadcrumbs();
-          } else {
-            sendWS({ type: "file_read", path: path || name });
-            addLog(`Reading file: ${name}`, "action");
-          }
-        });
-      });
-    }
-
-    function toggleFileManager() {
-      state.fileManagerOpen = !state.fileManagerOpen;
-      const body = $("fileManagerBody");
-      const collapseIcon = $("fileMgrCollapseBtn");
-      if (state.fileManagerOpen) {
-        body.style.display = "flex";
-        collapseIcon.style.transform = "rotate(0deg)";
-      } else {
-        body.style.display = "none";
-        collapseIcon.style.transform = "rotate(-90deg)";
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  VOICE RECOGNITION
-    // ═══════════════════════════════════════════════════════════════════════
-    let recognition = null;
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (Recognition) {
-      updateVoiceState("loading");
-      recognition = new Recognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-GB";
-
-      recognition.onresult = event => {
-        if (state.voiceState !== "recording") updateVoiceState("recording");
-        let interim = "";
-        let finalText = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const text = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalText += text;
-          else interim += text;
-        }
-
-        if (interim && !state._wasMutedForSpeech) {
-          $("interimText").textContent = `"${interim}"`;
-        }
-
-        // Buffer final results while M.A.I. is speaking instead of discarding them
-        if (finalText.trim()) {
-          if (state._wasMutedForSpeech) {
-            if (!state._voiceBuffer) state._voiceBuffer = [];
-            state._voiceBuffer.push(finalText.trim());
-          } else {
-            processCommand(finalText.trim());
-            $("commandInput").value = "";
-          }
-        }
-      };
-
-      let _lastRecognitionError = "";
-      recognition.onerror = async event => {
-        _lastRecognitionError = event.error;
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          // Verify with Permissions API before permanently blocking
-          let actuallyDenied = true;
-          try {
-            if (navigator.permissions && navigator.permissions.query) {
-              const result = await navigator.permissions.query({ name: 'microphone' });
-              actuallyDenied = result.state === 'denied';
-            }
-          } catch (_) {}
-          if (actuallyDenied) {
-            state.listening = false;
-            state._permissionDenied = true;
-            updateVoiceState("error");
-            addLog("Microphone access denied. Allow mic permission in browser settings.", "warning");
-            if (state.callActive) {
-              state.callActive = false;
-              updateStatus("STANDBY");
-              addLog("Voice call ended — mic permission required", "warning");
-            }
-          } else {
-            // Permission is actually granted — transient error, allow retry
-            addLog(`Mic error (transient): ${event.error} — retrying...`, "warning");
-            setTimeout(() => { if (state.listening || state.callActive) { try { recognition.start(); } catch (_) {} } }, 500);
-          }
-          return;
-        }
-        if (!["no-speech", "aborted"].includes(event.error)) {
-          addLog(`Recognition error: ${event.error}`, "error");
-          updateVoiceState("error");
-          setTimeout(() => { if (state.voiceState === "error") updateVoiceState("ready"); }, 3000);
-        }
-      };
-
-      recognition.onend = () => {
-        // Don't restart if permission was denied or recognition unavailable
-        if (_lastRecognitionError === "not-allowed" || _lastRecognitionError === "service-not-allowed") {
-          _lastRecognitionError = "";
-          return;
-        }
-        if (state.listening || state.callActive) {
-          try { recognition.start(); } catch (_) {}
-        } else {
-          updateVoiceState("ready");
-        }
-      };
-    } else {
-      updateVoiceState("error");
-      addLog("Speech recognition not supported in this browser", "warning");
-    }
-
-    async function checkMicPermission() {
-      // Use the Permissions API to check actual mic permission state
-      try {
-        if (navigator.permissions && navigator.permissions.query) {
-          const result = await navigator.permissions.query({ name: 'microphone' });
-          if (result.state === 'granted') {
-            state._permissionDenied = false;
-            return true;
-          }
-          if (result.state === 'denied') {
-            state._permissionDenied = true;
-            return false;
-          }
-          // 'prompt' — not yet decided, allow attempt
-          state._permissionDenied = false;
-          return true;
-        }
-      } catch (_) { /* Permissions API not supported */ }
-      // Fallback: if flag was set, check by trying getUserMedia
-      if (state._permissionDenied) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(t => t.stop());
-          state._permissionDenied = false;
-          return true;
-        } catch (_) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    async function toggleListening() {
-      if (!recognition) {
-        speak("Voice recognition is unavailable. Please use the command console.");
-        return;
-      }
-
-      // Always re-check actual permission state — the flag may be stale
-      const hasPermission = await checkMicPermission();
-      if (!hasPermission) {
-        addLog("Microphone permission was denied. Grant access in browser settings and reload.", "warning");
-        return;
-      }
-
-      state.listening = !state.listening;
-      updateVoiceState(state.listening ? "recording" : "ready");
-
-      if (state.listening) {
-        try { recognition.start(); } catch (_) {}
-        if (!state.callActive) updateStatus("LISTENING");
-        addLog("Voice input engaged");
-        speak("Yes, how may I help?");
-      } else {
-        try { recognition.stop(); } catch (_) {}
-        if (!state.callActive) updateStatus("STANDBY");
-        addLog("Voice input disengaged");
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  PARALLAX EFFECT
-    // ═══════════════════════════════════════════════════════════════════════
-    function initParallax() {
-      const panels = document.querySelectorAll("[data-parallax]");
-      document.addEventListener("mousemove", e => {
-        const cx = (e.clientX / window.innerWidth - 0.5) * 2;
-        const cy = (e.clientY / window.innerHeight - 0.5) * 2;
-        panels.forEach((panel, i) => {
-          const factor = (i % 2 === 0 ? 1 : -1) * 2;
-          panel.style.transform = `translate(${cx * factor}px, ${cy * factor}px)`;
-        });
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  CLOCK
-    // ═══════════════════════════════════════════════════════════════════════
-    function updateClock() {
-      const now = new Date();
-      $("timeDisplay").textContent = now.toLocaleTimeString("en-GB", { hour12: false });
-      $("dateDisplay").textContent = now.toLocaleDateString("en-GB", {
-        weekday: "short", day: "numeric", month: "short", year: "numeric"
-      }).toUpperCase();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  QUICK COMMANDS
-    // ═══════════════════════════════════════════════════════════════════════
-    const suggestions = [
-      "What can you do?",
-      "Check system info",
-      "List my home directory",
-      "What processes are running?",
-      "Read agent/policy.md",
-      "Help",
-    ];
-
-    suggestions.forEach(cmd => {
-      const btn = document.createElement("button");
-      btn.className = "holo-edge rounded border border-cyan-400/20 px-2 py-0.5 mono text-xs text-cyan-500 transition hover:bg-cyan-400/10 hover:text-cyan-300";
-      btn.textContent = cmd;
-      btn.onclick = () => {
-        $("commandInput").value = cmd;
-        $("commandInput").focus();
-      };
-      $("suggestions").appendChild(btn);
-    });
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  EVENT LISTENERS
-    // ═══════════════════════════════════════════════════════════════════════
-    $("micBtn").addEventListener("click", toggleListening);
-    $("callBtn").addEventListener("click", toggleCallMode);
-
-    $("fileMgrBtn").addEventListener("click", toggleFileManager);
-    $("fileMgrCollapseBtn").addEventListener("click", toggleFileManager);
-
-    $("fileSearch").addEventListener("input", e => {
-      state.fileSearchQuery = e.target.value;
-      renderFileList();
-    });
-
-    $("wakeBtn").addEventListener("click", () => {
-      if (!state.listening) toggleListening();
-      else speak(getProfile().responseGreeting);
-    });
-
-    $("submitBtn").addEventListener("click", () => {
-      const input = $("commandInput");
-      processCommand(input.value);
-      input.value = "";
-    });
-
-    $("commandInput").addEventListener("keydown", event => {
-      if (event.key === "Enter") {
-        processCommand(event.target.value);
-        event.target.value = "";
-      }
-    });
-
-    $("approveBtn").addEventListener("click", () => resolveApproval(true));
-    $("denyBtn").addEventListener("click", () => resolveApproval(false));
-    $("promoApproveBtn").addEventListener("click", () => resolvePromotion(true));
-    $("promoDenyBtn").addEventListener("click", () => resolvePromotion(false));
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  INITIALIZATION
-    // ═══════════════════════════════════════════════════════════════════════
-    updateClock();
-    setInterval(updateClock, 1000);
-
-    addLog("Interface v3.0 initialising...");
-    addLog("Three.js globe engine loaded");
-    addLog("Particle systems online");
-    addLog("WebSocket target: " + state.wsUrl);
-
-    // Initialize subsystems
-    initGlobe();
-    initParticles();
-    initParallax();
-    renderBreadcrumbs();
-    renderFileList();
-
-    // Apply saved personality on startup
-    const savedProfile = getProfile();
-    $("headerTitle").textContent = savedProfile.headerTitle;
-    $("footerLabel").innerHTML = savedProfile.footerLabel;
-    $("wakeBtn").textContent = savedProfile.wakeBtn;
-    $("voiceFriday").className = "voice-option" + (state.personality === "friday" ? " active" : "");
-    $("voiceJarvis").className = "voice-option" + (state.personality === "jarvis" ? " active-jarvis" : "");
-
-    // Connect to M.A.I. backend
-    connectWS();
-
-    // Greeting after connection — use time-aware greeting
-    state.greetingSpoken = false;
-    setTimeout(() => {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN && !state.greetingSpoken) {
-        state.greetingSpoken = true;
-        speak(savedProfile.greeting);
-      }
-    }, 1500);
-
-  })();
-  </script>
-  <!-- ═══ ONBOARDING WIZARD MODAL ═══ -->
-  <div id="onboardingModal" class="modal-overlay" style="display:none">
-    <div class="modal-panel" style="max-width:580px;width:90%">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="display text-lg tracking-widest text-cyan-300">SETUP WIZARD</h2>
-        <div class="flex items-center gap-2">
-          <div id="onboardStepIndicator" class="mono text-xs text-cyan-600">1 / 4</div>
-          <button onclick="closeOnboarding()" class="text-cyan-600 hover:text-cyan-300 text-xl">&times;</button>
-        </div>
-      </div>
-      <!-- Progress bar -->
-      <div class="w-full h-1 rounded-full bg-cyan-900/30 mb-6"><div id="onboardProgress" class="h-1 rounded-full bg-cyan-400 transition-all" style="width:25%"></div></div>
-
-      <!-- Step 1: Name & Identity -->
-      <div class="onboard-step" data-step="1">
-        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">ASSISTANT NAME</label>
-        <input id="ob_name" type="text" value="Mai" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="What should I call you?"></div>
-        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">INTERACTION MODE</label>
-          <div class="flex gap-3">
-            <label class="flex-1 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20 has-[:checked]:border-cyan-400"><input type="radio" name="ob_mode" value="text" class="hidden" checked><span class="display text-sm text-cyan-200 block">Text Only</span><span class="text-xs text-cyan-600">Chat-based</span></label>
-            <label class="flex-1 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20 has-[:checked]:border-cyan-400"><input type="radio" name="ob_mode" value="voice" class="hidden"><span class="display text-sm text-cyan-200 block">Voice + Text</span><span class="text-xs text-cyan-600">Full voice</span></label>
+          <!-- Browser Tab -->
+          <div class="settings-content" data-tab="browser" style="display:none">
+            <div class="setting-group">
+              <h3>Browser Control</h3>
+              <div class="setting-item"><label for="set-browser-enabled">Enable Browser Control</label><input type="checkbox" id="set-browser-enabled"></div>
+              <div class="setting-item"><label for="set-browser-autodiscover">Auto-discover Debug Ports</label><input type="checkbox" id="set-browser-autodiscover" checked></div>
+              <div class="setting-item"><label for="set-browser-ports">Debug Ports</label><input type="text" id="set-browser-ports" value="9222, 9223, 9224" placeholder="Comma-separated ports"></div>
+            </div>
+          </div>
+          <!-- Email Tab -->
+          <div class="settings-content" data-tab="email" style="display:none">
+            <div class="setting-group">
+              <h3>Email Access</h3>
+              <div class="setting-item"><label for="set-email-enabled">Enable Email</label><input type="checkbox" id="set-email-enabled"></div>
+            </div>
+          </div>
+          <!-- System Tab -->
+          <div class="settings-content" data-tab="system" style="display:none">
+            <div class="setting-group">
+              <h3>System</h3>
+              <div class="setting-item"><label for="set-sandbox-tier">Sandbox Tier</label>
+                <select id="set-sandbox-tier"><option value="native">Native (no isolation)</option><option value="process">Process isolation</option><option value="docker">Docker container</option><option value="firejail">Firejail sandbox</option></select></div>
+              <div class="setting-item"><label for="set-gateway-port">Gateway Port</label><input type="number" id="set-gateway-port" value="3096"></div>
+              <button id="btn-restart-onboarding" class="settings-action-btn">Run Setup Wizard Again</button>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Step 2: Audio Setup -->
-      <div class="onboard-step" data-step="2" style="display:none">
-        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TEXT-TO-SPEECH ENGINE</label>
-          <select id="ob_tts" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
-            <option value="browser">Browser (built-in)</option>
-            <option value="http">HTTP Endpoint</option>
-            <option value="piper">Piper (neural, local)</option>
-            <option value="kokoro">Kokoro (neural, local)</option>
-          </select>
+    <!-- ─── Onboarding Wizard ──────────────────────────────────────────── -->
+    <div id="onboarding-modal" class="modal-overlay" style="display:none">
+      <div class="modal-panel glass onboarding-panel">
+        <h2 class="display onboarding-title">Welcome to M.A.I.</h2>
+        <div class="onboarding-progress"><div class="onboarding-progress-fill" id="onboarding-progress" style="width:25%"></div></div>
+        <span class="mono onboarding-step-indicator" id="onboarding-step-indicator">1 / 4</span>
+        <!-- Step 1: Name -->
+        <div class="onboard-step" id="onboard-step-1">
+          <h3>What should I call you?</h3>
+          <input type="text" id="ob-name" class="onboarding-input" placeholder="Your name..." autocomplete="off">
         </div>
-        <div id="ob_tts_http_fields" class="mb-4" style="display:none"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS ENDPOINT URL</label>
-          <input id="ob_tts_endpoint" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="http://localhost:5002/api/tts"></div>
-        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">SPEECH-TO-TEXT ENGINE</label>
-          <select id="ob_stt" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
-            <option value="browser">Browser (built-in)</option>
-            <option value="whisper">Whisper (local)</option>
-            <option value="moonshine">Moonshine (local)</option>
-            <option value="disabled">Disabled</option>
-          </select>
+        <!-- Step 2: Mode -->
+        <div class="onboard-step" id="onboard-step-2" style="display:none">
+          <h3>Interaction Mode</h3>
+          <label class="onboarding-option"><input type="radio" name="ob-mode" value="voice" checked> Voice + Text</label>
+          <label class="onboarding-option"><input type="radio" name="ob-mode" value="text"> Text Only</label>
         </div>
-        <div class="glass rounded-lg p-3 border border-cyan-700/20">
-          <div class="flex items-center gap-2 mb-1"><span class="text-xs text-cyan-500">TIP</span></div>
-          <p class="text-xs text-cyan-600">Browser TTS/STT works immediately. Neural engines (Piper, Kokoro, Whisper, Moonshine) require local installation. You can always change this later in Settings.</p>
+        <!-- Step 3: Audio -->
+        <div class="onboard-step" id="onboard-step-3" style="display:none">
+          <h3>Audio Configuration</h3>
+          <div class="setting-item"><label>TTS Engine</label><select id="ob-tts"><option value="browser">Browser</option><option value="piper">Piper</option><option value="kokoro">Kokoro</option></select></div>
+          <div class="setting-item"><label>STT Engine</label><select id="ob-stt"><option value="browser">Browser</option><option value="whisper">Whisper</option></select></div>
         </div>
-      </div>
-
-      <!-- Step 3: Browser & Email -->
-      <div class="onboard-step" data-step="3" style="display:none">
-        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">BROWSER CONTROL</label>
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20">
-            <input type="checkbox" id="ob_browser" checked class="accent-cyan-400 w-4 h-4">
-            <div><span class="display text-sm text-cyan-200 block">Enable browser control</span><span class="text-xs text-cyan-600">Access Chrome/Brave tabs, Google search, screenshots</span></div>
-          </label>
-          <p class="text-xs text-cyan-700 mt-2 ml-1">Launch Chrome with: <code class="bg-cyan-950/50 px-1 rounded">google-chrome --remote-debugging-port=9222</code></p>
+        <!-- Step 4: Summary -->
+        <div class="onboard-step" id="onboard-step-4" style="display:none">
+          <h3>Configuration Summary</h3>
+          <div id="ob-summary" class="onboarding-summary"></div>
         </div>
-        <div class="mb-4"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">EMAIL ACCESS (Optional)</label>
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20">
-            <input type="checkbox" id="ob_email_enable" class="accent-cyan-400 w-4 h-4">
-            <div><span class="display text-sm text-cyan-200 block">Enable email access</span><span class="text-xs text-cyan-600">Read, search, and send emails via IMAP/SMTP</span></div>
-          </label>
+        <div class="onboarding-actions">
+          <button id="ob-back" class="btn" style="visibility:hidden">Back</button>
+          <button id="ob-next" class="btn btn-primary">Next</button>
         </div>
-        <div id="ob_email_fields" style="display:none" class="space-y-3">
-          <input id="ob_email_label" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="Account label (e.g. Gmail)">
-          <input id="ob_email_imap" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="IMAP host (e.g. imap.gmail.com)">
-          <input id="ob_email_smtp" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="SMTP host (e.g. smtp.gmail.com)">
-          <input id="ob_email_user" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="Email address / username">
-          <input id="ob_email_pass" type="password" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-2 text-cyan-200 mono text-sm focus:outline-none focus:border-cyan-400" placeholder="App password (not account password)">
-        </div>
-      </div>
-
-      <!-- Step 4: Confirm -->
-      <div class="onboard-step" data-step="4" style="display:none">
-        <div class="text-center mb-6">
-          <div class="display text-2xl tracking-widest text-cyan-300 mb-2">SETUP COMPLETE</div>
-          <p class="text-sm text-cyan-500">Your M.A.I. instance is configured. You can always adjust settings later.</p>
-        </div>
-        <div id="ob_summary" class="glass rounded-lg p-4 border border-cyan-700/20 space-y-2 mono text-sm text-cyan-400"></div>
-      </div>
-
-      <!-- Navigation buttons -->
-      <div class="flex justify-between mt-6">
-        <button id="ob_back" onclick="onboardBack()" class="glass rounded-lg px-5 py-2.5 text-sm text-cyan-400 border border-cyan-700/30 hover:border-cyan-400 transition" style="visibility:hidden">Back</button>
-        <button id="ob_next" onclick="onboardNext()" class="glass rounded-lg px-5 py-2.5 text-sm text-cyan-200 bg-cyan-800/30 border border-cyan-400/40 hover:bg-cyan-700/30 transition">Next</button>
       </div>
     </div>
   </div>
 
-  <!-- ═══ SETTINGS MODAL ═══ -->
-  <div id="settingsModal" class="modal-overlay" style="display:none">
-    <div class="modal-panel" style="max-width:640px;width:92%;max-height:85vh;overflow-y:auto">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="display text-lg tracking-widest text-cyan-300">SETTINGS</h2>
-        <button onclick="closeSettings()" class="text-cyan-600 hover:text-cyan-300 text-xl">&times;</button>
-      </div>
-
-      <!-- Settings tabs -->
-      <div class="flex gap-2 mb-5 flex-wrap">
-        <button class="settings-tab active" data-tab="general" onclick="switchSettingsTab('general')">General</button>
-        <button class="settings-tab" data-tab="voice" onclick="switchSettingsTab('voice')">Voice</button>
-        <button class="settings-tab" data-tab="browser" onclick="switchSettingsTab('browser')">Browser</button>
-        <button class="settings-tab" data-tab="email" onclick="switchSettingsTab('email')">Email</button>
-        <button class="settings-tab" data-tab="system" onclick="switchSettingsTab('system')">System</button>
-      </div>
-
-      <!-- General Tab -->
-      <div class="settings-content" data-tab="general">
-        <div class="space-y-4">
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">ASSISTANT NAME</label>
-            <input id="set_name" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400"></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">MODEL PROVIDER</label>
-            <select id="set_provider" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
-              <option value="ollama-cloud">Ollama Cloud</option>
-              <option value="ollama">Ollama Local</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-            </select></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">VAULT PATH</label>
-            <input id="set_vault" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400"></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">PERMISSIONS</label>
-            <div class="space-y-2">
-              <label class="flex items-center gap-3"><input type="checkbox" id="set_confirm" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Require confirmation for risky actions</span></label>
-              <label class="flex items-center gap-3"><input type="checkbox" id="set_terminal" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Allow terminal access</span></label>
-              <label class="flex items-center gap-3"><input type="checkbox" id="set_network" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Allow network access</span></label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Voice Tab -->
-      <div class="settings-content" data-tab="voice" style="display:none">
-        <div class="space-y-4">
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS ENGINE</label>
-            <select id="set_tts_backend" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" onchange="toggleTtsFields()">
-              <option value="browser">Browser (built-in)</option>
-              <option value="http">HTTP Endpoint</option>
-              <option value="piper">Piper (neural)</option>
-              <option value="kokoro">Kokoro (neural)</option>
-              <option value="disabled">Disabled</option>
-            </select></div>
-          <div id="set_tts_http_wrap" style="display:none"><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS ENDPOINT</label>
-            <input id="set_tts_endpoint" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="http://..."></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">STT ENGINE</label>
-            <select id="set_stt_backend" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
-              <option value="browser">Browser (built-in)</option>
-              <option value="whisper">Whisper</option>
-              <option value="moonshine">Moonshine</option>
-              <option value="disabled">Disabled</option>
-            </select></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS VOICE</label>
-            <input id="set_tts_voice" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="default"></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">TTS SPEED</label>
-            <input id="set_tts_speed" type="range" min="0.5" max="2" step="0.1" value="1.0" class="w-full accent-cyan-400"><div class="flex justify-between text-xs text-cyan-600"><span>0.5x</span><span id="speedVal">1.0x</span><span>2.0x</span></div></div>
-          <div id="audioStatusPanel" class="glass rounded-lg p-3 border border-cyan-700/20 mono text-xs text-cyan-500 space-y-1"></div>
-        </div>
-      </div>
-
-      <!-- Browser Tab -->
-      <div class="settings-content" data-tab="browser" style="display:none">
-        <div class="space-y-4">
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_enabled" checked class="accent-cyan-400 w-4 h-4"><div><span class="display text-sm text-cyan-200 block">Enable browser control</span><span class="text-xs text-cyan-600">Control Chrome/Brave via CDP</span></div></label>
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_autodiscover" checked class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Auto-discover running browsers</span></label>
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_autochrome" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Auto-launch Chrome</span></label>
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_browser_autobrave" class="accent-cyan-400 w-4 h-4"><span class="text-sm text-cyan-300">Auto-launch Brave</span></label>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">CDP PORTS</label>
-            <input id="set_browser_ports" type="text" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" placeholder="9222, 9223, 9224"></div>
-          <div class="glass rounded-lg p-3 border border-cyan-700/20"><p class="text-xs text-cyan-600">To connect: <code class="bg-cyan-950/50 px-1 rounded">google-chrome --remote-debugging-port=9222</code> or <code class="bg-cyan-950/50 px-1 rounded">brave --remote-debugging-port=9222</code></p></div>
-        </div>
-      </div>
-
-      <!-- Email Tab -->
-      <div class="settings-content" data-tab="email" style="display:none">
-        <div class="space-y-4">
-          <label class="flex items-center gap-3 glass rounded-lg p-3 cursor-pointer border border-cyan-700/20"><input type="checkbox" id="set_email_enabled" class="accent-cyan-400 w-4 h-4"><div><span class="display text-sm text-cyan-200 block">Enable email access</span><span class="text-xs text-cyan-600">IMAP/SMTP email reading and sending</span></div></label>
-          <div id="emailAccountsList" class="space-y-3"></div>
-          <button onclick="addEmailAccountUI()" class="w-full glass rounded-lg p-3 text-sm text-cyan-400 border border-dashed border-cyan-700/30 hover:border-cyan-400 transition">+ Add Email Account</button>
-          <div class="glass rounded-lg p-3 border border-cyan-700/20"><p class="text-xs text-cyan-600">Gmail requires an <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-cyan-400 underline">App Password</a>. Outlook uses your account password with 2FA app passwords.</p></div>
-        </div>
-      </div>
-
-      <!-- System Tab -->
-      <div class="settings-content" data-tab="system" style="display:none">
-        <div class="space-y-4">
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">SANDBOX TIER</label>
-            <select id="set_sandbox_tier" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400">
-              <option value="native">Native (no isolation)</option>
-              <option value="process">Process isolation</option>
-              <option value="docker">Docker container</option>
-              <option value="firejail">Firejail sandbox</option>
-            </select></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">GATEWAY PORT</label>
-            <input id="set_gateway_port" type="number" class="w-full bg-cyan-950/40 border border-cyan-700/30 rounded-lg px-4 py-3 text-cyan-200 mono focus:outline-none focus:border-cyan-400" value="3096"></div>
-          <div><label class="display text-xs tracking-widest text-cyan-500 mb-2 block">ONBOARDING</label>
-            <button onclick="restartOnboarding()" class="glass rounded-lg px-5 py-2.5 text-sm text-cyan-400 border border-cyan-700/30 hover:border-cyan-400 transition">Run Setup Wizard Again</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Save button -->
-      <div class="flex justify-end mt-6 pt-4 border-t border-cyan-700/20">
-        <button onclick="saveSettings()" class="glass rounded-lg px-6 py-2.5 text-sm text-cyan-200 bg-cyan-800/30 border border-cyan-400/40 hover:bg-cyan-700/30 transition">Save Changes</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ MODAL STYLES ═══ -->
-  <style>
-    .modal-overlay { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); }
-    .modal-panel { background:rgba(2,15,35,0.95); border:1px solid rgba(0,212,255,0.2); border-radius:12px; padding:28px; backdrop-filter:blur(20px); box-shadow:0 0 40px rgba(0,212,255,0.08), 0 20px 60px rgba(0,0,0,0.5); }
-    .settings-tab { padding:6px 14px; border-radius:8px; font-size:13px; color:var(--dim); border:1px solid transparent; cursor:pointer; transition:all 0.2s; font-family:Rajdhani,sans-serif; }
-    .settings-tab.active { color:var(--primary); border-color:rgba(0,212,255,0.3); background:rgba(0,212,255,0.08); }
-    .settings-tab:hover:not(.active) { color:var(--text); }
-    input[type="text"], input[type="password"], input[type="number"], select { background:rgba(0,20,50,0.5); }
-    input[type="range"] { background:transparent; }
-    .email-account-card { background:rgba(0,20,50,0.4); border:1px solid rgba(0,212,255,0.15); border-radius:8px; padding:12px; }
-  </style>
-
-  <!-- ═══ ONBOARDING + SETTINGS JS ═══ -->
-  <script>
-    let onboardStep = 1;
-    const totalSteps = 4;
-    let currentConfig = {};
-
-    // Check onboarding on load
-    fetch('/api/onboarding/status').then(r=>r.json()).then(data => {
-      if (data.isFirstRun) {
-        openOnboarding();
-      }
-    }).catch(() => {});
-
-    // Load config for settings
-    function loadConfigForSettings() {
-      fetch('/api/config').then(r=>r.json()).then(cfg => {
-        currentConfig = cfg;
-        // Populate general
-        document.getElementById('set_name').value = cfg.assistantName || '';
-        document.getElementById('set_provider').value = cfg.modelProvider || 'ollama-cloud';
-        document.getElementById('set_vault').value = cfg.vaultPath || './vault';
-        document.getElementById('set_confirm').checked = cfg.permissions?.requireConfirmation ?? true;
-        document.getElementById('set_terminal').checked = cfg.permissions?.allowTerminalAccess ?? false;
-        document.getElementById('set_network').checked = cfg.permissions?.allowNetworkAccess ?? false;
-        // Voice
-        document.getElementById('set_tts_backend').value = cfg.audio?.tts?.backend || 'browser';
-        document.getElementById('set_tts_endpoint').value = '';
-        document.getElementById('set_stt_backend').value = cfg.audio?.stt?.backend || 'browser';
-        document.getElementById('set_tts_voice').value = cfg.audio?.tts?.voice || '';
-        document.getElementById('set_tts_speed').value = cfg.audio?.tts?.speed || 1.0;
-        document.getElementById('speedVal').textContent = (cfg.audio?.tts?.speed || 1.0).toFixed(1) + 'x';
-        toggleTtsFields();
-        // Browser
-        document.getElementById('set_browser_enabled').checked = cfg.browserControl?.enabled !== false;
-        document.getElementById('set_browser_autodiscover').checked = cfg.browserControl?.autoDiscover !== false;
-        document.getElementById('set_browser_ports').value = (cfg.browserControl?.defaultPorts || [9222,9223,9224]).join(', ');
-        // Email
-        document.getElementById('set_email_enabled').checked = cfg.email?.enabled !== false;
-        // System
-        document.getElementById('set_sandbox_tier').value = cfg.sandbox?.defaultTier || 'native';
-        document.getElementById('set_gateway_port').value = cfg.gateway?.port || 3096;
-        // Audio status
-        loadAudioStatus();
-      }).catch(() => {});
-    }
-
-    function loadAudioStatus() {
-      fetch('/api/audio/status').then(r=>r.json()).then(s => {
-        const panel = document.getElementById('audioStatusPanel');
-        panel.innerHTML = `<div class="flex justify-between"><span>Mode:</span><span class="text-cyan-300">${s.mode}</span></div>`
-          + `<div class="flex justify-between"><span>STT:</span><span class="${s.stt?.enabled ? 'text-emerald-400' : 'text-red-400'}">${s.stt?.backend || 'none'} ${s.stt?.enabled ? '(active)' : '(off)'}</span></div>`
-          + `<div class="flex justify-between"><span>TTS:</span><span class="${s.tts?.enabled ? 'text-emerald-400' : 'text-red-400'}">${s.tts?.backend || 'none'} ${s.tts?.enabled ? '(active)' : '(off)'}</span></div>`
-          + (s.tts_kokoro_available ? `<div class="flex justify-between"><span>Kokoro:</span><span class="text-emerald-400">${s.tts_kokoro_model}</span></div>` : '')
-          + (s.tts_piper_available ? `<div class="flex justify-between"><span>Piper:</span><span class="text-emerald-400">${s.tts_piper_model}</span></div>` : '');
-      }).catch(() => {});
-    }
-
-    // Onboarding functions
-    function openOnboarding() { document.getElementById('onboardingModal').style.display = 'flex'; }
-    function closeOnboarding() { document.getElementById('onboardingModal').style.display = 'none'; }
-
-    function onboardNext() {
-      if (onboardStep < totalSteps) {
-        if (onboardStep === 1 && !document.getElementById('ob_name').value.trim()) {
-          document.getElementById('ob_name').style.borderColor = 'var(--danger)';
-          return;
-        }
-        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'none';
-        onboardStep++;
-        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'block';
-        document.getElementById('ob_back').style.visibility = 'visible';
-        document.getElementById('onboardProgress').style.width = (onboardStep / totalSteps * 100) + '%';
-        document.getElementById('onboardStepIndicator').textContent = `${onboardStep} / ${totalSteps}`;
-        if (onboardStep === totalSteps) buildSummary();
-        if (onboardStep === totalSteps) {
-          document.getElementById('ob_next').textContent = 'Finish & Save';
-          document.getElementById('ob_next').onclick = finishOnboarding;
-        }
-      }
-    }
-
-    function onboardBack() {
-      if (onboardStep > 1) {
-        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'none';
-        onboardStep--;
-        document.querySelectorAll('.onboard-step')[onboardStep - 1].style.display = 'block';
-        document.getElementById('ob_back').style.visibility = onboardStep === 1 ? 'hidden' : 'visible';
-        document.getElementById('ob_next').textContent = 'Next';
-        document.getElementById('ob_next').onclick = onboardNext;
-        document.getElementById('onboardProgress').style.width = (onboardStep / totalSteps * 100) + '%';
-        document.getElementById('onboardStepIndicator').textContent = `${onboardStep} / ${totalSteps}`;
-      }
-    }
-
-    function buildSummary() {
-      const name = document.getElementById('ob_name').value;
-      const mode = document.querySelector('input[name="ob_mode"]:checked').value;
-      const tts = document.getElementById('ob_tts').value;
-      const stt = document.getElementById('ob_stt').value;
-      const browser = document.getElementById('ob_browser').checked;
-      const email = document.getElementById('ob_email_enable').checked;
-      document.getElementById('ob_summary').innerHTML = `
-        <div class="flex justify-between"><span>Name:</span><span class="text-cyan-200">${name}</span></div>
-        <div class="flex justify-between"><span>Mode:</span><span class="text-cyan-200">${mode === 'voice' ? 'Voice + Text' : 'Text Only'}</span></div>
-        <div class="flex justify-between"><span>TTS:</span><span class="text-cyan-200">${tts}</span></div>
-        <div class="flex justify-between"><span>STT:</span><span class="text-cyan-200">${stt}</span></div>
-        <div class="flex justify-between"><span>Browser:</span><span class="${browser ? 'text-emerald-400' : 'text-red-400'}">${browser ? 'Enabled' : 'Disabled'}</span></div>
-        <div class="flex justify-between"><span>Email:</span><span class="${email ? 'text-emerald-400' : 'text-red-400'}">${email ? 'Configured' : 'Skip'}</span></div>`;
-    }
-
-    function finishOnboarding() {
-      const updates = {
-        assistantName: document.getElementById('ob_name').value,
-        audio: {
-          mode: document.querySelector('input[name="ob_mode"]:checked').value === 'voice' ? 'builtIn' : 'builtIn',
-          tts: { enabled: true, backend: document.getElementById('ob_tts').value, endpoint: document.getElementById('ob_tts_endpoint').value || undefined },
-          stt: { enabled: document.getElementById('ob_stt').value !== 'disabled', backend: document.getElementById('ob_stt').value === 'browser' ? 'whisper' : document.getElementById('ob_stt').value }
-        },
-        browserControl: { enabled: document.getElementById('ob_browser').checked, autoDiscover: true }
-      };
-      if (document.getElementById('ob_email_enable').checked) {
-        updates.email = {
-          enabled: true,
-          accounts: [{
-            label: document.getElementById('ob_email_label').value || 'Email',
-            imapHost: document.getElementById('ob_email_imap').value,
-            smtpHost: document.getElementById('ob_email_smtp').value,
-            username: document.getElementById('ob_email_user').value,
-            password: document.getElementById('ob_email_pass').value
-          }]
-        };
-      }
-      fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
-        .then(r => r.json()).then(() => { closeOnboarding(); addLog('Onboarding complete! Settings saved.', 'success'); })
-        .catch(e => { addLog('Failed to save: ' + e.message, 'error'); });
-    }
-
-    // Settings functions
-    function openSettings() { loadConfigForSettings(); document.getElementById('settingsModal').style.display = 'flex'; }
-    function closeSettings() { document.getElementById('settingsModal').style.display = 'none'; }
-
-    function switchSettingsTab(tab) {
-      document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-      document.querySelectorAll('.settings-content').forEach(c => c.style.display = c.dataset.tab === tab ? 'block' : 'none');
-    }
-
-    function toggleTtsFields() {
-      const backend = document.getElementById('set_tts_backend').value;
-      document.getElementById('set_tts_http_wrap').style.display = backend === 'http' ? 'block' : 'none';
-    }
-
-    document.getElementById('set_tts_speed').addEventListener('input', function() {
-      document.getElementById('speedVal').textContent = parseFloat(this.value).toFixed(1) + 'x';
-    });
-
-    function saveSettings() {
-      const updates: any = {
-        assistantName: document.getElementById('set_name').value,
-        modelProvider: document.getElementById('set_provider').value,
-        vaultPath: document.getElementById('set_vault').value,
-        permissions: {
-          requireConfirmation: document.getElementById('set_confirm').checked,
-          allowTerminalAccess: document.getElementById('set_terminal').checked,
-          allowNetworkAccess: document.getElementById('set_network').checked
-        },
-        audio: {
-          mode: 'builtIn',
-          tts: {
-            enabled: document.getElementById('set_tts_backend').value !== 'disabled',
-            backend: document.getElementById('set_tts_backend').value === 'disabled' ? 'browser' : document.getElementById('set_tts_backend').value,
-            endpoint: document.getElementById('set_tts_endpoint').value || undefined,
-            voice: document.getElementById('set_tts_voice').value || undefined,
-            speed: parseFloat(document.getElementById('set_tts_speed').value)
-          },
-          stt: {
-            enabled: document.getElementById('set_stt_backend').value !== 'disabled',
-            backend: document.getElementById('set_stt_backend').value === 'browser' ? 'whisper' : document.getElementById('set_stt_backend').value
-          }
-        },
-        browserControl: {
-          enabled: document.getElementById('set_browser_enabled').checked,
-          autoDiscover: document.getElementById('set_browser_autodiscover').checked,
-          autoLaunchChrome: document.getElementById('set_browser_autochrome').checked,
-          autoLaunchBrave: document.getElementById('set_browser_autobrave').checked,
-          defaultPorts: document.getElementById('set_browser_ports').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
-        },
-        email: { enabled: document.getElementById('set_email_enabled').checked },
-        sandbox: { defaultTier: document.getElementById('set_sandbox_tier').value },
-        gateway: { port: parseInt(document.getElementById('set_gateway_port').value) || 3096 }
-      };
-      fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
-        .then(r => r.json()).then(d => { closeSettings(); addLog('Settings saved. ' + (d.message || ''), 'success'); })
-        .catch(e => { addLog('Save failed: ' + e.message, 'error'); });
-    }
-
-    function restartOnboarding() { closeSettings(); onboardStep = 1; document.querySelectorAll('.onboard-step').forEach((s,i) => s.style.display = i === 0 ? 'block' : 'none'); document.getElementById('ob_back').style.visibility = 'hidden'; document.getElementById('ob_next').textContent = 'Next'; document.getElementById('ob_next').onclick = onboardNext; document.getElementById('onboardProgress').style.width = '25%'; document.getElementById('onboardStepIndicator').textContent = '1 / 4'; openOnboarding(); }
-
-    // TTS endpoint toggle for onboarding
-    document.getElementById('ob_tts').addEventListener('change', function() {
-      document.getElementById('ob_tts_http_fields').style.display = this.value === 'http' ? 'block' : 'none';
-    });
-    // Email fields toggle for onboarding
-    document.getElementById('ob_email_enable').addEventListener('change', function() {
-      document.getElementById('ob_email_fields').style.display = this.checked ? 'block' : 'none';
-    });
-  </script>
-
+  <input type="file" id="file-input" class="hidden" accept="image/*,.pdf,.txt,.json,.md">
+  <script>window.__WS_TOKEN__ = "__WS_TOKEN__";</script>
+  <script src="app.js"></script>
 </body>
 </html>

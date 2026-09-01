@@ -1,0 +1,12 @@
+{
+  "name": "M.A.I. — Agentic Interface",
+  "short_name": "MAI",
+  "description": "Multiple Array Intelligence — Tony Stark-style AI Agent Harness",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#020817",
+  "background_color": "#020817",
+  "categories": ["utilities", "productivity"],
+  "prefer_related_applications": false
+}
