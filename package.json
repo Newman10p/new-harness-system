@@ -1,7 +1,7 @@
 {
   "name": "mai-harness",
   "version": "2.0.0",
-  "description": "M.A.I. (Multiple Array Intelligence) — Markdown-First agentic AI harness with OpenAI-compatible LLM, YAML policy firewall, 12 primitives, and Iron Man-style WebSocket HUD.",
+  "description": "M.A.I. (Multiple Array Intelligence) — Markdown-First agentic AI harness",
   "bin": {
     "mai": "./bin/mai.js"
   },
@@ -17,41 +17,7 @@
     "dev": "tsc -w",
     "prepublishOnly": "npm run build"
   },
-  "keywords": [
-    "ai",
-    "agent",
-    "harness",
-    "llm",
-    "openai",
-    "ollama",
-    "markdown-first",
-    "policy-firewall",
-    "websocket",
-    "hud",
-    "agentic",
-    "cli",
-    "maı"
-  ],
-  "author": "Newman10p",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Newman10p/new-harness-system"
-  },
-  "dependencies": {
-    "chalk": "^5.6.2",
-    "dotenv": "^16.4.7",
-    "gray-matter": "^4.0.3",
-    "js-yaml": "^4.1.0",
-    "open": "^10.1.0",
-    "openai": "^4.73.0",
-    "ws": "^8.18.0",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/node": "^20.14.0",
-    "@types/ws": "^8.5.13",
-    "@types/js-yaml": "^4.0.5",
-    "typescript": "^5.9.3"
-  }
+  "keywords": ["ai", "agent", "harness", "llm"],
+  "author": "Bulega Farid (The Deadman)",
+  "license": "MIT"
 }

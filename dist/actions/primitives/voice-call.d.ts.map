@@ -1,0 +1,1 @@
+{"version":3,"file":"voice-call.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/voice-call.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAc,MAAM,sBAAsB,CAAC;AAS5F,wBAAsB,SAAS,CAC7B,MAAM,EAAE,MAAM,EACd,GAAG,EAAE,aAAa,GACjB,OAAO,CAAC,YAAY,CAAC,CAuEvB"}

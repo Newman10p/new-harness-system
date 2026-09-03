@@ -1,0 +1,1 @@
+{"version":3,"file":"get-system-info.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/get-system-info.ts"],"names":[],"mappings":"AAKA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAE,MAAM,sBAAsB,CAAC;AAEhF,wBAAsB,aAAa,CACjC,OAAO,EAAE,MAAM,EACf,IAAI,EAAE,aAAa,GAClB,OAAO,CAAC,YAAY,CAAC,CA0BvB"}

@@ -1,26 +1,172 @@
 {
-  "assistantName": "Jarvis",
-  "model": "llama2",
+  "assistantName": "M.A.I.",
+  "model": "gpt-oss:120b",
+  "modelProvider": "ollama-cloud",
+  "providerPriority": ["ollama-cloud", "openrouter", "ollama-local-small", "ollama-local-tiny"],
+  "modelSection": {
+    "defaultProvider": "ollama_cloud",
+    "providers": {
+      "ollama_cloud": {
+        "type": "ollamaCloud",
+        "baseUrl": "https://api.ollama.com",
+        "model": "gpt-oss:120b",
+        "enabled": true,
+        "priority": 1
+      },
+      "openrouter_glm": {
+        "type": "openaiStyle",
+        "source": "openrouter",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "model": "z-ai/glm-5.2:free",
+        "apiKeyEnv": "OPENROUTER_API_KEY",
+        "enabled": true,
+        "priority": 2
+      },
+      "ollama_local_small": {
+        "type": "ollamaLocal",
+        "baseUrl": "http://localhost:11434",
+        "model": "llama3.2",
+        "enabled": true,
+        "priority": 3
+      },
+      "ollama_local_tiny": {
+        "type": "ollamaLocal",
+        "baseUrl": "http://localhost:11434",
+        "model": "phi3-mini",
+        "enabled": true,
+        "priority": 4
+      }
+    }
+  },
   "ollama": {
     "endpoint": "http://127.0.0.1:11434",
-    "model": "llama2"
+    "model": "llama3.2"
+  },
+  "cloud": {
+    "provider": "ollama-cloud",
+    "endpoint": "https://api.ollama.com",
+    "model": "gpt-oss:120b",
+    "creditBudget": 10
+  },
+  "openrouter": {
+    "enabled": true,
+    "model": "z-ai/glm-5.2:free",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "fallback": true
   },
   "audio": {
+    "mode": "builtIn",
     "stt": {
-      "backend": "whisper",
+      "backend": "moonshine",
       "enabled": true,
-      "modelPath": "base"
+      "modelPath": "/home/deadman/models/moonshine/base/onnx/",
+      "sampleRate": 16000,
+      "channels": 1
     },
     "tts": {
-      "backend": "http",
-      "enabled": false,
-      "endpoint": "http://localhost:5002/api/tts"
+      "backend": "piper",
+      "enabled": true,
+      "piper": {
+        "model": "/home/deadman/piper-models/en_US-lessac-medium.onnx",
+        "config": "/home/deadman/piper-models/en_US-lessac-medium.onnx.json"
+      }
     }
   },
   "vaultPath": "./vault",
   "skillsPath": "./skills",
+  "sandboxPath": "./sandbox",
   "permissions": {
     "allowSandboxedSkills": true,
-    "allowedExternalCommands": []
+    "allowedExternalCommands": [],
+    "requireConfirmation": false,
+    "safetyLevel": "balanced",
+    "allowAdvancedTools": true,
+    "allowTerminalAccess": true,
+    "allowDeviceAccess": true,
+    "allowNetworkAccess": true,
+    "sandboxFirst": true
+  },
+  "tools": {
+    "enabled": true,
+    "safetyLevel": "experimental",
+    "allowedDirectories": ["./vault", "./skills", "./sandbox", "./workspace"],
+    "allowedCommands": [],
+    "sim3dEnabled": false,
+    "deviceAccess": true,
+    "networkAccess": true,
+    "mcpServerSupport": true
+  },
+  "policy": {
+    "objectives": [
+      "Serve as a personal operator for code, engineering research, simulations, file management, administration and automation",
+      "Preserve system stability, privacy, and resource health",
+      "Adapt skills within sandboxed, reviewable workflows",
+      "Coordinate across devices only when configured and authorized",
+      "Learn from user patterns and preferences over time"
+    ],
+    "rules": [
+      "Execute commands in sandbox first, then request permission to apply changes",
+      "Respect budget limits and avoid heavy tasks when constrained",
+      "Log significant actions and tool calls for audit",
+      "Limit security tools to defensive and authorized analysis",
+      "Do not assist with unauthorized intrusion, exploitation, or attacks"
+    ]
+  },
+  "security": {
+    "monitorEnabled": true,
+    "alertOnHighResourceUsage": true,
+    "alertOnFrequentTerminal": true,
+    "logActions": true
+  },
+  "gateway": {
+    "enabled": true,
+    "port": 3096
+  },
+  "userProfile": {
+    "name": "Bulega Farid",
+    "publicName": "The Deadman",
+    "preferredAddress": "sir",
+    "dateOfBirth": "2007-11-25",
+    "learningEnabled": true
+  },
+  "ui": {
+    "themes": ["black-red", "black-blue", "office-white"],
+    "adjustableColors": ["blue", "green", "red", "black"],
+    "defaultTheme": "black-blue"
+  },
+  "browserControl": {
+    "enabled": true,
+    "autoDiscover": true,
+    "defaultPorts": [9222, 9223, 9224],
+    "autoLaunchChrome": true,
+    "autoLaunchBrave": true,
+    "headless": false,
+    "screenshotDir": "./vault/browser-screenshots"
+  },
+  "email": {
+    "enabled": true,
+    "accounts": [
+      {
+        "id": "gmail-main",
+        "label": "Gmail",
+        "host": "imap.gmail.com",
+        "port": 993,
+        "smtpHost": "smtp.gmail.com",
+        "smtpPort": 465,
+        "username": "__ENV:GMAIL_USERNAME__",
+        "password": "__ENV:GMAIL_PASSWORD__",
+        "tls": true
+      }
+    ],
+    "maxMessagesPerFetch": 200
+  },
+  "search": {
+    "engine": "duckduckgo",
+    "maxResults": 8
+  },
+  "router": {
+    "autoDetect": true,
+    "minConfidence": 0.6,
+    "ollamaEndpoint": "http://localhost:11434"
   }
 }

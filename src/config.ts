@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 // ===== Model Provider Types =====
-export type ModelProvider = "ollama" | "ollama-cloud" | "openai" | "anthropic";
+export type ModelProvider = "ollama" | "ollama-cloud" | "openai" | "anthropic" | "openrouter";
 
 export interface OllamaConfig {
   endpoint?: string;
@@ -30,10 +30,19 @@ export interface AnthropicConfig {
   creditBudget?: number;
 }
 
+export interface OpenRouterConfig {
+  enabled?: boolean;
+  model?: string;
+  apiKeyEnv?: string;
+  apiKey?: string;
+  fallback?: boolean;
+  baseUrl?: string;
+}
+
 // ===== Provider Registry Config =====
 export interface ProviderEntryConfig {
-  type: "ollamaLocal" | "ollamaCloud" | "openaiStyle" | "anthropic" | "mock";
-  source?: "openai" | "nvidia_nim" | "lightning" | "nemo_proxy";
+  type: "ollamaLocal" | "ollamaCloud" | "openaiStyle" | "anthropic" | "mock" | "openrouter";
+  source?: "openai" | "nvidia_nim" | "lightning" | "nemo_proxy" | "openrouter";
   baseUrl?: string;
   model: string;
   apiKeyEnv?: string;
@@ -149,6 +158,7 @@ export interface HarnessConfig {
   cloud?: CloudConfig;
   openai?: OpenAiConfig;
   anthropic?: AnthropicConfig;
+  openrouter?: OpenRouterConfig;
   audio?: AudioConfig;
   vaultPath?: string;
   skillsPath?: string;
@@ -159,16 +169,32 @@ export interface HarnessConfig {
   tools?: ToolsConfig;
   policy?: PolicyConfig;
   security?: SecurityConfig;
+  userProfile?: UserProfileConfig;
+  ui?: UIConfig;
+}
+
+export interface UserProfileConfig {
+  name?: string;
+  publicName?: string;
+  preferredAddress?: string;
+  dateOfBirth?: string;
+  learningEnabled?: boolean;
+}
+
+export interface UIConfig {
+  themes?: string[];
+  adjustableColors?: string[];
+  defaultTheme?: string;
 }
 
 // ===== Defaults =====
 const defaultConfig: HarnessConfig = {
   model: "llama3.2",
-  assistantName: "Jarvis",
+  assistantName: "M.A.I.",
   modelProvider: "ollama-cloud",
-  providerPriority: ["ollama-cloud", "ollama", "openai", "anthropic"],
+  providerPriority: ["ollama-cloud", "openrouter", "ollama", "anthropic"],
   modelSection: {
-    defaultProvider: "ollama_local",
+    defaultProvider: "ollama_cloud",
     providers: {
       ollama_local: {
         type: "ollamaLocal",
@@ -180,6 +206,14 @@ const defaultConfig: HarnessConfig = {
         type: "ollamaCloud",
         baseUrl: "https://ollama.example.com",
         model: "llama3.2",
+        enabled: true
+      },
+      openrouter_glm: {
+        type: "openaiStyle",
+        source: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        model: "z-ai/glm-5.2:free",
+        apiKeyEnv: "OPENROUTER_API_KEY",
         enabled: true
       },
       openai_compatible: {
@@ -214,7 +248,14 @@ const defaultConfig: HarnessConfig = {
     provider: "ollama-cloud",
     endpoint: "https://ollama.example.com",
     model: "llama3.2",
-    creditBudget: 5
+    creditBudget: 10
+  },
+  openrouter: {
+    enabled: true,
+    model: "z-ai/glm-5.2:free",
+    apiKeyEnv: "OPENROUTER_API_KEY",
+    fallback: true,
+    baseUrl: "https://openrouter.ai/api/v1"
   },
   openai: {
     model: "gpt-4o-mini",
@@ -244,31 +285,32 @@ const defaultConfig: HarnessConfig = {
   permissions: {
     allowSandboxedSkills: true,
     allowedExternalCommands: [],
-    requireConfirmation: true,
+    requireConfirmation: false,
     safetyLevel: "balanced",
-    allowAdvancedTools: false,
-    allowTerminalAccess: false,
-    allowDeviceAccess: false,
-    allowNetworkAccess: false
+    allowAdvancedTools: true,
+    allowTerminalAccess: true,
+    allowDeviceAccess: true,
+    allowNetworkAccess: true
   },
   tools: {
-    enabled: false,
-    safetyLevel: "balanced",
-    allowedDirectories: ["./vault", "./skills", "./sandbox"],
+    enabled: true,
+    safetyLevel: "experimental",
+    allowedDirectories: ["./vault", "./skills", "./sandbox", "./workspace"],
     allowedCommands: [],
     sim3dEnabled: false,
-    deviceAccess: false,
-    networkAccess: false
+    deviceAccess: true,
+    networkAccess: true
   },
   policy: {
     objectives: [
-      "Serve as a personal operator for code, files, tools, and automation.",
+      "Serve as a personal operator for code, engineering research, simulations, file management, administration and automation.",
       "Preserve system stability, privacy, and resource health.",
       "Adapt skills within sandboxed, reviewable workflows.",
-      "Coordinate across devices only when configured and authorized."
+      "Coordinate across devices only when configured and authorized.",
+      "Learn from user patterns and preferences over time."
     ],
     rules: [
-      "Do not execute destructive actions without explicit confirmation.",
+      "Execute commands in sandbox first, then request permission to apply changes.",
       "Respect resource limits and avoid heavy tasks when constrained.",
       "Log significant actions and tool calls for audit.",
       "Limit security tools to defensive and authorized analysis.",
@@ -284,6 +326,18 @@ const defaultConfig: HarnessConfig = {
   gateway: {
     enabled: true,
     port: 3096
+  },
+  userProfile: {
+    name: "Bulega Farid",
+    publicName: "The Deadman",
+    preferredAddress: "sir",
+    dateOfBirth: "2007-11-25",
+    learningEnabled: true
+  },
+  ui: {
+    themes: ["black-red", "black-blue", "office-white"],
+    adjustableColors: ["blue", "green", "red", "black"],
+    defaultTheme: "black-blue"
   }
 };
 
@@ -323,6 +377,10 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
         ...defaultConfig.anthropic,
         ...(parsed.anthropic ?? {})
       },
+      openrouter: {
+        ...defaultConfig.openrouter,
+        ...(parsed.openrouter ?? {})
+      },
       audio: {
         ...defaultConfig.audio,
         ...(parsed.audio ?? {})
@@ -346,6 +404,14 @@ export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
       gateway: {
         ...defaultConfig.gateway,
         ...(parsed.gateway ?? {})
+      },
+      userProfile: {
+        ...defaultConfig.userProfile,
+        ...(parsed.userProfile ?? {})
+      },
+      ui: {
+        ...defaultConfig.ui,
+        ...(parsed.ui ?? {})
       }
     };
   } catch (error) {

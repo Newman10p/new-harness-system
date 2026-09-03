@@ -2,15 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0a0f1a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MAI">
-  <meta name="description" content="M.A.I. Chat - Multiple Array Intelligence">
-  <title>M.A.I. Chat</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="description" content="M.A.I. — Multiple Array Intelligence">
+  <title>M.A.I.</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -19,60 +14,28 @@
     <header class="chat-header">
       <div class="header-left">
         <div class="logo">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-            <circle cx="14" cy="14" r="12" stroke="#00d4ff" stroke-width="1.5" opacity="0.6"/>
-            <circle cx="14" cy="14" r="8" stroke="#00d4ff" stroke-width="1" opacity="0.4"/>
-            <circle cx="14" cy="14" r="4" fill="#00d4ff" opacity="0.8"/>
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+            <circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="1" opacity="0.4"/>
+            <circle cx="14" cy="14" r="4" fill="currentColor" opacity="0.8"/>
           </svg>
           <span class="logo-text">M.A.I.</span>
         </div>
       </div>
       <div class="header-center">
-        <div id="connection-status" class="connection-status disconnected">
+        <div id="connection-status" class="connection-status">
           <span class="status-dot"></span>
-          <span class="status-text">Disconnected</span>
+          <span class="status-text">Connected</span>
         </div>
       </div>
       <div class="header-right">
-        <button id="btn-search" class="icon-btn" aria-label="Search conversations" title="Search">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
         <button id="btn-settings" class="icon-btn" aria-label="Settings" title="Settings">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
           </svg>
         </button>
-      </div>
-      <!-- Status indicators -->
-      <div id="status-bar" class="status-bar"></div>
-      <div id="threat-indicator" class="threat-indicator green" title="System secure"></div>
-      <div id="connection-status" class="connection-dot disconnected" title="Connecting..."></div>
-      <div id="health-indicator" class="health-indicator green" title="System healthy"></div>
-      <div id="tunnel-status" class="tunnel-status" style="display:none"></div>
-      <div id="analytics-bar" class="analytics-bar" style="display:none"></div>
-      <div id="ambient-indicator" class="ambient-indicator" style="display:none">🎤</div>
-      <div id="voice-call-ui" class="voice-call-ui" style="display:none">
-        <span class="call-status">Listening...</span>
       </div>
     </header>
-
-    <!-- ─── Search Bar (hidden by default) ─────────────────────────────────── -->
-    <div id="search-bar" class="search-bar hidden">
-      <div class="search-bar-inner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input id="search-input" type="text" placeholder="Search conversations..." autocomplete="off">
-        <button id="search-clear" class="icon-btn small" aria-label="Clear search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-      <div id="search-results" class="search-results"></div>
-    </div>
 
     <!-- ─── Message Area ──────────────────────────────────────────────────── -->
     <main id="message-area" class="message-area" role="log" aria-label="Chat messages" aria-live="polite">
@@ -82,7 +45,7 @@
       <div id="typing-indicator" class="typing-indicator hidden">
         <div class="typing-avatar">
           <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="14" r="4" fill="#00d4ff" opacity="0.8"/>
+            <circle cx="14" cy="14" r="4" fill="currentColor" opacity="0.8"/>
           </svg>
         </div>
         <div class="typing-dots">
@@ -121,12 +84,6 @@
         <div class="input-wrapper">
           <textarea id="message-input" placeholder="Message M.A.I...." rows="1" aria-label="Message input"></textarea>
         </div>
-        <button id="btn-voice" class="icon-btn" aria-label="Voice input" title="Voice">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-            <path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-          </svg>
-        </button>
         <button id="btn-send" class="send-btn" aria-label="Send message" title="Send">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -135,40 +92,12 @@
       </div>
     </div>
 
-    <!-- ─── Bottom Navigation ─────────────────────────────────────────────── -->
-    <nav class="bottom-nav">
-      <button class="nav-tab active" data-tab="chat" aria-label="Chat">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-        </svg>
-        <span>Chat</span>
-      </button>
-      <button class="nav-tab" data-tab="files" aria-label="Files">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/>
-        </svg>
-        <span>Files</span>
-      </button>
-      <button class="nav-tab" data-tab="devices" aria-label="Devices">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
-        <span>Devices</span>
-      </button>
-      <button class="nav-tab" data-tab="settings" aria-label="Settings">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-        <span>Settings</span>
-      </button>
-    </nav>
-
     <!-- ─── Settings Panel (slide-in) ──────────────────────────────────────── -->
     <div id="settings-panel" class="settings-panel hidden">
       <div class="settings-backdrop"></div>
       <div class="settings-content">
         <div class="settings-header">
-          <h2>Settings</h2>
+          <h2>Configuration</h2>
           <button id="settings-close" class="icon-btn" aria-label="Close settings">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -176,63 +105,197 @@
           </button>
         </div>
         <div class="settings-body">
-          <div class="setting-group">
+          <!-- Model Configuration -->
+          <section class="setting-section">
+            <h3>Model Providers</h3>
+            <p class="setting-hint">Priority: Primary → Fallback 1 → Fallback 2</p>
+            
+            <div class="setting-grid">
+              <div class="setting-field">
+                <label for="setting-primary-provider">Primary</label>
+                <select id="setting-primary-provider">
+                  <option value="ollama-cloud">Ollama Cloud</option>
+                  <option value="openrouter">OpenRouter GLM-5.2 Free</option>
+                  <option value="ollama-local">Local Ollama (llama3.2)</option>
+                  <option value="phi3-local">Local Ollama (phi3-mini)</option>
+                </select>
+              </div>
+              
+              <div class="setting-field">
+                <label for="setting-fallback-1">Fallback 1</label>
+                <select id="setting-fallback-1">
+                  <option value="openrouter">OpenRouter GLM-5.2 Free</option>
+                  <option value="ollama-cloud">Ollama Cloud</option>
+                  <option value="ollama-local">Local Ollama (llama3.2)</option>
+                  <option value="phi3-local">Local Ollama (phi3-mini)</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+              
+              <div class="setting-field">
+                <label for="setting-fallback-2">Fallback 2</label>
+                <select id="setting-fallback-2">
+                  <option value="ollama-local">Local Ollama (llama3.2)</option>
+                  <option value="phi3-local">Local Ollama (phi3-mini)</option>
+                  <option value="openrouter">OpenRouter GLM-5.2 Free</option>
+                  <option value="ollama-cloud">Ollama Cloud</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+            </div>
+          </section>
+          
+          <!-- API Keys -->
+          <section class="setting-section">
+            <h3>API Keys</h3>
+            
+            <div class="setting-field">
+              <label for="setting-ollama-cloud-key">Ollama Cloud</label>
+              <div class="input-with-button">
+                <input type="password" id="setting-ollama-cloud-key" placeholder="Enter your Ollama Cloud key">
+                <button class="btn-toggle-visibility" data-target="setting-ollama-cloud-key" aria-label="Toggle visibility">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div class="setting-field">
+              <label for="setting-openrouter-key">OpenRouter</label>
+              <div class="input-with-button">
+                <input type="password" id="setting-openrouter-key" placeholder="Get free key at openrouter.ai">
+                <button class="btn-toggle-visibility" data-target="setting-openrouter-key" aria-label="Toggle visibility">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="setting-hint"><a href="https://openrouter.ai/keys" target="_blank" rel="noopener">Get free API key</a></p>
+            </div>
+            
+            <div class="setting-field">
+              <label for="setting-ollama-endpoint">Local Ollama Endpoint</label>
+              <input type="text" id="setting-ollama-endpoint" value="http://localhost:11434" placeholder="http://localhost:11434">
+            </div>
+          </section>
+          
+          <!-- Appearance -->
+          <section class="setting-section">
             <h3>Appearance</h3>
-            <div class="setting-item">
-              <label for="setting-theme">Theme</label>
-              <select id="setting-theme">
-                <option value="dark" selected>Dark</option>
-                <option value="light">Light</option>
+            
+            <div class="setting-grid">
+              <div class="setting-field">
+                <label for="setting-theme">Theme</label>
+                <select id="setting-theme">
+                  <option value="black-blue">Black & Blue</option>
+                  <option value="black-red">Black & Red</option>
+                  <option value="office-white">Office White</option>
+                </select>
+              </div>
+              
+              <div class="setting-field">
+                <label for="setting-accent-color">Accent</label>
+                <select id="setting-accent-color">
+                  <option value="blue">Blue</option>
+                  <option value="green">Green</option>
+                  <option value="red">Red</option>
+                  <option value="black">Black</option>
+                </select>
+              </div>
+            </div>
+          </section>
+          
+          <!-- User Profile -->
+          <section class="setting-section">
+            <h3>User Profile</h3>
+            
+            <div class="setting-field">
+              <label for="setting-user-name">Name</label>
+              <input type="text" id="setting-user-name" value="Bulega Farid" placeholder="Your name">
+            </div>
+            
+            <div class="setting-field">
+              <label for="setting-public-name">Public Name</label>
+              <input type="text" id="setting-public-name" value="The Deadman" placeholder="Public alias">
+            </div>
+            
+            <div class="setting-field">
+              <label for="setting-preferred-address">Address As</label>
+              <input type="text" id="setting-preferred-address" value="sir" placeholder="How M.A.I. should address you">
+            </div>
+          </section>
+          
+          <!-- Security -->
+          <section class="setting-section">
+            <h3>Security</h3>
+            
+            <div class="setting-field">
+              <label for="setting-safety-level">Safety Level</label>
+              <select id="setting-safety-level">
+                <option value="conservative">Conservative</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="experimental">Experimental</option>
               </select>
             </div>
-          </div>
-          <div class="setting-group">
-            <h3>Notifications</h3>
-            <div class="setting-item">
-              <label for="setting-notifications">Push Notifications</label>
-              <input type="checkbox" id="setting-notifications" checked>
+            
+            <div class="setting-options">
+              <label class="checkbox-label">
+                <input type="checkbox" id="setting-sandbox-first" checked>
+                <span>Sandbox-first execution</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="setting-terminal-access" checked>
+                <span>Terminal access</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="setting-network-access" checked>
+                <span>Network access</span>
+              </label>
             </div>
-            <div class="setting-item">
-              <label for="setting-sound">Sound</label>
-              <input type="checkbox" id="setting-sound" checked>
-            </div>
-          </div>
-          <div class="setting-group">
+          </section>
+          
+          <!-- Connection -->
+          <section class="setting-section">
             <h3>Connection</h3>
-            <div class="setting-item">
+            
+            <div class="setting-field">
               <label for="setting-ws-url">WebSocket URL</label>
               <input type="text" id="setting-ws-url" value="ws://localhost:8080" placeholder="ws://host:port">
             </div>
-            <button id="btn-reconnect" class="settings-action-btn">Reconnect</button>
-          </div>
-          <div class="setting-group">
+            
+            <button id="btn-reconnect" class="btn-secondary">Reconnect</button>
+          </section>
+          
+          <!-- Data -->
+          <section class="setting-section">
             <h3>Data</h3>
-            <button id="btn-clear-history" class="settings-action-btn danger">Clear Chat History</button>
-            <p class="setting-hint">Stores last 500 messages locally</p>
-          </div>
+            
+            <div class="setting-field">
+              <label for="setting-vault-path">Vault Path</label>
+              <input type="text" id="setting-vault-path" value="./vault" placeholder="./vault">
+            </div>
+            
+            <div class="setting-field">
+              <label for="setting-skills-path">Skills Path</label>
+              <input type="text" id="setting-skills-path" value="./skills" placeholder="./skills">
+            </div>
+            
+            <div class="setting-actions">
+              <button id="btn-clear-history" class="btn-danger">Clear History</button>
+              <button id="btn-save-config" class="btn-primary">Save Configuration</button>
+            </div>
+            <p class="setting-hint">Saves to harness.config.json and .env</p>
+          </section>
+          
+          <!-- System Info -->
+          <section class="setting-section">
+            <h3>System Information</h3>
+            <div id="system-info" class="system-info-box">
+              <p>Loading...</p>
+            </div>
+          </section>
         </div>
-      </div>
-    </div>
-
-    <!-- ─── Files Panel ───────────────────────────────────────────────────── -->
-    <div id="files-panel" class="panel-view hidden">
-      <div class="panel-header">
-        <h2>Files</h2>
-        <p class="panel-subtitle">Files available on M.A.I. workspace</p>
-      </div>
-      <div id="files-list" class="panel-list">
-        <div class="panel-empty">No files loaded. Connect to M.A.I. to browse files.</div>
-      </div>
-    </div>
-
-    <!-- ─── Devices Panel ─────────────────────────────────────────────────── -->
-    <div id="devices-panel" class="panel-view hidden">
-      <div class="panel-header">
-        <h2>Devices</h2>
-        <p class="panel-subtitle">Connected devices via M.A.I. gateway</p>
-      </div>
-      <div id="devices-list" class="panel-list">
-        <div class="panel-empty">No devices connected.</div>
       </div>
     </div>
   </div>

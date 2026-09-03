@@ -1,0 +1,1 @@
+{"version":3,"file":"emit-hud-update.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/emit-hud-update.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAc,MAAM,sBAAsB,CAAC;AAU5F,wBAAsB,aAAa,CACjC,MAAM,EAAE,MAAM,EACd,GAAG,EAAE,aAAa,GACjB,OAAO,CAAC,YAAY,CAAC,CA0BvB"}

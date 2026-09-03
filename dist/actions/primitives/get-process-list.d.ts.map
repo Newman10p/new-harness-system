@@ -1,0 +1,1 @@
+{"version":3,"file":"get-process-list.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/get-process-list.ts"],"names":[],"mappings":"AAMA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAE,MAAM,sBAAsB,CAAC;AAIhF,wBAAsB,cAAc,CAClC,OAAO,EAAE,MAAM,EACf,GAAG,EAAE,aAAa,GACjB,OAAO,CAAC,YAAY,CAAC,CAmDvB"}

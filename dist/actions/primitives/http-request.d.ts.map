@@ -1,0 +1,1 @@
+{"version":3,"file":"http-request.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/http-request.ts"],"names":[],"mappings":"AAKA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAE,MAAM,sBAAsB,CAAC;AAGhF,wBAAsB,WAAW,CAC/B,MAAM,EAAE,MAAM,EACd,IAAI,EAAE,aAAa,GAClB,OAAO,CAAC,YAAY,CAAC,CAkDvB"}

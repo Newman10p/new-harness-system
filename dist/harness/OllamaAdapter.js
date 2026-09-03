@@ -1,0 +1,64 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.OllamaAdapter = void 0;
+const node_child_process_1 = require("node:child_process");
+const node_util_1 = require("node:util");
+const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
+class OllamaAdapter {
+    config;
+    name = "ollama";
+    constructor(config) {
+        this.config = config;
+    }
+    async generate(options) {
+        const prompt = options.prompt;
+        if (this.config.endpoint) {
+            try {
+                return await this.generateViaHttp(prompt, options);
+            }
+            catch (error) {
+                console.warn("Ollama HTTP request failed, falling back to ollama CLI:", error);
+            }
+        }
+        return await this.generateViaCli(prompt, options);
+    }
+    async generateViaHttp(prompt, options) {
+        const endpoint = this.config.endpoint ?? "http://127.0.0.1:11434";
+        const url = new URL("/api/generate", endpoint).toString();
+        const body = {
+            model: this.config.model,
+            prompt,
+            stream: false,
+            options: {
+                num_predict: options.maxTokens ?? 512,
+                temperature: options.temperature ?? 0.2
+            }
+        };
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            throw new Error(`Ollama HTTP error ${response.status}: ${await response.text()}`);
+        }
+        const data = await response.json();
+        const text = typeof data?.response === "string" ? data.response : "";
+        return { text: String(text), metadata: { raw: data } };
+    }
+    async generateViaCli(prompt, options) {
+        const args = ["run", this.config.model, prompt];
+        const { stdout, stderr } = await execFileAsync("ollama", args, {
+            cwd: process.cwd(),
+            env: process.env
+        });
+        if (stderr) {
+            console.warn(stderr);
+        }
+        return { text: stdout.trim(), metadata: { raw: stdout } };
+    }
+}
+exports.OllamaAdapter = OllamaAdapter;
+//# sourceMappingURL=OllamaAdapter.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"clipboard-write.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/clipboard-write.ts"],"names":[],"mappings":"AAOA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAE,MAAM,sBAAsB,CAAC;AAIhF,wBAAsB,cAAc,CAClC,MAAM,EAAE,MAAM,EACd,IAAI,EAAE,aAAa,GAClB,OAAO,CAAC,YAAY,CAAC,CAoDvB"}
