@@ -1,0 +1,1 @@
+{"version":3,"file":"get-gpu-info.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/get-gpu-info.ts"],"names":[],"mappings":"AAQA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAE,MAAM,sBAAsB,CAAC;AAahF,wBAAsB,UAAU,CAC9B,OAAO,EAAE,MAAM,EACf,IAAI,EAAE,aAAa,GAClB,OAAO,CAAC,YAAY,CAAC,CA6HvB"}

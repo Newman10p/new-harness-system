@@ -2,13 +2,17 @@
 // Manages multiple LLM providers with automatic fallback.
 // Tries providers in priority order, falls through on errors.
 // Supports: Ollama local (OpenAI-compat), Ollama Cloud (native API),
-//          OpenAI, NVIDIA NIM, Anthropic (via proxy).
+//          OpenAI, NVIDIA NIM, Anthropic (via proxy), OpenRouter.
 //
 // Configuration via environment variables:
 //   LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_PROVIDER  (primary)
 //   LLM_FALLBACK_1_BASE_URL, LLM_FALLBACK_1_API_KEY, LLM_FALLBACK_1_MODEL  (fallback)
 //   LLM_FALLBACK_2_BASE_URL, LLM_FALLBACK_2_API_KEY, LLM_FALLBACK_2_MODEL  (fallback)
 //   ... up to LLM_FALLBACK_4
+//
+// OpenRouter Support:
+//   Set OPENROUTER_API_KEY and use model "z-ai/glm-5.2:free" for free tier.
+//   OpenRouter uses OpenAI-compatible /v1/chat/completions endpoint.
 
 import OpenAI from "openai";
 import type { ProviderEntry } from "../types/index.js";
@@ -42,6 +46,10 @@ function isOllamaNativeProvider(name: string): boolean {
 /**
  * Parse provider configuration from environment variables.
  * Returns an ordered array of providers (primary first, then fallbacks).
+ * 
+ * OpenRouter is auto-configured if OPENROUTER_API_KEY is set:
+ *   - Primary: uses LLM_BASE_URL etc if provided
+ *   - Fallback: auto-adds OpenRouter with glm-5.2:free model
  */
 export function loadProviders(): ProviderEntry[] {
   const providers: ProviderEntry[] = [];
@@ -62,7 +70,20 @@ export function loadProviders(): ProviderEntry[] {
     });
   }
 
-  // Fallback providers (up to 4)
+  // Auto-add OpenRouter as fallback if API key is provided
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    providers.push({
+      name: "openrouter",
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: openRouterKey,
+      model: process.env.OPENROUTER_MODEL || "z-ai/glm-5.2:free",
+      priority: 100, // lowest priority (last fallback)
+    });
+  }
+
+  // Fallback providers (up to 4) — inserted before OpenRouter
+  const fallbackProviders: ProviderEntry[] = [];
   for (let i = 1; i <= 4; i++) {
     const prefix = `LLM_FALLBACK_${i}_`;
     const baseURL = process.env[prefix + "BASE_URL"];
@@ -71,7 +92,7 @@ export function loadProviders(): ProviderEntry[] {
     const name = process.env[prefix + "PROVIDER"];
 
     if (baseURL && apiKey && model) {
-      providers.push({
+      fallbackProviders.push({
         name: name || `fallback-${i}`,
         baseURL,
         apiKey,
@@ -80,6 +101,9 @@ export function loadProviders(): ProviderEntry[] {
       });
     }
   }
+
+  // Insert fallback providers before OpenRouter
+  providers.push(...fallbackProviders);
 
   return providers.sort((a, b) => a.priority - b.priority);
 }

@@ -1,0 +1,1 @@
+{"version":3,"file":"watch-directory.d.ts","sourceRoot":"","sources":["../../../src/actions/primitives/watch-directory.ts"],"names":[],"mappings":"AAOA,OAAO,KAAK,EAAE,MAAM,EAAE,aAAa,EAAE,YAAY,EAAE,MAAM,sBAAsB,CAAC;AAShF,wBAAsB,cAAc,CAClC,MAAM,EAAE,MAAM,EACd,GAAG,EAAE,aAAa,GACjB,OAAO,CAAC,YAAY,CAAC,CAkDvB;AAED;;GAEG;AACH,wBAAgB,gBAAgB,IAAI,IAAI,CAKvC"}
