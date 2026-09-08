@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings | M.A.I.</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../styles-phase3.css">
+</head>
+<body class="settings-page">
+  <div class="settings-container">
+    <!-- Sidebar Navigation -->
+    <aside class="settings-sidebar">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="btn-icon" id="close-settings" aria-label="Close settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      
+      <nav class="settings-nav">
+        <button class="settings-nav-item active" data-section="identity">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span>Identity</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="policy">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span>Policy & Safety</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="models">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <span>Models</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="voice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+            <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <span>Voice</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="memory">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span>Memory</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="mcp">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+            <line x1="6" y1="6" x2="6.01" y2="6"/>
+            <line x1="6" y1="18" x2="6.01" y2="18"/>
+          </svg>
+          <span>MCP Servers</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="channels">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          <span>Channels</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="runtime">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <span>Runtime</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="security">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+          <span>Security</span>
+        </button>
+        
+        <button class="settings-nav-item" data-section="appearance">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="14.31" y1="8" x2="20.05" y2="17.94"/>
+            <line x1="9.69" y1="8" x2="21.17" y2="8"/>
+            <line x1="7.38" y1="12" x2="13.12" y2="2.06"/>
+            <line x1="9.69" y1="16" x2="3.95" y2="6.06"/>
+            <line x1="14.31" y1="16" x2="2.83" y2="16"/>
+            <line x1="16.62" y1="12" x2="10.88" y2="21.94"/>
+          </svg>
+          <span>Appearance</span>
+        </button>
+      </nav>
+    </aside>
+    
+    <!-- Main Content Area -->
+    <main class="settings-content">
+      <!-- Identity Section -->
+      <section id="settings-identity" class="settings-section active">
+        <div class="settings-section-header">
+          <h3>Identity & Personality</h3>
+          <p class="section-description">Configure how M.A.I. presents itself and interacts with you</p>
+        </div>
+        
+        <div class="settings-form">
+          <div class="form-group">
+            <label for="ai-name">AI Name</label>
+            <input type="text" id="ai-name" value="M.A.I." placeholder="e.g., JARVIS, FRIDAY">
+            <small>How the AI refers to itself</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="ai-role">Role / Persona</label>
+            <textarea id="ai-role" rows="3" placeholder="e.g., Executive assistant, Research partner, Code companion"></textarea>
+            <small>Primary function and personality archetype</small>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="verbosity-level">Verbosity</label>
+              <select id="verbosity-level">
+                <option value="concise">Concise</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="detailed">Detailed</option>
+                <option value="verbose">Verbose</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="formality-level">Formality</label>
+              <select id="formality-level">
+                <option value="casual">Casual</option>
+                <option value="professional" selected>Professional</option>
+                <option value="formal">Formal</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="tone-style">Tone</label>
+              <select id="tone-style">
+                <option value="friendly">Friendly</option>
+                <option value="neutral" selected>Neutral</option>
+                <option value="authoritative">Authoritative</option>
+                <option value="witty">Witty</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="proactive-level">Proactive Level</label>
+            <input type="range" id="proactive-level" min="0" max="100" value="50">
+            <div class="range-labels">
+              <span>Reactive Only</span>
+              <span>Balanced</span>
+              <span>Highly Proactive</span>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="allow-interruption" checked>
+              <span>Allow user interruption during execution</span>
+            </label>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="background-updates" checked>
+              <span>Provide background status updates</span>
+            </label>
+          </div>
+          
+          <div class="preview-section">
+            <h4>Response Preview</h4>
+            <div class="preview-input">
+              <input type="text" id="preview-prompt" placeholder="Enter a sample query..." value="What's the weather like today?">
+              <button class="btn btn-primary" id="generate-preview">Preview</button>
+            </div>
+            <div class="preview-output" id="response-preview">
+              <em>Click "Preview" to see how M.A.I. would respond with current settings</em>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn" id="reset-identity">Reset to Defaults</button>
+            <button class="btn btn-primary" id="save-identity">Save Changes</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Policy Section -->
+      <section id="settings-policy" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Policy & Safety</h3>
+          <p class="section-description">Define what M.A.I. can do autonomously and what requires approval</p>
+        </div>
+        
+        <div class="policy-config">
+          <div class="form-group">
+            <label for="safety-level">Safety Level</label>
+            <select id="safety-level">
+              <option value="minimal">Minimal (Maximum autonomy)</option>
+              <option value="standard" selected>Standard (Balanced)</option>
+              <option value="strict">Strict (High caution)</option>
+              <option value="maximum">Maximum (Human-in-the-loop)</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="risk-threshold">Risk Threshold</label>
+            <input type="range" id="risk-threshold" min="0" max="100" value="30">
+            <div class="range-labels">
+              <span>Low Risk Only</span>
+              <span>Moderate</span>
+              <span>High Risk Allowed</span>
+            </div>
+          </div>
+          
+          <div class="policy-lists">
+            <div class="policy-list">
+              <h4>Auto-Approve Actions</h4>
+              <div class="tag-input-container">
+                <input type="text" class="tag-input" placeholder="Add action (e.g., read-file, web-search)">
+                <div class="tags-list" id="auto-approve-tags"></div>
+              </div>
+            </div>
+            
+            <div class="policy-list">
+              <h4>Require Approval</h4>
+              <div class="tag-input-container">
+                <input type="text" class="tag-input" placeholder="Add action requiring approval">
+                <div class="tags-list" id="require-approval-tags"></div>
+              </div>
+            </div>
+            
+            <div class="policy-list">
+              <h4>Denied Actions</h4>
+              <div class="tag-input-container">
+                <input type="text" class="tag-input" placeholder="Add permanently denied action">
+                <div class="tags-list" id="denied-actions-tags"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="policy-simulator">
+            <h4>Policy Simulator</h4>
+            <p class="section-description">Test how policy would respond to different actions</p>
+            <div class="simulator-input">
+              <textarea id="simulator-action" rows="3" placeholder='{"action": "execute-terminal", "command": "rm -rf /tmp/test"}'></textarea>
+              <button class="btn btn-primary" id="run-simulation">Simulate</button>
+            </div>
+            <div class="simulator-result" id="simulation-result">
+              <em>Results will appear here</em>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn" id="reset-policy">Reset Policy</button>
+            <button class="btn btn-primary" id="save-policy">Save Policy</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Models Section -->
+      <section id="settings-models" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Model Providers</h3>
+          <p class="section-description">Configure AI model providers and routing preferences</p>
+        </div>
+        
+        <div class="provider-list" id="provider-list">
+          <!-- Provider cards will be rendered here -->
+        </div>
+        
+        <button class="btn btn-secondary" id="add-provider">+ Add Provider</button>
+        
+        <div class="form-actions">
+          <button class="btn btn-primary" id="save-models">Save Model Config</button>
+        </div>
+      </section>
+      
+      <!-- Voice Section -->
+      <section id="settings-voice" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Voice & Audio</h3>
+          <p class="section-description">Text-to-speech engine and voice preferences</p>
+        </div>
+        
+        <div class="settings-form">
+          <div class="form-group">
+            <label for="tts-engine">TTS Engine</label>
+            <select id="tts-engine">
+              <option value="browser">Browser Built-in</option>
+              <option value="piper">Piper (Local)</option>
+              <option value="kokoro">Kokoro (Local)</option>
+              <option value="elevenlabs">ElevenLabs</option>
+              <option value="openai">OpenAI TTS</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="voice-select">Voice</label>
+            <select id="voice-select">
+              <!-- Populated dynamically based on engine -->
+            </select>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="speech-rate">Speech Rate</label>
+              <input type="range" id="speech-rate" min="0.5" max="2" step="0.1" value="1">
+            </div>
+            
+            <div class="form-group">
+              <label for="speech-pitch">Pitch</label>
+              <input type="range" id="speech-pitch" min="0.5" max="2" step="0.1" value="1">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="enable-stt" checked>
+              <span>Enable Speech-to-Text input</span>
+            </label>
+          </div>
+          
+          <div class="test-audio-section">
+            <button class="btn btn-secondary" id="test-tts">Test Voice</button>
+            <audio id="audio-preview" style="display:none"></audio>
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-voice">Save Voice Settings</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Memory Section -->
+      <section id="settings-memory" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Memory System</h3>
+          <p class="section-description">Configure how M.A.I. remembers and forgets information</p>
+        </div>
+        
+        <div class="settings-form">
+          <div class="form-group">
+            <label for="memory-mode">Memory Mode</label>
+            <select id="memory-mode">
+              <option value="auto" selected>Automatic (AI decides)</option>
+              <option value="manual">Manual (Ask before storing)</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="retention-days">Default Retention (days)</label>
+            <input type="number" id="retention-days" value="90" min="1" max="3650">
+            <small>How long memories are kept before automatic cleanup</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="max-memories">Max Memories</label>
+            <input type="number" id="max-memories" value="10000" min="100">
+            <small>Maximum number of stored memories</small>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="auto-compact" checked>
+              <span>Automatically compact old memories</span>
+            </label>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="remember-preferences" checked>
+              <span>Remember user preferences</span>
+            </label>
+          </div>
+          
+          <div class="memory-stats" id="memory-stats">
+            <h4>Current Memory Usage</h4>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <span class="stat-value" id="total-memories">0</span>
+                <span class="stat-label">Total Memories</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="memory-size">0 KB</span>
+                <span class="stat-label">Storage Size</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="oldest-memory">-</span>
+                <span class="stat-label">Oldest Memory</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn btn-danger" id="clear-memories">Clear All Memories</button>
+            <button class="btn btn-primary" id="save-memory">Save Memory Settings</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- MCP Section -->
+      <section id="settings-mcp" class="settings-section">
+        <div class="settings-section-header">
+          <h3>MCP Servers</h3>
+          <p class="section-description">Manage Model Context Protocol server connections</p>
+        </div>
+        
+        <div class="mcp-server-list" id="mcp-server-list">
+          <!-- Server cards rendered here -->
+        </div>
+        
+        <button class="btn btn-secondary" id="add-mcp-server">+ Add MCP Server</button>
+        
+        <div class="form-actions">
+          <button class="btn btn-primary" id="refresh-mcp">Refresh Connections</button>
+          <button class="btn btn-primary" id="save-mcp">Save MCP Config</button>
+        </div>
+      </section>
+      
+      <!-- Channels Section -->
+      <section id="settings-channels" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Communication Channels</h3>
+          <p class="section-description">Configure Telegram, WhatsApp, SMS, Webhook endpoints</p>
+        </div>
+        
+        <div class="channel-list" id="channel-list">
+          <!-- Channel cards rendered here -->
+        </div>
+        
+        <div class="form-actions">
+          <button class="btn btn-primary" id="save-channels">Save Channel Config</button>
+        </div>
+      </section>
+      
+      <!-- Runtime Section -->
+      <section id="settings-runtime" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Runtime Configuration</h3>
+          <p class="section-description">System behavior, timeouts, and performance settings</p>
+        </div>
+        
+        <div class="settings-form">
+          <div class="form-group">
+            <label for="action-timeout">Action Timeout (seconds)</label>
+            <input type="number" id="action-timeout" value="30" min="5" max="300">
+          </div>
+          
+          <div class="form-group">
+            <label for="max-loops">Max Loop Iterations</label>
+            <input type="number" id="max-loops" value="10" min="1" max="100">
+          </div>
+          
+          <div class="form-group">
+            <label for="retry-count">Max Retry Count</label>
+            <input type="number" id="retry-count" value="3" min="0" max="10">
+          </div>
+          
+          <div class="form-group">
+            <label for="bg-concurrency">Background Concurrency</label>
+            <input type="number" id="bg-concurrency" value="5" min="1" max="20">
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="circuit-breaker" checked>
+              <span>Enable circuit breaker for failing operations</span>
+            </label>
+          </div>
+          
+          <div class="form-group">
+            <label for="log-retention">Log Retention (days)</label>
+            <input type="number" id="log-retention" value="7" min="1" max="90">
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-runtime">Save Runtime Settings</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Security Section -->
+      <section id="settings-security" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Security</h3>
+          <p class="section-description">Secret management and security policies</p>
+        </div>
+        
+        <div class="settings-form">
+          <div class="secret-list" id="secret-list">
+            <h4>Configured Secrets</h4>
+            <!-- Secret entries rendered here (masked) -->
+          </div>
+          
+          <button class="btn btn-secondary" id="add-secret">+ Add Secret</button>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="audit-logging" checked>
+              <span>Enable audit logging for all secret access</span>
+            </label>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="redact-logs" checked>
+              <span>Redact secrets from logs</span>
+            </label>
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-security">Save Security Settings</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Appearance Section -->
+      <section id="settings-appearance" class="settings-section">
+        <div class="settings-section-header">
+          <h3>Appearance</h3>
+          <p class="section-description">Theme, colors, and visual preferences</p>
+        </div>
+        
+        <div class="settings-form">
+          <div class="form-group">
+            <label for="theme-mode">Theme Mode</label>
+            <select id="theme-mode">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="aura-select">Aura (Dark Mode Theme)</label>
+            <div class="aura-selector">
+              <div class="aura-option" data-aura="cobalt">
+                <div class="aura-preview cobalt"></div>
+                <span>Cobalt Sentinel</span>
+              </div>
+              <div class="aura-option" data-aura="crimson">
+                <div class="aura-preview crimson"></div>
+                <span>Crimson Protocol</span>
+              </div>
+              <div class="aura-option" data-aura="verdant">
+                <div class="aura-preview verdant"></div>
+                <span>Verdant Ops</span>
+              </div>
+              <div class="aura-option" data-aura="obsidian">
+                <div class="aura-preview obsidian"></div>
+                <span>Obsidian</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="reduced-motion">
+              <span>Reduce motion animations</span>
+            </label>
+          </div>
+          
+          <div class="preview-section">
+            <h4>Theme Preview</h4>
+            <div class="theme-preview" id="theme-preview">
+              <div class="preview-card">
+                <h5>Sample Card</h5>
+                <p>This is how UI elements will look with your selected theme.</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn btn-primary" id="save-appearance">Save Appearance</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  
+  <script src="../app.js"></script>
+  <script src="settings-app.js"></script>
+</body>
+</html>
