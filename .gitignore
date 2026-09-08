@@ -1,30 +1,50 @@
+```
 # Dependencies
 node_modules/
 
-# Build output
+# Build outputs
 dist/
+build/
+target/
+
+# Python related
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py.class
+.Python
+env/
+venv/
+.venv/
+.ENV
+.python-version
+
+# Logs
+*.log
 
 # Environment variables
 .env
 .env.local
+.env.*
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# OS
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Testing
+.vitest/
+.mypy_cache/
+.pytest_cache/
+
+# System
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-
-# Temporary files
-tmp/
-temp/
-
-# Obsidian vault (user data)
-vault/.obsidian/
+```

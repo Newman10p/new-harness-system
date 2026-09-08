@@ -61,6 +61,10 @@ Usage:
   # Security
   jarvis security status                              # Show security alerts and status
 
+  # System Doctor
+  jarvis doctor                                       # Run comprehensive system diagnostics
+  jarvis doctor --json                                # Output diagnostics as JSON
+
   # Autonomous
   jarvis auto --goal "your goal here"                 # Full autonomous natural language execution
   jarvis run "your goal here"                         # Shorthand for auto
