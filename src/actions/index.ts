@@ -13,13 +13,10 @@ import type {
   PrimitiveExecutor,
 } from "../types/index.js";
 import { ACTION_TIMEOUT_MS } from "../core/constants.js";
-import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const _req = createRequire(import.meta.url);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// CommonJS globals - __dirname is automatically provided in CommonJS modules
+const _req = require;
 
 import { executeTerminal } from "./primitives/execute-terminal.js";
 import { readFile } from "./primitives/read-file.js";
