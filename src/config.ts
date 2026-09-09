@@ -147,6 +147,7 @@ export interface SecurityConfig {
   alertOnHighResourceUsage?: boolean;
   alertOnFrequentTerminal?: boolean;
   logActions?: boolean;
+  policyFile?: string;
 }
 
 // ===== Sandbox Config =====
@@ -203,6 +204,8 @@ export interface EmailControlSystemConfig {
   enabled?: boolean;
   accounts?: EmailAccountConfig[];
   maxMessagesPerFetch?: number;
+  smtp?: { host: string; port?: number; secure?: boolean };
+  from?: string;
 }
 
 // ===== Main Config =====
@@ -385,6 +388,9 @@ const defaultConfig: HarnessConfig = {
   }
 };
 
+export { defaultConfig };
+
+// ===== Legacy loadConfig function (deprecated - use ConfigManager) =====
 export function loadConfig(configPath = "harness.config.json"): HarnessConfig {
   const resolvedPath = path.resolve(process.cwd(), configPath);
   if (!fs.existsSync(resolvedPath)) {

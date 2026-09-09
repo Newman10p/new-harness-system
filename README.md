@@ -1,6 +1,20 @@
 # M.A.I. — Multiple Array Intelligence
 
-**Markdown-First / Model-as-an-Engine** agentic AI harness. The system reads markdown files for identity, policy, and tools, calls an OpenAI-compatible LLM, parses fenced ` ```action ` JSON blocks from responses, validates them against a YAML policy firewall, executes **49 primitives** across 6 groups, and streams results to a WebSocket-connected Iron Man-style HUD frontend.
+**Production-Grade Personal AI Operating System** with unified runtime, policy enforcement, MCP integration, memory management, and JARVIS-like presence.
+
+M.A.I. (Multiple Array Intelligence) is a coherent, production-ready AI operating system featuring:
+- **ONE Runtime** — Central MAIRuntime coordinates all tasks, actions, approvals, and state
+- **ONE Policy** — PolicyService enforces security rules with durable, auditable approvals
+- **ONE Configuration** — ConfigManager with validation, preview, rollback, and history
+- **ONE Secret Model** — SecretBroker never exposes secrets to models, logs, or UI
+- **ONE Trust Model** — Provenance metadata (TRUSTED, SEMI_TRUSTED, UNTRUSTED) on all content
+- **MCP Integration** — First-class MCP client/server with policy enforcement
+- **Memory System** — Capture, retrieve, rank, compact, forget with explainability
+- **Task System** — Durable, cancellable, observable tasks with full lifecycle
+- **Multi-Channel** — HUD, CLI, Telegram, WhatsApp, SMS, SIP, Webhook unified under one runtime
+- **System Doctor** — Comprehensive diagnostics with remediation guidance
+
+The system reads markdown files for identity, policy, and tools, calls an OpenAI-compatible LLM, parses fenced ` ```action ` JSON blocks from responses, validates them against a policy firewall, executes actions through a unified gateway, and streams results to a WebSocket-connected Iron Man-style HUD frontend.
 
 ## Architecture
 
@@ -457,40 +471,76 @@ MOONSHINE_MODEL_DIR=/path/to/models # Moonshine STT model directory
 
 ## Quick Start
 
+## Quick Start
+
 ### Prerequisites
 
-- **Node.js** >= 18
+- **Node.js** >= 18 (tested with 18.x, 20.x, 22.x, 24.x)
 - **npm** (comes with Node.js)
-- **An LLM endpoint** — Ollama (local or cloud), OpenAI, NVIDIA NIM, Anthropic, or any OpenAI-compatible API
+- **An LLM endpoint** — at least one of:
+  - [Ollama](https://ollama.ai/) (local, free, recommended for getting started)
+  - OpenAI API key
+  - Anthropic API key
+  - NVIDIA NIM API key
+  - Any OpenAI-compatible endpoint
 
-### 1. Clone & Install
+### Installation
+
+#### Option 1: Local Development Setup (Recommended)
 
 ```bash
+# Clone the repository
+git clone https://github.com/Newman10p/new-harness-system
+cd new-harness-system
+
+# Install dependencies
+npm install
+
+# Build TypeScript
+npm run build
+
+# Verify installation
+npm run cli -- --help
+```
+
+#### Option 2: Global Installation
+
+```bash
+# Clone and install globally
 git clone https://github.com/Newman10p/new-harness-system
 cd new-harness-system
 npm install
+npm run build
+npm install -g .
+
+# Verify installation
+mai --help
 ```
 
-### 2. Configure LLM
+### Configuration
 
-Copy the example env file and edit it:
+#### Step 1: Create Environment File
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your LLM settings:
+#### Step 2: Configure LLM Provider
 
-**Local Ollama (default):**
-```
+Edit `.env` with your LLM settings. Choose ONE provider:
+
+**Local Ollama (Default - Free):**
+```bash
 LLM_BASE_URL=http://localhost:11434/v1
 LLM_API_KEY=ollama
 LLM_MODEL=llama3.2
 LLM_PROVIDER=ollama
 ```
 
-**Ollama Cloud** ([cloud.ollama.com](https://cloud.ollama.com)):
-```
+> **Note:** Install Ollama from [ollama.ai](https://ollama.ai) and pull a model: `ollama pull llama3.2`
+
+**Ollama Cloud:**
+```bash
 LLM_BASE_URL=https://api.ollama.ai/v1
 LLM_API_KEY=oll-cloud-xxxxxxxxxxxxxxxx
 LLM_MODEL=llama3.2
@@ -498,7 +548,7 @@ LLM_PROVIDER=ollama-cloud
 ```
 
 **OpenAI:**
-```
+```bash
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=sk-your-key-here
 LLM_MODEL=gpt-4o-mini
@@ -506,7 +556,7 @@ LLM_PROVIDER=openai
 ```
 
 **NVIDIA NIM:**
-```
+```bash
 LLM_BASE_URL=https://integrate.api.nvidia.com/v1
 LLM_API_KEY=nvapi-your-key-here
 LLM_MODEL=meta/llama3-70b-instruct
@@ -514,52 +564,153 @@ LLM_PROVIDER=nvidia
 ```
 
 **Anthropic:**
-```
+```bash
 LLM_BASE_URL=https://api.anthropic.com/v1
 LLM_API_KEY=sk-ant-your-key-here
 LLM_MODEL=claude-3-haiku-20240307
 LLM_PROVIDER=anthropic
 ```
 
-### 3. Run M.A.I.
+#### Step 3: Optional Features Configuration
 
-**CLI Mode** (interactive terminal):
+**Browser Control** (Chrome DevTools Protocol):
+Launch Chrome/Brave with remote debugging:
 ```bash
-npx tsx src/index.ts
-```
-
-**Server Mode** (HUD + WebSocket + API + Chat PWA):
-```bash
-npx tsx src/server.ts
-```
-
-Or use the compiled output:
-```bash
-npm run build
-npm start       # Server mode
-npm run cli      # CLI mode
-```
-
-Then open:
-- **HUD Frontend:** http://localhost:3000
-- **Chat PWA:** http://localhost:3000/chat/
-- **WebSocket:** ws://localhost:8080
-- **API:** http://localhost:3000/api/status
-
-### 4. (Optional) Enable Browser Control
-
-Launch Chrome or Brave with remote debugging enabled:
-
-```bash
-# Chrome
 google-chrome --remote-debugging-port=9222
-
-# Brave
+# or
 brave-browser --remote-debugging-port=9223
 ```
 
-M.A.I. auto-discovers browsers on ports 9222-9225. Configure in `harness.config.json`:
+**Email Access** (Gmail/Outlook):
+Add to `harness.config.json`:
+```json
+{
+  "email": {
+    "enabled": true,
+    "accounts": [{
+      "id": "gmail-primary",
+      "host": "imap.gmail.com",
+      "port": 993,
+      "smtpHost": "smtp.gmail.com",
+      "smtpPort": 465,
+      "username": "you@gmail.com",
+      "password": "xxxx xxxx xxxx xxxx"
+    }]
+  }
+}
+```
 
+**Gateway Channels** (Telegram, WhatsApp, SMS, SIP):
+Add to `.env`:
+```bash
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TWILIO_ACCOUNT_SID=ACxxxxxx
+TWILIO_AUTH_TOKEN=your-token
+TWILIO_PHONE_NUMBER=+1234567890
+```
+
+### Running M.A.I.
+
+#### CLI Mode (Interactive Terminal)
+
+```bash
+# Using npm
+npm run cli
+
+# Using compiled binary
+node dist/index.js
+
+# If installed globally
+mai
+```
+
+#### Server Mode (HUD + WebSocket + API + Chat PWA)
+
+```bash
+# Using npm
+npm start
+
+# Using compiled binary
+node dist/server.js
+```
+
+Then open in your browser:
+- **HUD Frontend:** http://localhost:3000
+- **Chat PWA:** http://localhost:3000/chat/
+- **Settings:** http://localhost:3000/settings/
+- **Mission Control:** http://localhost:3000/mission-control/
+- **Memory Observatory:** http://localhost:3000/memory-obs/
+- **MCP Manager:** http://localhost:3000/mcp-manager/
+- **WebSocket:** ws://localhost:8080
+- **API Status:** http://localhost:3000/api/status
+
+### Verification & Diagnostics
+
+Run the System Doctor to verify everything is working:
+
+```bash
+# CLI command
+npm run cli -- doctor
+
+# Or with JSON output
+npm run cli -- doctor --json
+```
+
+The doctor checks:
+- ✅ Runtime environment (Node version, paths)
+- ✅ Configuration validity
+- ✅ Provider connectivity
+- ✅ Model availability
+- ✅ Memory health
+- ✅ Gateway channels
+- ✅ MCP servers
+- ✅ Browser control
+- ✅ Email access
+- ✅ Policy validity
+- ✅ Security configuration
+
+### First Steps
+
+1. **Start M.A.I.** in server mode: `npm start`
+2. **Open HUD:** Navigate to http://localhost:3000
+3. **Configure Settings:** Go to Settings → Models to verify your LLM provider
+4. **Test Chat:** Send a message like "What can you do?" or "Show me your tools"
+5. **Explore UI:** Check Mission Control, Memory Observatory, and MCP Manager
+6. **Run Diagnostics:** Use `mai doctor` to verify system health
+
+### Next Steps
+
+- **Read Documentation:**
+  - [INSTALLATION.md](./INSTALLATION.md) — Complete installation guide
+  - [QUICK_START.md](./QUICK_START.md) — Quick start tutorial
+  - [DEVELOPMENT.md](./DEVELOPMENT.md) — Development setup and testing
+  - [PHASE4_COMPLETE.md](./PHASE4_COMPLETE.md) — Production readiness report
+
+- **Configure Advanced Features:**
+  - MCP servers integration
+  - Multi-channel gateway (Telegram, WhatsApp)
+  - Browser automation
+  - Email management
+  - Custom macros and skills
+
+- **Security & Policy:**
+  - Review `agent/policy.md` for security rules
+  - Configure approval requirements for dangerous actions
+  - Set up secret management via SecretBroker
+
+---
+
+## Advanced Configuration
+
+For detailed configuration of advanced features, see [INSTALLATION.md](./INSTALLATION.md):
+
+### Browser Control (Chrome DevTools Protocol)
+
+M.A.I. can control Chrome/Brave browsers via CDP for web automation, search, and content extraction.
+
+**Setup:**
+1. Launch browser with remote debugging: `google-chrome --remote-debugging-port=9222`
+2. Configure in `harness.config.json`:
 ```json
 {
   "browserControl": {
@@ -571,91 +722,102 @@ M.A.I. auto-discovers browsers on ports 9222-9225. Configure in `harness.config.
 }
 ```
 
-### 5. (Optional) Enable Email Access
+**Capabilities:** Discover browsers, list/search tabs, navigate, Google search, screenshots, content extraction, JavaScript execution.
 
-Add email accounts to `harness.config.json`:
+### Email Access (IMAP/SMTP)
 
+Full email management with zero external dependencies using Node.js TLS sockets.
+
+**Setup:** Add to `harness.config.json`:
 ```json
 {
   "email": {
     "enabled": true,
-    "accounts": [
-      {
-        "id": "gmail-primary",
-        "label": "Gmail",
-        "host": "imap.gmail.com",
-        "port": 993,
-        "smtpHost": "smtp.gmail.com",
-        "smtpPort": 465,
-        "username": "you@gmail.com",
-        "password": "xxxx xxxx xxxx xxxx"
-      }
-    ],
+    "accounts": [{
+      "id": "gmail-primary",
+      "label": "Gmail",
+      "host": "imap.gmail.com",
+      "port": 993,
+      "smtpHost": "smtp.gmail.com",
+      "smtpPort": 465,
+      "username": "you@gmail.com",
+      "password": "xxxx xxxx xxxx xxxx"
+    }],
     "maxMessagesPerFetch": 20
   }
 }
 ```
 
-For Gmail, use an [App Password](https://myaccount.google.com/apppasswords) (16-character string, spaces optional).
+> **Note:** For Gmail, use an [App Password](https://myaccount.google.com/apppasswords) (16-character string).
 
-### 6. (Optional) Enable Gateway Channels
+### Gateway Channels (Multi-Device Access)
 
-Add to your `.env` file to unlock external channels:
+Access M.A.I. from Telegram, WhatsApp, SMS, SIP voice calls, and webhooks.
 
+**Setup:** Add to `.env`:
 ```bash
-# Telegram
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-
-# SMS (Twilio)
 TWILIO_ACCOUNT_SID=ACxxxxxx
 TWILIO_AUTH_TOKEN=your-token
 TWILIO_PHONE_NUMBER=+1234567890
-
-# WhatsApp (via Twilio)
 TWILIO_WHATSAPP_SID=whatsapp-sid
-
-# SIP / Voice
 SIP_SERVER=sip:provider.com
 SIP_USER=username
 SIP_PASS=password
-
-# GitHub Notifications
-GITHUB_TOKEN=ghp_xxxxx
-
-# Slack Notifications
-SLACK_BOT_TOKEN=xoxb-xxx
-SLACK_SIGNING_SECRET=xxx
-
-# RSS Feeds (comma-separated)
-RSS_FEEDS=https://hnrss.org/frontpage,https://blog.rust-lang.org/feed.xml
 ```
 
-### 7. (Optional) Enable Cloud Tunnel
+### MCP Integration (Model Context Protocol)
 
-Add to your `.env`:
+Connect to external MCP servers for extended tools and capabilities.
 
+**Setup:** Configure MCP servers in Settings → MCP or via `harness.config.json`.
+
+### Cloud Tunnel (Remote Access)
+
+Expose M.A.I. securely via Cloudflare Tunnel, Ngrok, or WireGuard.
+
+**Setup:** Add to `.env`:
 ```bash
-# Cloudflare Tunnel
 TUNNEL_METHOD=cloudflare
 CLOUDFLARE_TUNNEL_TOKEN=your-token
-
-# Or Ngrok
-TUNNEL_METHOD=ngrok
-NGROK_AUTH_TOKEN=your-token
-
-# Or WireGuard
-TUNNEL_METHOD=wireguard
-WIREGUARD_CONFIG_PATH=/path/to/wg0.conf
 ```
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
+| `npm install` | Install dependencies |
 | `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Start server mode (HTTP + WS) |
+| `npm start` | Start server mode (HTTP + WS + HUD) |
 | `npm run cli` | Start CLI REPL mode |
-| `npm run dev` | Watch mode (auto-recompile) |
+| `npm run dev` | Watch mode (auto-recompile on changes) |
+| `npx mai --help` | Show CLI help (if installed globally) |
+| `npx mai doctor` | Run system diagnostics |
+| `npx mai config get <path>` | Get configuration value |
+| `npx mai config set <path> <value>` | Set configuration value |
+| `npx mai policy check <action.json>` | Simulate policy decision |
+| `npx mai task list` | List active tasks |
+| `npx mai task cancel <id>` | Cancel a running task |
+| `npx mai approvals list` | List pending approvals |
+| `npx mai mcp list` | List MCP servers |
+| `npx mai memory search <query>` | Search memory |
+| `npx mai audit list` | View audit log |
+
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test file
+npx vitest tests/policy-engine.test.ts
+
+# Run tests with coverage
+npx vitest --coverage
+
+# Run security tests
+npx vitest tests/security.test.ts
+```
 
 ## Customizing M.A.I.
 
@@ -915,6 +1077,54 @@ M.A.I. has a minimal dependency footprint:
 | `zod` | Schema validation |
 
 **Total: 7 runtime dependencies.** Browser control and email use zero additional packages — built on raw Node.js `tls`, `net`, and `child_process`.
+
+## Troubleshooting
+
+### Common Issues
+
+**LLM Connection Failed:**
+- Verify your LLM provider is running (e.g., `ollama serve` for local Ollama)
+- Check `LLM_BASE_URL` and `LLM_API_KEY` in `.env`
+- Test connectivity: `curl http://localhost:11434/api/tags` (for Ollama)
+
+**Model Not Found:**
+- Pull the model: `ollama pull llama3.2`
+- Verify model name matches exactly in `.env`
+- Check available models: `ollama list` or API endpoint
+
+**Browser Control Not Working:**
+- Launch Chrome/Brave with `--remote-debugging-port=9222`
+- Verify port is open: `lsof -i :9222`
+- Check `harness.config.json` has `browserControl.enabled: true`
+
+**Email Access Failing:**
+- Use App Password for Gmail (not regular password)
+- Verify IMAP/SMTP host and port
+- Check firewall allows outbound connections on ports 993 (IMAP) and 465 (SMTP)
+
+**WebSocket Connection Lost:**
+- Refresh the HUD page
+- Check server is running: `npm start`
+- Verify port 8080 is not blocked
+
+**Policy Blocking Actions:**
+- Review `agent/policy.md` for deny/approval rules
+- Use `mai policy check action.json` to simulate
+- Approve pending actions via HUD or CLI
+
+**High Memory Usage:**
+- Check background tasks: `mai task list`
+- Cancel unnecessary tasks: `mai task cancel <id>`
+- Reduce context size in config
+
+### Getting Help
+
+- **System Diagnostics:** Run `mai doctor` for comprehensive health check
+- **Audit Logs:** View recent events with `mai audit list`
+- **Documentation:** See [DEVELOPMENT.md](./DEVELOPMENT.md) for debugging guide
+- **Issues:** Report bugs on GitHub
+
+---
 
 ## License
 

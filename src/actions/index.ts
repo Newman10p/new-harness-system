@@ -15,8 +15,10 @@ import type {
 import { ACTION_TIMEOUT_MS } from "../core/constants.js";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const _req = createRequire(__filename);
+const _req = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import { executeTerminal } from "./primitives/execute-terminal.js";
