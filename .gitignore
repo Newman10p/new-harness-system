@@ -7,44 +7,41 @@ dist/
 build/
 target/
 
-# Python related
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.py.class
-.Python
-env/
-venv/
-.venv/
-.ENV
-.python-version
-
-# Logs
-*.log
+# TypeScript/JavaScript
+*.tsbuildinfo
+*.js.map
+*.jsx.map
+*.ts.map
 
 # Environment variables
 .env
 .env.local
-.env.*
+*.env.*
 
-# IDE
+# IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
 
+# Logs
+*.log
+
 # Coverage
 coverage/
-htmlcov/
-.coverage
-
-# Testing
+.nyc_output/
 .vitest/
-.mypy_cache/
-.pytest_cache/
 
-# System
+# Temporary files
+*.tmp
+*.temp
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# OS generated
 .DS_Store
 Thumbs.db
 ```
